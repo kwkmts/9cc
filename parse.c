@@ -38,6 +38,13 @@ static bool consume(char *op) {
     return true;
 }
 
+static char *consume_ident() {
+    if (token->kind != TK_IDENT) return NULL;
+    char *tok = token->str;
+    token = token->next;
+    return tok;
+}
+
 //次のトークンが期待している記号の時は、トークンを1つ読み進める
 //それ以外の場合にはエラーを報告
 static void expect(char *op) {
@@ -68,7 +75,9 @@ static Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
     return tok;
 }
 
-static bool startswith(char *p, char *q) { return memcmp(p, q, strlen(q)) == 0; }
+static bool startswith(char *p, char *q) {
+    return memcmp(p, q, strlen(q)) == 0;
+}
 
 //入力文字列pをトークナイズしてそれを返す
 Token *tokenize() {
@@ -93,7 +102,7 @@ Token *tokenize() {
         }
 
         // 1文字の区切り文字
-        if (strchr("+-*/()<>", *p)) {
+        if (strchr("+-*/()<>=;", *p)) {
             cur = new_token(TK_RESERVED, cur, p++, 1);
             continue;
         }
@@ -102,6 +111,12 @@ Token *tokenize() {
         if (isdigit(*p)) {
             cur = new_token(TK_NUM, cur, p, 0);
             cur->val = strtol(p, &p, 10);
+            continue;
+        }
+
+        //識別子
+        if ('a' <= *p && *p <= 'z') {
+            cur = new_token(TK_IDENT, cur, p++, 1);
             continue;
         }
 
@@ -131,6 +146,17 @@ static Node *new_node_num(int val) {
     return node;
 }
 
+static Node *new_node_var(char *tok) {
+    Node *node = calloc(1, sizeof(Node));
+    node->kind = ND_LVAR;
+    node->offset = (tok[0] - 'a' + 1) * 8;
+    return node;
+}
+
+void program();
+static Node *stmt();
+static Node *expr();
+static Node *assign();
 static Node *equality();
 static Node *relational();
 static Node *add();
@@ -138,8 +164,30 @@ static Node *mul();
 static Node *primary();
 static Node *unary();
 
-// expr = equality
-Node *expr() { return equality(); }
+// program = stmt*
+void program() {
+    int i = 0;
+    while (!at_eof()) code[i++] = stmt();
+    code[i] = NULL;
+}
+
+// stmt = expr ";"
+static Node *stmt() {
+    Node *node = expr();
+    expect(";");
+    return node;
+}
+
+// expr = assign
+static Node *expr() { return assign(); }
+
+// assign = equality ("=" assign)?
+static Node *assign() {
+    Node *node = equality();
+
+    if (consume("=")) node = new_node(ND_ASSIGN, node, assign());
+    return node;
+}
 
 // equality = relational ("==" relational | "!=" relational)*
 static Node *equality() {
@@ -201,14 +249,14 @@ static Node *mul() {
     }
 }
 
-// unary = ("+" | "-")? unary
+// unary = ("+" | "-")? unary | primary
 static Node *unary() {
     if (consume("+")) return unary();
     if (consume("-")) return new_node(ND_SUB, new_node_num(0), unary());
     return primary();
 }
 
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | ident | num
 static Node *primary() {
     //次のトークンが"("なら、"(" expr ")"のはず
     if (consume("(")) {
@@ -216,6 +264,10 @@ static Node *primary() {
         expect(")");
         return node;
     }
+
+    //もしくは識別子のはず
+    char *tok = consume_ident();
+    if (tok) return new_node_var(tok);
 
     //そうでなければ数値のはず
     return new_node_num(expect_number());

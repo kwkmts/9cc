@@ -6,12 +6,13 @@
 #include <string.h>
 
 //
-//parse.c
+// parse.c
 //
 
 //トークンの種類
 typedef enum {
     TK_RESERVED,  //記号
+    TK_IDENT,     //識別子
     TK_NUM,       //整数
     TK_EOF,       //入力の終わり
 } TokenKind;
@@ -41,15 +42,17 @@ Token *tokenize();
 
 //抽象構文木のノードの種類
 typedef enum {
-    ND_ADD,  // +
-    ND_SUB,  // -
-    ND_MUL,  // *
-    ND_DIV,  // /
-    ND_EQ,   // ==
-    ND_NE,   // !=
-    ND_LT,   // <
-    ND_LE,   // <=
-    ND_NUM,  // 整数
+    ND_ADD,     // +
+    ND_SUB,     // -
+    ND_MUL,     // *
+    ND_DIV,     // /
+    ND_EQ,      // ==
+    ND_NE,      // !=
+    ND_LT,      // <
+    ND_LE,      // <=
+    ND_ASSIGN,  // =
+    ND_LVAR,    //ローカル変数
+    ND_NUM,     // 整数
 } NodeKind;
 
 typedef struct Node Node;
@@ -59,12 +62,15 @@ struct Node {
     Node *lhs;      //左辺
     Node *rhs;      //右辺
     int val;        // kindがND_NUMの場合、その値
+    int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
 };
 
-Node *expr();
+extern Node *code[100];
+
+void program();
 
 //
-//codegen.c
+// codegen.c
 //
 
 void gen(Node *node);
