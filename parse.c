@@ -38,9 +38,9 @@ static bool consume(char *op) {
     return true;
 }
 
-static char *consume_ident() {
+static Token *consume_ident() {
     if (token->kind != TK_IDENT) return NULL;
-    char *tok = token->str;
+    Token *tok = token;
     token = token->next;
     return tok;
 }
@@ -79,6 +79,12 @@ static bool startswith(char *p, char *q) {
     return memcmp(p, q, strlen(q)) == 0;
 }
 
+static bool is_ident1(char c) {
+    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+}
+
+static bool is_ident2(char c) { return is_ident1(c) || ('0' <= c && c <= '9'); }
+
 //入力文字列pをトークナイズしてそれを返す
 Token *tokenize() {
     char *p = user_input;
@@ -115,8 +121,13 @@ Token *tokenize() {
         }
 
         //識別子
-        if ('a' <= *p && *p <= 'z') {
-            cur = new_token(TK_IDENT, cur, p++, 1);
+        if (is_ident1(*p)) {
+            char *start = p;
+            do {
+                p++;
+            } while (is_ident2(*p));
+
+            cur = new_token(TK_IDENT, cur, start++, p - start);
             continue;
         }
 
@@ -130,6 +141,14 @@ Token *tokenize() {
 //
 //パーサー
 //
+
+//変数を名前で検索。見つからなければNULLを返す
+static LVar *find_lvar(Token *tok) {
+    for (LVar *var = locals; var; var = var->next)
+        if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
+            return var;
+    return NULL;
+}
 
 static Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
     Node *node = calloc(1, sizeof(Node));
@@ -146,10 +165,25 @@ static Node *new_node_num(int val) {
     return node;
 }
 
-static Node *new_node_var(char *tok) {
+static Node *new_node_var(Token *tok) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = ND_LVAR;
-    node->offset = (tok[0] - 'a' + 1) * 8;
+
+    LVar *lvar = find_lvar(tok);
+    if (lvar) {
+        node->offset = lvar->offset;
+    } else {
+        lvar = calloc(1, sizeof(LVar));
+        lvar->next = locals;
+        lvar->name = tok->str;
+        lvar->len = tok->len;
+        if (locals)
+            lvar->offset = locals->offset + 8;
+        else
+            lvar->offset = 8;
+        node->offset = lvar->offset;
+        locals = lvar;
+    }
     return node;
 }
 
@@ -266,7 +300,7 @@ static Node *primary() {
     }
 
     //もしくは識別子のはず
-    char *tok = consume_ident();
+    Token *tok = consume_ident();
     if (tok) return new_node_var(tok);
 
     //そうでなければ数値のはず

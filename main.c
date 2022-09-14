@@ -6,6 +6,8 @@ Token *token;
 
 Node *code[100];
 
+LVar *locals;
+
 int main(int argc, char **argv) {
     if (argc != 2) {
         error("引数の個数が正しくありません");
