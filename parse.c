@@ -81,9 +81,17 @@ Token *tokenize() {
             continue;
         }
 
+        // else
         if (strncmp(p, "else", 4) == 0 && !is_alnum(p[4])) {
             cur = new_token(TK_ELSE, cur, p, 4);
             p += 4;
+            continue;
+        }
+
+        // while
+        if (strncmp(p, "while", 5) == 0 && !is_alnum(p[5])) {
+            cur = new_token(TK_WHILE, cur, p, 5);
+            p += 5;
             continue;
         }
 
@@ -237,6 +245,7 @@ void program() {
 
 // stmt = expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "while" "(" expr ")" stmt
 //      | "return" expr ";"
 static Node *stmt() {
     Node *node;
@@ -259,6 +268,17 @@ static Node *stmt() {
         if (consume("else", TK_ELSE)) {
             node->els = stmt();
         }
+
+    } else if (consume("while", TK_WHILE)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_WHILE;
+
+        if (consume("(", TK_RESERVED)) {
+            node->cond = expr();
+            expect(")");
+        }
+
+        node->then = stmt();
 
     } else if (consume("return", TK_RETURN)) {
         node = calloc(1, sizeof(Node));

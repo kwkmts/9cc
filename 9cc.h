@@ -21,6 +21,7 @@ typedef enum {
     TK_RETURN,    // return
     TK_IF,        // if
     TK_ELSE,      // else
+    TK_WHILE,     // while
     TK_EOF,       //入力の終わり
 } TokenKind;
 
@@ -70,7 +71,8 @@ typedef enum {
     ND_LVAR,    //ローカル変数
     ND_NUM,     // 整数
     ND_RETURN,  // return
-    ND_IF       // if
+    ND_IF,      // if
+    ND_WHILE    // while
 } NodeKind;
 
 typedef struct Node Node;
@@ -82,10 +84,9 @@ struct Node {
     int val;        // kindがND_NUMの場合、その値
     int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
 
-    // kindがND_IFの場合
-    Node *cond;  //条件式
-    Node *then;  // then節
-    Node *els;   // else節
+    Node *cond;  //条件式(kindがND_IFかND_WHILE)
+    Node *then;  // then節(kindがND_IFかND_WHILE)
+    Node *els;   // else節(kindがND_IF)
 };
 
 extern Node *code[100];
