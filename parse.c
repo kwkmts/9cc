@@ -28,41 +28,6 @@ void error_at(char *loc, char *fmt, ...) {
     exit(1);
 }
 
-//次のトークンが期待している記号の時は、トークンを1つ読み進めて真を返す
-//それ以外の場合は偽を返す
-static bool consume(char *op) {
-    if (token->kind != TK_RESERVED || strlen(op) != token->len ||
-        memcmp(token->str, op, token->len))
-        return false;
-    token = token->next;
-    return true;
-}
-
-static Token *consume_ident() {
-    if (token->kind != TK_IDENT) return NULL;
-    Token *tok = token;
-    token = token->next;
-    return tok;
-}
-
-//次のトークンが期待している記号の時は、トークンを1つ読み進める
-//それ以外の場合にはエラーを報告
-static void expect(char *op) {
-    if (token->kind != TK_RESERVED || strlen(op) != token->len ||
-        memcmp(token->str, op, token->len))
-        error_at(token->str, "'%s'ではありません", op);
-    token = token->next;
-}
-
-//次のトークンが数値の場合、トークンを1つ読み進めてその数値を返す
-//それ以外の場合にはエラーを報告
-static int expect_number() {
-    if (token->kind != TK_NUM) error_at(token->str, "数ではありません");
-    int val = token->val;
-    token = token->next;
-    return val;
-}
-
 static bool at_eof() { return token->kind == TK_EOF; }
 
 //新しいトークンを作成してcurに繋げる
@@ -85,6 +50,11 @@ static bool is_ident1(char c) {
 
 static bool is_ident2(char c) { return is_ident1(c) || ('0' <= c && c <= '9'); }
 
+int is_alnum(char c) {
+    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
+           ('0' <= c && c <= '9') || (c == '_');
+}
+
 //入力文字列pをトークナイズしてそれを返す
 Token *tokenize() {
     char *p = user_input;
@@ -96,6 +66,13 @@ Token *tokenize() {
         //空白文字はスキップ
         if (isspace(*p)) {
             p++;
+            continue;
+        }
+
+        // return
+        if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6])) {
+            cur = new_token(TK_RETURN, cur, p, 6);
+            p += 6;
             continue;
         }
 
@@ -141,6 +118,41 @@ Token *tokenize() {
 //
 //パーサー
 //
+
+//次のトークンが期待している記号の時は、トークンを1つ読み進めて真を返す
+//それ以外の場合は偽を返す
+static bool consume(char *op, TokenKind kind) {
+    if (token->kind != kind || strlen(op) != token->len ||
+        memcmp(token->str, op, token->len))
+        return false;
+    token = token->next;
+    return true;
+}
+
+static Token *consume_ident() {
+    if (token->kind != TK_IDENT) return NULL;
+    Token *tok = token;
+    token = token->next;
+    return tok;
+}
+
+//次のトークンが期待している記号の時は、トークンを1つ読み進める
+//それ以外の場合にはエラーを報告
+static void expect(char *op) {
+    if (token->kind != TK_RESERVED || strlen(op) != token->len ||
+        memcmp(token->str, op, token->len))
+        error_at(token->str, "'%s'ではありません", op);
+    token = token->next;
+}
+
+//次のトークンが数値の場合、トークンを1つ読み進めてその数値を返す
+//それ以外の場合にはエラーを報告
+static int expect_number() {
+    if (token->kind != TK_NUM) error_at(token->str, "数ではありません");
+    int val = token->val;
+    token = token->next;
+    return val;
+}
 
 //変数を名前で検索。見つからなければNULLを返す
 static LVar *find_lvar(Token *tok) {
@@ -205,9 +217,26 @@ void program() {
     code[i] = NULL;
 }
 
-// stmt = expr ";"
+// stmt = expr ";" | "return" expr ";"
 static Node *stmt() {
-    Node *node = expr();
+    Node *node;
+
+#ifdef ___DEBUG
+    printf("# debug:: (1)token->str: %s\n", token->str);
+#endif
+
+    if (consume("return", TK_RETURN)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_RETURN;
+        node->lhs = expr();
+    } else {
+        node = expr();
+    }
+
+#ifdef ___DEBUG
+    printf("# debug:: (2)token->str: %s\n", token->str);
+#endif
+
     expect(";");
     return node;
 }
@@ -219,7 +248,7 @@ static Node *expr() { return assign(); }
 static Node *assign() {
     Node *node = equality();
 
-    if (consume("=")) node = new_node(ND_ASSIGN, node, assign());
+    if (consume("=", TK_RESERVED)) node = new_node(ND_ASSIGN, node, assign());
     return node;
 }
 
@@ -228,9 +257,9 @@ static Node *equality() {
     Node *node = relational();
 
     for (;;) {
-        if (consume("=="))
+        if (consume("==", TK_RESERVED))
             node = new_node(ND_EQ, node, relational());
-        else if (consume("!="))
+        else if (consume("!=", TK_RESERVED))
             node = new_node(ND_NE, node, relational());
         else
             return node;
@@ -242,13 +271,13 @@ static Node *relational() {
     Node *node = add();
 
     for (;;) {
-        if (consume("<"))
+        if (consume("<", TK_RESERVED))
             node = new_node(ND_LT, node, add());
-        else if (consume("<="))
+        else if (consume("<=", TK_RESERVED))
             node = new_node(ND_LE, node, add());
-        else if (consume(">"))
+        else if (consume(">", TK_RESERVED))
             node = new_node(ND_LT, add(), node);
-        else if (consume(">="))
+        else if (consume(">=", TK_RESERVED))
             node = new_node(ND_LE, add(), node);
         else
             return node;
@@ -260,9 +289,9 @@ static Node *add() {
     Node *node = mul();
 
     for (;;) {
-        if (consume("+"))
+        if (consume("+", TK_RESERVED))
             node = new_node(ND_ADD, node, mul());
-        else if (consume("-"))
+        else if (consume("-", TK_RESERVED))
             node = new_node(ND_SUB, node, mul());
         else
             return node;
@@ -274,9 +303,9 @@ static Node *mul() {
     Node *node = unary();
 
     for (;;) {
-        if (consume("*"))
+        if (consume("*", TK_RESERVED))
             node = new_node(ND_MUL, node, unary());
-        else if (consume("/"))
+        else if (consume("/", TK_RESERVED))
             node = new_node(ND_DIV, node, unary());
         else
             return node;
@@ -285,15 +314,16 @@ static Node *mul() {
 
 // unary = ("+" | "-")? unary | primary
 static Node *unary() {
-    if (consume("+")) return unary();
-    if (consume("-")) return new_node(ND_SUB, new_node_num(0), unary());
+    if (consume("+", TK_RESERVED)) return unary();
+    if (consume("-", TK_RESERVED))
+        return new_node(ND_SUB, new_node_num(0), unary());
     return primary();
 }
 
 // primary = "(" expr ")" | ident | num
 static Node *primary() {
     //次のトークンが"("なら、"(" expr ")"のはず
-    if (consume("(")) {
+    if (consume("(", TK_RESERVED)) {
         Node *node = expr();
         expect(")");
         return node;

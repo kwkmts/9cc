@@ -1,5 +1,8 @@
 #include "9cc.h"
 
+//下をアンコメントしてデバッグモード
+// #define ___DEBUG
+
 char *user_input;
 
 Token *token;
@@ -16,6 +19,13 @@ int main(int argc, char **argv) {
     //トークナイズ&パース
     user_input = argv[1];
     token = tokenize();
+
+#ifdef ___DEBUG
+    for (Token *var = token; var->next; var = var->next) {
+        printf("# debug:: token->str: %s\n", var->str);
+        printf("# debug:: token->str: %d\n", var->kind);
+    }
+#endif
 
     program();
 
