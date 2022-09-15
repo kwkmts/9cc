@@ -1,14 +1,14 @@
 #include "9cc.h"
 
-//下をアンコメントしてデバッグモード
+#ifndef ___DEBUG
+//下の１行をアンコメントしてデバッグフラグを有効化
 // #define ___DEBUG
+#endif
 
+//グローバル変数の定義
 char *user_input;
-
 Token *token;
-
 Node *code[100];
-
 LVar *locals;
 
 int main(int argc, char **argv) {
@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
 #ifdef ___DEBUG
     for (Token *var = token; var->next; var = var->next) {
         printf("# debug:: token->str: %s\n", var->str);
-        printf("# debug:: token->str: %d\n", var->kind);
+        printf("# debug:: token->kind: %d\n", var->kind);
     }
 #endif
 

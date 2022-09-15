@@ -1,8 +1,9 @@
 #include "9cc.h"
 
-//
-//トークナイザー
-//
+#ifndef ___DEBUG
+//下の１行をアンコメントしてデバッグフラグを有効化
+// #define ___DEBUG
+#endif
 
 //エラーを報告する関数
 // printf()と同じ引数
@@ -27,6 +28,10 @@ void error_at(char *loc, char *fmt, ...) {
     fprintf(stderr, "\n");
     exit(1);
 }
+
+//
+//トークナイザー
+//
 
 static bool at_eof() { return token->kind == TK_EOF; }
 
@@ -66,6 +71,13 @@ Token *tokenize() {
         //空白文字はスキップ
         if (isspace(*p)) {
             p++;
+            continue;
+        }
+
+        // if
+        if (strncmp(p, "if", 2) == 0 && !is_alnum(p[2])) {
+            cur = new_token(TK_IF, cur, p, 2);
+            p += 2;
             continue;
         }
 
@@ -217,7 +229,9 @@ void program() {
     code[i] = NULL;
 }
 
-// stmt = expr ";" | "return" expr ";"
+// stmt = expr ";"
+//      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "return" expr ";"
 static Node *stmt() {
     Node *node;
 
@@ -225,19 +239,30 @@ static Node *stmt() {
     printf("# debug:: (1)token->str: %s\n", token->str);
 #endif
 
-    if (consume("return", TK_RETURN)) {
+    if (consume("if", TK_IF)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_IF;
+
+        if (consume("(", TK_RESERVED)) {
+            node->cond = expr();
+            expect(")");
+        }
+
+        node->then = stmt();
+    } else if (consume("return", TK_RETURN)) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_RETURN;
         node->lhs = expr();
+        expect(";");
     } else {
         node = expr();
+        expect(";");
     }
 
 #ifdef ___DEBUG
     printf("# debug:: (2)token->str: %s\n", token->str);
 #endif
 
-    expect(";");
     return node;
 }
 

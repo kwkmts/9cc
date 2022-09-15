@@ -1,8 +1,15 @@
 #include "9cc.h"
 
+#ifndef ___DEBUG
+//下の１行をアンコメントしてデバッグフラグを有効化
+// #define ___DEBUG
+#endif
+
 //
 //コード生成部
 //
+
+static int label_count;
 
 void gen_lval(Node *node) {
     if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
@@ -40,6 +47,17 @@ void gen(Node *node) {
             printf("    mov rsp, rbp\n");
             printf("    pop rbp\n");
             printf("    ret\n");
+            return;
+        case ND_IF:
+            gen(node->cond);
+
+            printf("    pop rax\n");
+            printf("    cmp rax, 0\n");
+            printf("    je .Lend%d\n", label_count);
+
+            gen(node->then);
+
+            printf(".Lend%d:\n", label_count++);
             return;
     }
 

@@ -9,12 +9,17 @@
 // parse.c
 //
 
+void error(char *fmt, ...);
+
+void error_at(char *loc, char *fmt, ...);
+
 //トークンの種類
 typedef enum {
     TK_RESERVED,  //記号
     TK_IDENT,     //識別子
     TK_NUM,       //整数
     TK_RETURN,    // return
+    TK_IF,        // if
     TK_EOF,       //入力の終わり
 } TokenKind;
 
@@ -48,10 +53,6 @@ extern char *user_input;
 //現在着目しているトークン
 extern Token *token;
 
-void error(char *fmt, ...);
-
-void error_at(char *loc, char *fmt, ...);
-
 Token *tokenize();
 
 //抽象構文木のノードの種類
@@ -67,7 +68,8 @@ typedef enum {
     ND_ASSIGN,  // =
     ND_LVAR,    //ローカル変数
     ND_NUM,     // 整数
-    ND_RETURN   // return
+    ND_RETURN,  // return
+    ND_IF       // if
 } NodeKind;
 
 typedef struct Node Node;
@@ -78,6 +80,10 @@ struct Node {
     Node *rhs;      //右辺
     int val;        // kindがND_NUMの場合、その値
     int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
+
+    // kindがND_IFの場合
+    Node *cond;  //条件式
+    Node *then;  // then節
 };
 
 extern Node *code[100];
