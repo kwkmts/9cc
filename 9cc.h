@@ -20,6 +20,7 @@ typedef enum {
     TK_NUM,       //整数
     TK_RETURN,    // return
     TK_IF,        // if
+    TK_ELSE,      // else
     TK_EOF,       //入力の終わり
 } TokenKind;
 
@@ -84,6 +85,7 @@ struct Node {
     // kindがND_IFの場合
     Node *cond;  //条件式
     Node *then;  // then節
+    Node *els;   // else節
 };
 
 extern Node *code[100];

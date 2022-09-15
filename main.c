@@ -22,8 +22,7 @@ int main(int argc, char **argv) {
 
 #ifdef ___DEBUG
     for (Token *var = token; var->next; var = var->next) {
-        printf("# debug:: token->str: %s\n", var->str);
-        printf("# debug:: token->kind: %d\n", var->kind);
+        printf("# debug:: (%d)token->str: %s\n", var->kind, var->str);
     }
 #endif
 
