@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
         error("引数の個数が正しくありません");
     }
 
-    //トークナイズ&パース
+    //トークナイズ
     user_input = argv[1];
     token = tokenize();
 
@@ -26,6 +26,7 @@ int main(int argc, char **argv) {
     }
 #endif
 
+    //パース
     program();
 
     //アセンブリの前半部分を出力
