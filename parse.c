@@ -95,6 +95,13 @@ Token *tokenize() {
             continue;
         }
 
+        // for
+        if (strncmp(p, "for", 3) == 0 && !is_alnum(p[3])) {
+            cur = new_token(TK_FOR, cur, p, 3);
+            p += 3;
+            continue;
+        }
+
         // return
         if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6])) {
             cur = new_token(TK_RETURN, cur, p, 6);
@@ -246,6 +253,7 @@ void program() {
 // stmt = expr ";"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "while" "(" expr ")" stmt
+//      | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 //      | "return" expr ";"
 static Node *stmt() {
     Node *node;
@@ -271,11 +279,34 @@ static Node *stmt() {
 
     } else if (consume("while", TK_WHILE)) {
         node = calloc(1, sizeof(Node));
-        node->kind = ND_WHILE;
+        node->kind = ND_LOOP;
 
         if (consume("(", TK_RESERVED)) {
             node->cond = expr();
             expect(")");
+        }
+
+        node->then = stmt();
+
+    } else if (consume("for", TK_FOR)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_LOOP;
+
+        if (consume("(", TK_RESERVED)) {
+            if (!consume(";", TK_RESERVED)) {
+                node->init = expr();
+                expect(";");
+            }
+
+            if (!consume(";", TK_RESERVED)) {
+                node->cond = expr();
+                expect(";");
+            }
+
+            if (!consume(")", TK_RESERVED)) {
+                node->after = expr();
+                expect(")");
+            }
         }
 
         node->then = stmt();
