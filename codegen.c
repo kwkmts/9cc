@@ -20,6 +20,10 @@ void gen_lval(Node *node) {
 }
 
 void gen(Node *node) {
+    #ifdef ___DEBUG
+    if (node->kind) printf("# debug:: node->kind: %d\n", node->kind);
+    #endif
+    
     switch (node->kind) {
         case ND_NUM:
             printf("    push %d\n", node->val);
@@ -40,6 +44,15 @@ void gen(Node *node) {
             printf("    mov [rax], rdi\n");
             printf("    push rdi\n");
             return;
+        case ND_BLOCK: {
+            for (Node *cur = node->body; cur; cur = cur->next) {
+                gen(cur);
+
+                // printf("    pop rax\n");
+            }
+
+            return;
+        }
         case ND_RETURN:
             gen(node->lhs);
 

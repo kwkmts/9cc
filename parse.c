@@ -110,6 +110,7 @@ void program() {
 }
 
 // stmt = expr ";"
+//      | "{" stmt* "}"
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "while" "(" expr ")" stmt
 //      | "for" "(" expr? ";" expr? ";" expr? ")" stmt
@@ -121,7 +122,20 @@ static Node *stmt() {
     printf("# debug:: (1)token->str: %s\n", token->str);
 #endif
 
-    if (consume("if", TK_IF)) {
+    if (consume("{", TK_RESERVED)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_BLOCK;
+        Node head = {};
+
+        for (Node *cur = &head; !consume("}", TK_RESERVED); cur = cur->next) {
+            Node *node = calloc(1, sizeof(Node));
+            node = stmt();
+            cur->next = node;
+        }
+
+        node->body = head.next;
+
+    } else if (consume("if", TK_IF)) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_IF;
 
