@@ -11,7 +11,7 @@
 
 static int label_count;
 
-void gen_lval(Node *node) {
+static void gen_lval(Node *node) {
     if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
 
     printf("    mov rax, rbp\n");
@@ -19,7 +19,7 @@ void gen_lval(Node *node) {
     printf("    push rax\n");
 }
 
-void gen_expr(Node *node) {
+static void gen_expr(Node *node) {
     switch (node->kind) {
         case ND_NUM:
             printf("    push %d\n", node->val);
@@ -87,7 +87,7 @@ void gen_expr(Node *node) {
     printf("    push rax\n");
 }
 
-void gen_stmt(Node *node) {
+static void gen_stmt(Node *node) {
     switch (node->kind) {
         case ND_BLOCK: {
             for (Node *cur = node->body; cur; cur = cur->next) gen_stmt(cur);
@@ -146,4 +146,37 @@ void gen_stmt(Node *node) {
         default:
             gen_expr(node);
     }
+}
+
+void codegen() {
+    int offset = 0;
+    for (LVar *var = locals; var; var = var->next) {
+        offset += 8;
+        var->offset = -offset;
+    }
+
+    //アセンブリの前半部分を出力
+    printf(".intel_syntax noprefix\n");
+    printf(".globl main\n");
+    printf("main:\n");
+
+    //プロローグ
+    //変数の領域を確保する
+    printf("    push rbp\n");
+    printf("    mov rbp, rsp\n");
+    printf("    sub rsp, %d\n", offset);
+
+    //先頭の式から順にコード生成
+    for (int i = 0; code[i]; i++) {
+        gen_stmt(code[i]);
+
+        //スタックトップに式全体の値が残っているはずなのでスタックが溢れないようにポップしておく
+        printf("    pop rax\n");
+    }
+
+    //エピローグ
+    //最後の式の結果がRAXに残っているのでそれが戻り値となる
+    printf("    mov rsp, rbp\n");
+    printf("    pop rbp\n");
+    printf("    ret\n");
 }

@@ -6,7 +6,7 @@
 #include <string.h>
 
 //
-// parse.c
+// tokenize.c
 //
 
 void error(char *fmt, ...);
@@ -37,6 +37,15 @@ struct Token {
     int len;         //トークンの長さ
 };
 
+//入力プログラム
+extern char *user_input;
+
+Token *tokenize();
+
+//
+// parse.c
+//
+
 typedef struct LVar LVar;
 
 //ローカル変数の型
@@ -50,13 +59,8 @@ struct LVar {
 //ローカル変数の連結リスト
 extern LVar *locals;
 
-//入力プログラム
-extern char *user_input;
-
 //現在着目しているトークン
 extern Token *token;
-
-Token *tokenize();
 
 //抽象構文木のノードの種類
 typedef enum {
@@ -103,4 +107,4 @@ void program();
 // codegen.c
 //
 
-void gen_stmt(Node *node);
+void codegen();
