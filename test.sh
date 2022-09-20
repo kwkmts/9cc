@@ -60,6 +60,7 @@ assert 2 '{ 1; return 2; 3; }'
 assert 3 '{ 1; 2; return 3; }'
 
 assert 3 '{ {1; {2;} return 3;} }'
+assert 5 '{ ;;; return 5; }'
 
 assert 3 '{ if (0) return 2; return 3; }'
 assert 3 '{ if (1-1) return 2; return 3; }'

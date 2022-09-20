@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
 
     //先頭の式から順にコード生成
     for (int i = 0; code[i]; i++) {
-        gen(code[i]);
+        gen_stmt(code[i]);
 
         //スタックトップに式全体の値が残っているはずなのでスタックが溢れないようにポップしておく
         printf("    pop rax\n");

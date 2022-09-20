@@ -60,21 +60,22 @@ Token *tokenize();
 
 //抽象構文木のノードの種類
 typedef enum {
-    ND_ADD,     // +
-    ND_SUB,     // -
-    ND_MUL,     // *
-    ND_DIV,     // /
-    ND_EQ,      // ==
-    ND_NE,      // !=
-    ND_LT,      // <
-    ND_LE,      // <=
-    ND_ASSIGN,  // =
-    ND_LVAR,    //ローカル変数
-    ND_NUM,     // 整数
-    ND_BLOCK,   // { ... }
-    ND_RETURN,  // return
-    ND_IF,      // if
-    ND_LOOP     // while, for
+    ND_ADD,        // +
+    ND_SUB,        // -
+    ND_MUL,        // *
+    ND_DIV,        // /
+    ND_EQ,         // ==
+    ND_NE,         // !=
+    ND_LT,         // <
+    ND_LE,         // <=
+    ND_ASSIGN,     // =
+    ND_LVAR,       //ローカル変数
+    ND_NUM,        // 整数
+    ND_BLOCK,      // { ... }
+    ND_RETURN,     // return
+    ND_IF,         // if
+    ND_LOOP,       // while, for
+    ND_NULL_STMT,  //空文
 } NodeKind;
 
 typedef struct Node Node;
@@ -102,4 +103,4 @@ void program();
 // codegen.c
 //
 
-void gen(Node *node);
+void gen_stmt(Node *node);

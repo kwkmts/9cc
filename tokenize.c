@@ -61,8 +61,7 @@ int is_alnum(char c) {
 //入力文字列pをトークナイズしてそれを返す
 Token *tokenize() {
     char *p = user_input;
-    Token head;
-    head.next = NULL;
+    Token head = {};
     Token *cur = &head;
 
     while (*p) {
@@ -142,6 +141,6 @@ Token *tokenize() {
         error_at(p, "トークナイズできません");
     }
 
-    cur = cur->next = new_token(TK_EOF, cur, p, 0);
+    new_token(TK_EOF, cur, p, 0);
     return head.next;
 }
