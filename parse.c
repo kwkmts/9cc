@@ -84,10 +84,7 @@ static Node *new_node_var(Token *tok) {
         lvar->next = locals;
         lvar->name = tok->str;
         lvar->len = tok->len;
-        if (locals)
-            lvar->offset = locals->offset + 8;
-        else
-            lvar->offset = 8;
+        lvar->offset = locals ? locals->offset + 8 : 8;
         node->offset = lvar->offset;
         locals = lvar;
     }
@@ -208,7 +205,8 @@ static Node *expr() { return assign(); }
 static Node *assign() {
     Node *node = equality();
 
-    if (consume("=", TK_RESERVED)) node = new_node_binary(ND_ASSIGN, node, assign());
+    if (consume("=", TK_RESERVED))
+        node = new_node_binary(ND_ASSIGN, node, assign());
     return node;
 }
 
@@ -280,7 +278,7 @@ static Node *unary() {
     return primary();
 }
 
-// primary = "(" expr ")" | ident | num
+// primary = "(" expr ")" | ident ("(" ")")? | num
 static Node *primary() {
     //次のトークンが"("なら、"(" expr ")"のはず
     if (consume("(", TK_RESERVED)) {
@@ -289,9 +287,17 @@ static Node *primary() {
         return node;
     }
 
-    //もしくは識別子のはず
+    //もしくは識別子(関数呼出または変数)のはず
     Token *tok = consume_ident();
-    if (tok) return new_node_var(tok);
+    if (tok) {
+        if (consume("(", TK_RESERVED)) {
+            expect(")");
+            Node *node = new_node(ND_FUNCALL);
+            node->funcname = strndup(tok->str, tok->len);
+            return node;
+        } else
+            return new_node_var(tok);
+    }
 
     //そうでなければ数値のはず
     return new_node_num(expect_number());

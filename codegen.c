@@ -31,6 +31,11 @@ static void gen_expr(Node *node) {
             printf("    mov rax, [rax]\n");
             printf("    push rax\n");
             return;
+        case ND_FUNCALL:
+            printf("    mov rax, 0\n");
+            printf("    call %s\n", node->funcname);
+            printf("    push rax\n");
+            return;
         case ND_ASSIGN:
             gen_lval(node->lhs);
             gen_expr(node->rhs);

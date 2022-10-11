@@ -4,5 +4,6 @@ tmp*
 a.out
 9cc
 .devcontainer/
+.vscode/
 *.core
 core

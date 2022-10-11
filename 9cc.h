@@ -75,6 +75,7 @@ typedef enum {
     ND_ASSIGN,     // =
     ND_LVAR,       //ローカル変数
     ND_NUM,        // 整数
+    ND_FUNCALL,    //関数呼出
     ND_BLOCK,      // { ... }
     ND_RETURN,     // return
     ND_IF,         // if
@@ -88,15 +89,19 @@ struct Node {
     NodeKind kind;  //ノードの種類
     Node *lhs;      //左辺
     Node *rhs;      //右辺
-    int val;        // kindがND_NUMの場合、その値
+
+    int val;  // kindがND_NUMの場合、その値
     int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
+    char *funcname;  // kindがND_FUNCALLの場合、関数名
+
     Node *cond;   //条件式(kindがND_IFかND_LOOP)
     Node *then;   // then節(kindがND_IFかND_LOOP)
     Node *els;    // else節(kindがND_IF)
     Node *init;   //初期化式(kindがND_LOOP(for文))
     Node *after;  //更新式(kindがND_LOOP(for文))
-    Node *body;   // kindがND_BLOCKの場合、{ ... }の中身
-    Node *next;   //{ ... }の中において、次の式を表す
+
+    Node *body;  // kindがND_BLOCKの場合、{ ... }の中身
+    Node *next;  //{ ... }の中において、次の式を表す
 };
 
 extern Node *code[100];
