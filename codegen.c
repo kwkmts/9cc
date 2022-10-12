@@ -10,6 +10,7 @@
 //
 
 static int label_count;
+static char *argreg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 static void gen_lval(Node *node) {
     if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
@@ -31,11 +32,22 @@ static void gen_expr(Node *node) {
             printf("    mov rax, [rax]\n");
             printf("    push rax\n");
             return;
-        case ND_FUNCALL:
+        case ND_FUNCALL: {
+            int nargs = 0;
+            for (Node *arg = node->args; arg; arg = arg->next) {
+                gen_expr(arg);
+                nargs++;
+            }
+
+            for (int i = nargs - 1; i >= 0; i--) {
+                printf("    pop %s\n", argreg[i]);
+            }
+
             printf("    mov rax, 0\n");
             printf("    call %s\n", node->funcname);
             printf("    push rax\n");
             return;
+        }
         case ND_ASSIGN:
             gen_lval(node->lhs);
             gen_expr(node->rhs);

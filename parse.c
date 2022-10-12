@@ -278,7 +278,7 @@ static Node *unary() {
     return primary();
 }
 
-// primary = "(" expr ")" | ident ("(" ")")? | num
+// primary = "(" expr ")" | ident ("(" (assign ("," assign)*)? ")")? | num
 static Node *primary() {
     //次のトークンが"("なら、"(" expr ")"のはず
     if (consume("(", TK_RESERVED)) {
@@ -287,16 +287,30 @@ static Node *primary() {
         return node;
     }
 
-    //もしくは識別子(関数呼出または変数)のはず
+    //もしくは識別子のはず
     Token *tok = consume_ident();
     if (tok) {
+        //関数呼び出し
         if (consume("(", TK_RESERVED)) {
-            expect(")");
+            Token *start = tok;
+            tok = tok->next->next;
+
+            Node head = {};
+            Node *cur = &head;
+
+            while (!consume(")", TK_RESERVED)) {
+                if (consume(",", TK_RESERVED)) continue;
+                cur = cur->next = assign();
+            }
+
             Node *node = new_node(ND_FUNCALL);
-            node->funcname = strndup(tok->str, tok->len);
+            node->funcname = strndup(start->str, start->len);
+            node->args = head.next;
             return node;
-        } else
-            return new_node_var(tok);
+        }
+
+        //変数
+        return new_node_var(tok);
     }
 
     //そうでなければ数値のはず

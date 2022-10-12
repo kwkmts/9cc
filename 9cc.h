@@ -92,7 +92,9 @@ struct Node {
 
     int val;  // kindがND_NUMの場合、その値
     int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
+
     char *funcname;  // kindがND_FUNCALLの場合、関数名
+    Node *args;       // kindがND_FUNCALLの場合、その引数リスト
 
     Node *cond;   //条件式(kindがND_IFかND_LOOP)
     Node *then;   // then節(kindがND_IFかND_LOOP)
