@@ -12,6 +12,11 @@
 static int label_count;
 static char *argreg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
+// nをalignの直近の倍数に切り上げる
+static int align_to(int n, int align) {
+    return (n + align - 1) / align * align;
+}
+
 static void gen_lval(Node *node) {
     if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
 
@@ -165,35 +170,41 @@ static void gen_stmt(Node *node) {
     }
 }
 
-void codegen() {
+static void assign_lvar_offset(Function *fn) {
     int offset = 0;
     for (LVar *var = locals; var; var = var->next) {
         offset += 8;
         var->offset = -offset;
     }
+    fn->stack_size = align_to(offset, 16);
+}
 
-    //アセンブリの前半部分を出力
-    printf(".intel_syntax noprefix\n");
-    printf(".globl main\n");
-    printf("main:\n");
+void codegen() {
+    int i = 0;
+    for (Function *fn = prog.next; fn; fn = fn->next) {
+        assign_lvar_offset(fn);
 
-    //プロローグ
-    //変数の領域を確保する
-    printf("    push rbp\n");
-    printf("    mov rbp, rsp\n");
-    printf("    sub rsp, %d\n", offset);
+        //アセンブリの前半部分を出力
+        printf(".intel_syntax noprefix\n");
+        printf(".globl %s\n", fn->name);
+        printf("%s:\n", fn->name);
 
-    //先頭の式から順にコード生成
-    for (int i = 0; code[i]; i++) {
-        gen_stmt(code[i]);
+        //プロローグ
+        //変数の領域を確保する
+        printf("    push rbp\n");
+        printf("    mov rbp, rsp\n");
+        printf("    sub rsp, %d\n", fn->stack_size);
+
+        //先頭の式から順にコード生成
+        gen_stmt(fn->body);
 
         //スタックトップに式全体の値が残っているはずなのでスタックが溢れないようにポップしておく
         printf("    pop rax\n");
-    }
 
-    //エピローグ
-    //最後の式の結果がRAXに残っているのでそれが戻り値となる
-    printf("    mov rsp, rbp\n");
-    printf("    pop rbp\n");
-    printf("    ret\n");
+        //エピローグ
+        //最後の式の結果がRAXに残っているのでそれが戻り値となる
+        printf("    mov rsp, rbp\n");
+        printf("    pop rbp\n");
+        printf("    ret\n");
+    }
 }

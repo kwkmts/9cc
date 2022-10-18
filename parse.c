@@ -92,6 +92,7 @@ static Node *new_node_var(Token *tok) {
 }
 
 void program();
+static Function *function();
 static Node *stmt();
 static Node *expr();
 static Node *assign();
@@ -102,11 +103,42 @@ static Node *mul();
 static Node *primary();
 static Node *unary();
 
-// program = stmt*
+// program = function-definition*
 void program() {
-    int i = 0;
-    while (!at_eof()) code[i++] = stmt();
-    code[i] = NULL;
+    Function *cur = &prog;
+    while (!at_eof()) cur = cur->next = function();
+}
+
+// function-definition = ident "(" ")" "{" stmt* "}"
+static Function *function() {
+    locals = NULL;
+
+    Function *fn = calloc(1, sizeof(Function));
+
+    Token *tok = consume_ident();
+    if (!tok) error_at(token->str, "識別子ではありません");
+
+    if (consume("(", TK_RESERVED)) expect(")");
+
+    fn->name = strndup(tok->str, tok->len);
+
+    if (consume("{", TK_RESERVED)) {
+        Node *node = new_node(ND_BLOCK);
+        Node head = {};
+
+        for (Node *cur = &head; !consume("}", TK_RESERVED); cur = cur->next) {
+            Node *node = calloc(1, sizeof(Node));
+            node = stmt();
+            cur->next = node;
+        }
+
+        node->body = head.next;
+        fn->body = node;
+    }
+
+    fn->locals = locals;
+
+    return fn;
 }
 
 // stmt = expr? ";"

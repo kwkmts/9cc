@@ -47,6 +47,8 @@ Token *tokenize();
 //
 
 typedef struct LVar LVar;
+typedef struct Function Function;
+typedef struct Node Node;
 
 //ローカル変数の型
 struct LVar {
@@ -61,6 +63,15 @@ extern LVar *locals;
 
 //現在着目しているトークン
 extern Token *token;
+
+//関数の型
+struct Function {
+    Function *next;
+    char *name;
+    Node *body;
+    LVar *locals;
+    int stack_size;
+};
 
 //抽象構文木のノードの種類
 typedef enum {
@@ -83,8 +94,6 @@ typedef enum {
     ND_NULL_STMT,  //空文
 } NodeKind;
 
-typedef struct Node Node;
-
 struct Node {
     NodeKind kind;  //ノードの種類
     Node *lhs;      //左辺
@@ -94,7 +103,7 @@ struct Node {
     int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
 
     char *funcname;  // kindがND_FUNCALLの場合、関数名
-    Node *args;       // kindがND_FUNCALLの場合、その引数リスト
+    Node *args;      // kindがND_FUNCALLの場合、その引数リスト
 
     Node *cond;   //条件式(kindがND_IFかND_LOOP)
     Node *then;   // then節(kindがND_IFかND_LOOP)
@@ -106,7 +115,7 @@ struct Node {
     Node *next;  //{ ... }の中において、次の式を表す
 };
 
-extern Node *code[100];
+extern Function prog;
 
 void program();
 

@@ -8,7 +8,7 @@
 //グローバル変数の定義
 char *user_input;
 Token *token;
-Node *code[100];
+Function prog;
 LVar *locals;
 
 int main(int argc, char **argv) {
