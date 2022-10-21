@@ -19,6 +19,8 @@ static bool consume(char *op, TokenKind kind) {
     return true;
 }
 
+//次のトークンが識別子の場合、トークンを1つ読み進めてその識別子を返す
+//それ以外の場合はNULLを返す
 static Token *consume_ident() {
     if (token->kind != TK_IDENT) return NULL;
     Token *tok = token;
@@ -42,6 +44,14 @@ static int expect_number() {
     int val = token->val;
     token = token->next;
     return val;
+}
+
+//次のトークンが識別子の場合、トークンを1つ読み進めてその識別子を返す
+//それ以外の場合にはエラーを報告
+static Token *expect_ident() {
+    Token *ident = consume_ident();
+    if (!ident) error_at(token->str, "識別子ではありません");
+    return ident;
 }
 
 static bool at_eof() { return token->kind == TK_EOF; }
@@ -84,14 +94,12 @@ static Node *new_node_var(Token *tok) {
         lvar->next = locals;
         lvar->name = tok->str;
         lvar->len = tok->len;
-        lvar->offset = locals ? locals->offset + 8 : 8;
-        node->offset = lvar->offset;
+        node->offset = lvar->offset = locals ? locals->offset + 8 : 8;
         locals = lvar;
     }
     return node;
 }
 
-void program();
 static Function *function();
 static Node *stmt();
 static Node *expr();
@@ -109,18 +117,26 @@ void program() {
     while (!at_eof()) cur = cur->next = function();
 }
 
-// function-definition = ident "(" ")" "{" stmt* "}"
+// function-definition = ident "(" (ident ("," ident)*)? ")" "{" stmt* "}"
 static Function *function() {
     locals = NULL;
 
     Function *fn = calloc(1, sizeof(Function));
 
-    Token *tok = consume_ident();
-    if (!tok) error_at(token->str, "識別子ではありません");
+    Token *tok = expect_ident();
 
-    if (consume("(", TK_RESERVED)) expect(")");
+    if (consume("(", TK_RESERVED)) {
+        for (; !consume(")", TK_RESERVED);) {
+            if (consume(",", TK_RESERVED)) continue;
+
+            Token *tok = expect_ident();
+
+            new_node_var(tok);
+        }
+    };
 
     fn->name = strndup(tok->str, tok->len);
+    fn->params = locals;
 
     if (consume("{", TK_RESERVED)) {
         Node *node = new_node(ND_BLOCK);

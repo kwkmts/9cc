@@ -195,6 +195,11 @@ void codegen() {
         printf("    mov rbp, rsp\n");
         printf("    sub rsp, %d\n", fn->stack_size);
 
+        //レジスタによって渡された引数の値をスタックに保存する
+        int i = 0;
+        for (LVar *var = fn->params; var; var = var->next)
+            printf("    mov [rbp%d], %s\n", var->offset, argreg[i++]);
+
         //先頭の式から順にコード生成
         gen_stmt(fn->body);
 

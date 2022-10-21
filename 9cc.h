@@ -69,6 +69,7 @@ struct Function {
     Function *next;
     char *name;
     Node *body;
+    LVar *params;
     LVar *locals;
     int stack_size;
 };
