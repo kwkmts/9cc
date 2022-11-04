@@ -10,7 +10,7 @@
 //
 
 static int label_count;
-static char *argreg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *const argreg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 // nをalignの直近の倍数に切り上げる
 static int align_to(int n, int align) {
@@ -18,7 +18,9 @@ static int align_to(int n, int align) {
 }
 
 static void gen_lval(Node *node) {
-    if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
+    if (node->kind != ND_LVAR) {
+        error("代入の左辺値が変数ではありません");
+    }
 
     printf("    mov rax, rbp\n");
     printf("    sub rax, %d\n", node->offset);
@@ -62,6 +64,7 @@ static void gen_expr(Node *node) {
             printf("    mov [rax], rdi\n");
             printf("    push rdi\n");
             return;
+        default:;
     }
 
     gen_expr(node->lhs);
@@ -104,6 +107,7 @@ static void gen_expr(Node *node) {
             printf("    setle al\n");
             printf("    movzb rax, al\n");
             break;
+        default:;
     }
 
     printf("    push rax\n");
@@ -112,7 +116,9 @@ static void gen_expr(Node *node) {
 static void gen_stmt(Node *node) {
     switch (node->kind) {
         case ND_BLOCK: {
-            for (Node *cur = node->body; cur; cur = cur->next) gen_stmt(cur);
+            for (Node *cur = node->body; cur; cur = cur->next) {
+                gen_stmt(cur);
+            }
 
             return;
         }
@@ -137,7 +143,9 @@ static void gen_stmt(Node *node) {
             printf("    jmp .Lend%d\n", c);
             printf(".Lelse%d:\n", c);
 
-            if (node->els) gen_stmt(node->els);
+            if (node->els) {
+                gen_stmt(node->els);
+            }
 
             printf(".Lend%d:\n", c);
 
@@ -146,18 +154,24 @@ static void gen_stmt(Node *node) {
         case ND_LOOP: {
             int c = label_count++;
 
-            if (node->init) gen_expr(node->init);
+            if (node->init) {
+                gen_expr(node->init);
+            }
 
             printf(".Lbegin%d:\n", c);
 
-            if (node->cond) gen_expr(node->cond);
+            if (node->cond) {
+                gen_expr(node->cond);
+            }
 
             printf("    pop rax\n");
             printf("    cmp rax, 0\n");
             printf("    je .Lend%d\n", c);
 
             gen_stmt(node->then);
-            if (node->after) gen_expr(node->after);
+            if (node->after) {
+                gen_expr(node->after);
+            }
 
             printf("    jmp .Lbegin%d\n", c);
             printf(".Lend%d:\n", c);
@@ -197,8 +211,9 @@ void codegen() {
 
         //レジスタによって渡された引数の値をスタックに保存する
         int i = 0;
-        for (LVar *var = fn->params; var; var = var->next)
+        for (LVar *var = fn->params; var; var = var->next) {
             printf("    mov [rbp%d], %s\n", var->offset, argreg[i++]);
+        }
 
         //先頭の式から順にコード生成
         gen_stmt(fn->body);

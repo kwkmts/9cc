@@ -11,18 +11,14 @@
 
 void error(char *fmt, ...);
 
-void error_at(char *loc, char *fmt, ...);
+void error_at(const char *loc, char *fmt, ...);
 
 //トークンの種類
 typedef enum {
     TK_RESERVED,  //記号
     TK_IDENT,     //識別子
     TK_NUM,       //整数
-    TK_RETURN,    // return
-    TK_IF,        // if
-    TK_ELSE,      // else
-    TK_WHILE,     // while
-    TK_FOR,       // for
+    TK_KEYWORD,   //予約語
     TK_EOF,       //入力の終わり
 } TokenKind;
 

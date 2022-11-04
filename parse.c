@@ -13,8 +13,9 @@
 //それ以外の場合は偽を返す
 static bool consume(char *op, TokenKind kind) {
     if (token->kind != kind || strlen(op) != token->len ||
-        memcmp(token->str, op, token->len))
+        memcmp(token->str, op, token->len)) {
         return false;
+    }
     token = token->next;
     return true;
 }
@@ -22,7 +23,9 @@ static bool consume(char *op, TokenKind kind) {
 //次のトークンが識別子の場合、トークンを1つ読み進めてその識別子を返す
 //それ以外の場合はNULLを返す
 static Token *consume_ident() {
-    if (token->kind != TK_IDENT) return NULL;
+    if (token->kind != TK_IDENT) {
+        return NULL;
+    }
     Token *tok = token;
     token = token->next;
     return tok;
@@ -32,15 +35,18 @@ static Token *consume_ident() {
 //それ以外の場合にはエラーを報告
 static void expect(char *op) {
     if (token->kind != TK_RESERVED || strlen(op) != token->len ||
-        memcmp(token->str, op, token->len))
+        memcmp(token->str, op, token->len)) {
         error_at(token->str, "'%s'ではありません", op);
+    }
     token = token->next;
 }
 
 //次のトークンが数値の場合、トークンを1つ読み進めてその数値を返す
 //それ以外の場合にはエラーを報告
 static int expect_number() {
-    if (token->kind != TK_NUM) error_at(token->str, "数ではありません");
+    if (token->kind != TK_NUM) {
+        error_at(token->str, "数ではありません");
+    }
     int val = token->val;
     token = token->next;
     return val;
@@ -50,7 +56,9 @@ static int expect_number() {
 //それ以外の場合にはエラーを報告
 static Token *expect_ident() {
     Token *ident = consume_ident();
-    if (!ident) error_at(token->str, "識別子ではありません");
+    if (!ident) {
+        error_at(token->str, "識別子ではありません");
+    }
     return ident;
 }
 
@@ -58,9 +66,11 @@ static bool at_eof() { return token->kind == TK_EOF; }
 
 //変数を名前で検索。見つからなければNULLを返す
 static LVar *find_lvar(Token *tok) {
-    for (LVar *var = locals; var; var = var->next)
-        if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
+    for (LVar *var = locals; var; var = var->next) {
+        if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
             return var;
+        }
+    }
     return NULL;
 }
 
@@ -102,6 +112,7 @@ static Node *new_node_var(Token *tok) {
 
 static Function *function();
 static Node *stmt();
+static Node *compound_stmt();
 static Node *expr();
 static Node *assign();
 static Node *equality();
@@ -114,10 +125,12 @@ static Node *unary();
 // program = function-definition*
 void program() {
     Function *cur = &prog;
-    while (!at_eof()) cur = cur->next = function();
+    while (!at_eof()) {
+        cur = cur->next = function();
+    }
 }
 
-// function-definition = ident "(" (ident ("," ident)*)? ")" "{" stmt* "}"
+// function-definition = ident "(" (ident ("," ident)*)? ")" "{" compound-stmt
 static Function *function() {
     locals = NULL;
 
@@ -126,8 +139,10 @@ static Function *function() {
     Token *tok = expect_ident();
 
     if (consume("(", TK_RESERVED)) {
-        for (; !consume(")", TK_RESERVED);) {
-            if (consume(",", TK_RESERVED)) continue;
+        while (!consume(")", TK_RESERVED)) {
+            if (consume(",", TK_RESERVED)) {
+                continue;
+            }
 
             Token *tok = expect_ident();
 
@@ -139,17 +154,7 @@ static Function *function() {
     fn->params = locals;
 
     if (consume("{", TK_RESERVED)) {
-        Node *node = new_node(ND_BLOCK);
-        Node head = {};
-
-        for (Node *cur = &head; !consume("}", TK_RESERVED); cur = cur->next) {
-            Node *node = calloc(1, sizeof(Node));
-            node = stmt();
-            cur->next = node;
-        }
-
-        node->body = head.next;
-        fn->body = node;
+        fn->body = compound_stmt();
     }
 
     fn->locals = locals;
@@ -158,7 +163,7 @@ static Function *function() {
 }
 
 // stmt = expr? ";"
-//      | "{" stmt* "}"
+//      | "{" compound-stmt
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "while" "(" expr ")" stmt
 //      | "for" "(" expr? ";" expr? ";" expr? ")" stmt
@@ -171,18 +176,9 @@ static Node *stmt() {
 #endif
 
     if (consume("{", TK_RESERVED)) {
-        node = new_node(ND_BLOCK);
-        Node head = {};
+        node = compound_stmt();
 
-        for (Node *cur = &head; !consume("}", TK_RESERVED); cur = cur->next) {
-            Node *node = calloc(1, sizeof(Node));
-            node = stmt();
-            cur->next = node;
-        }
-
-        node->body = head.next;
-
-    } else if (consume("if", TK_IF)) {
+    } else if (consume("if", TK_KEYWORD)) {
         node = new_node(ND_IF);
 
         if (consume("(", TK_RESERVED)) {
@@ -192,11 +188,11 @@ static Node *stmt() {
 
         node->then = stmt();
 
-        if (consume("else", TK_ELSE)) {
+        if (consume("else", TK_KEYWORD)) {
             node->els = stmt();
         }
 
-    } else if (consume("while", TK_WHILE)) {
+    } else if (consume("while", TK_KEYWORD)) {
         node = new_node(ND_LOOP);
 
         if (consume("(", TK_RESERVED)) {
@@ -206,7 +202,7 @@ static Node *stmt() {
 
         node->then = stmt();
 
-    } else if (consume("for", TK_FOR)) {
+    } else if (consume("for", TK_KEYWORD)) {
         node = new_node(ND_LOOP);
 
         if (consume("(", TK_RESERVED)) {
@@ -228,12 +224,14 @@ static Node *stmt() {
 
         node->then = stmt();
 
-    } else if (consume("return", TK_RETURN)) {
+    } else if (consume("return", TK_KEYWORD)) {
         node = new_node(ND_RETURN);
         node->lhs = expr();
         expect(";");
+
     } else if (consume(";", TK_RESERVED)) {
         node = new_node(ND_NULL_STMT);
+
     } else {
         node = expr();
         expect(";");
@@ -246,6 +244,22 @@ static Node *stmt() {
     return node;
 }
 
+// compound-stmt = stmt* "}"
+static Node *compound_stmt() {
+    Node *node = new_node(ND_BLOCK);
+    Node head = {};
+
+    for (Node *cur = &head; !consume("}", TK_RESERVED); cur = cur->next) {
+        Node *node = calloc(1, sizeof(Node));
+        node = stmt();
+        cur->next = node;
+    }
+
+    node->body = head.next;
+
+    return node;
+}
+
 // expr = assign
 static Node *expr() { return assign(); }
 
@@ -253,8 +267,10 @@ static Node *expr() { return assign(); }
 static Node *assign() {
     Node *node = equality();
 
-    if (consume("=", TK_RESERVED))
+    if (consume("=", TK_RESERVED)) {
         node = new_node_binary(ND_ASSIGN, node, assign());
+    }
+
     return node;
 }
 
@@ -263,12 +279,15 @@ static Node *equality() {
     Node *node = relational();
 
     for (;;) {
-        if (consume("==", TK_RESERVED))
+        if (consume("==", TK_RESERVED)) {
             node = new_node_binary(ND_EQ, node, relational());
-        else if (consume("!=", TK_RESERVED))
+
+        } else if (consume("!=", TK_RESERVED)) {
             node = new_node_binary(ND_NE, node, relational());
-        else
+
+        } else {
             return node;
+        }
     }
 }
 
@@ -277,16 +296,21 @@ static Node *relational() {
     Node *node = add();
 
     for (;;) {
-        if (consume("<", TK_RESERVED))
+        if (consume("<", TK_RESERVED)) {
             node = new_node_binary(ND_LT, node, add());
-        else if (consume("<=", TK_RESERVED))
+
+        } else if (consume("<=", TK_RESERVED)) {
             node = new_node_binary(ND_LE, node, add());
-        else if (consume(">", TK_RESERVED))
+
+        } else if (consume(">", TK_RESERVED)) {
             node = new_node_binary(ND_LT, add(), node);
-        else if (consume(">=", TK_RESERVED))
+
+        } else if (consume(">=", TK_RESERVED)) {
             node = new_node_binary(ND_LE, add(), node);
-        else
+
+        } else {
             return node;
+        }
     }
 }
 
@@ -295,12 +319,15 @@ static Node *add() {
     Node *node = mul();
 
     for (;;) {
-        if (consume("+", TK_RESERVED))
+        if (consume("+", TK_RESERVED)) {
             node = new_node_binary(ND_ADD, node, mul());
-        else if (consume("-", TK_RESERVED))
+
+        } else if (consume("-", TK_RESERVED)) {
             node = new_node_binary(ND_SUB, node, mul());
-        else
+
+        } else {
             return node;
+        }
     }
 }
 
@@ -309,20 +336,28 @@ static Node *mul() {
     Node *node = unary();
 
     for (;;) {
-        if (consume("*", TK_RESERVED))
+        if (consume("*", TK_RESERVED)) {
             node = new_node_binary(ND_MUL, node, unary());
-        else if (consume("/", TK_RESERVED))
+
+        } else if (consume("/", TK_RESERVED)) {
             node = new_node_binary(ND_DIV, node, unary());
-        else
+
+        } else {
             return node;
+        }
     }
 }
 
 // unary = ("+" | "-")? unary | primary
 static Node *unary() {
-    if (consume("+", TK_RESERVED)) return unary();
-    if (consume("-", TK_RESERVED))
+    if (consume("+", TK_RESERVED)) {
+        return unary();
+    }
+
+    if (consume("-", TK_RESERVED)) {
         return new_node_binary(ND_SUB, new_node_num(0), unary());
+    }
+
     return primary();
 }
 
@@ -347,7 +382,9 @@ static Node *primary() {
             Node *cur = &head;
 
             while (!consume(")", TK_RESERVED)) {
-                if (consume(",", TK_RESERVED)) continue;
+                if (consume(",", TK_RESERVED)) {
+                    continue;
+                }
                 cur = cur->next = assign();
             }
 
