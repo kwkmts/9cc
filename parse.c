@@ -87,6 +87,12 @@ static Node *new_node_binary(NodeKind kind, Node *lhs, Node *rhs) {
     return node;
 }
 
+static Node *new_node_unary(NodeKind kind, Node *expr) {
+    Node *node = new_node(kind);
+    node->lhs = expr;
+    return node;
+}
+
 static Node *new_node_num(int val) {
     Node *node = new_node(ND_NUM);
     node->val = val;
@@ -348,7 +354,7 @@ static Node *mul() {
     }
 }
 
-// unary = ("+" | "-")? unary | primary
+// unary = ("+" | "-")? unary | ("*" | "&") unary | primary
 static Node *unary() {
     if (consume("+", TK_RESERVED)) {
         return unary();
@@ -356,6 +362,14 @@ static Node *unary() {
 
     if (consume("-", TK_RESERVED)) {
         return new_node_binary(ND_SUB, new_node_num(0), unary());
+    }
+
+    if (consume("*", TK_RESERVED)) {
+        return new_node_unary(ND_DEREF, unary());
+    }
+
+    if (consume("&", TK_RESERVED)) {
+        return new_node_unary(ND_ADDR, unary());
     }
 
     return primary();

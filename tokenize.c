@@ -98,7 +98,7 @@ Token *tokenize() {
         }
 
         // 1文字の区切り文字
-        if (strchr("+-*/()<>{}=;,", *p)) {
+        if (strchr("+-*/&()<>{}=;,", *p)) {
             cur = new_token(TK_RESERVED, cur, p++, 1);
             continue;
         }
@@ -117,7 +117,8 @@ Token *tokenize() {
                 p++;
             } while (is_ident2(*p));
 
-            cur = new_token(TK_IDENT, cur, start++, p - start);
+            cur = new_token(TK_IDENT, cur, start, p - start);
+            start++;
             continue;
         }
 
