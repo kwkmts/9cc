@@ -59,7 +59,7 @@ static bool is_alnum(char c) {
 }
 
 static size_t is_keyword(char *c) {
-    char *kw[] = {"if", "else", "while", "for", "return"};
+    char *kw[] = {"if", "else", "while", "for", "return", "int"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         size_t len = strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {
@@ -82,6 +82,7 @@ Token *tokenize() {
             continue;
         }
 
+        //予約語
         size_t length = is_keyword(p);
         if (length) {
             cur = new_token(TK_KEYWORD, cur, p, length);

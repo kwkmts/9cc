@@ -99,21 +99,23 @@ static Node *new_node_num(int val) {
     return node;
 }
 
-static Node *new_node_var(Token *tok) {
+static Node *new_node_var(LVar *var) {
     Node *node = new_node(ND_LVAR);
-
-    LVar *lvar = find_lvar(tok);
-    if (lvar) {
-        node->offset = lvar->offset;
-    } else {
-        lvar = calloc(1, sizeof(LVar));
-        lvar->next = locals;
-        lvar->name = tok->str;
-        lvar->len = tok->len;
-        node->offset = lvar->offset = locals ? locals->offset + 8 : 8;
-        locals = lvar;
-    }
+    node->offset = var->offset;
+    node->ty = var->ty;
+    node->lvar = var;
     return node;
+}
+
+static LVar *new_lvar(Token *tok, char *name, Type *ty) {
+    LVar *lvar = calloc(1, sizeof(LVar));
+    lvar->next = locals;
+    lvar->name = name;
+    lvar->len = tok->len;
+    lvar->offset = locals ? locals->offset + 8 : 8;
+    lvar->ty = ty;
+    locals = lvar;
+    return lvar;
 }
 
 static Function *function();
@@ -136,13 +138,34 @@ void program() {
     }
 }
 
-// function-definition = ident "(" (ident ("," ident)*)? ")" "{" compound-stmt
+// declspec = int
+static Type *declspec() {
+    consume("int", TK_KEYWORD);
+    return ty_int;
+}
+
+// declarator = "*"* indent
+static Type *declarator(Type *ty) {
+    while (consume("*", TK_RESERVED)) {
+        ty = pointer_to(ty);
+    }
+
+    Token *tok = expect_ident();
+    ty->name = tok;
+    return ty;
+}
+
+// function-definition
+//             = declspec declarator "(" func-params? ")" "{" compound-stmt
+// func-params = declspec declarator ("," declspec declarator)*
 static Function *function() {
+    Type *basety = declspec();
+    Type *ty = declarator(basety);
+
     locals = NULL;
 
     Function *fn = calloc(1, sizeof(Function));
-
-    Token *tok = expect_ident();
+    fn->name = strndup(ty->name->str, ty->name->len);
 
     if (consume("(", TK_RESERVED)) {
         while (!consume(")", TK_RESERVED)) {
@@ -150,13 +173,13 @@ static Function *function() {
                 continue;
             }
 
-            Token *tok = expect_ident();
+            Type *basety = declspec();
+            Type *ty = declarator(basety);
 
-            new_node_var(tok);
+            new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
         }
     };
 
-    fn->name = strndup(tok->str, tok->len);
     fn->params = locals;
 
     if (consume("{", TK_RESERVED)) {
@@ -169,6 +192,7 @@ static Function *function() {
 }
 
 // stmt = expr? ";"
+//      | declspec declarator ";"
 //      | "{" compound-stmt
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "while" "(" expr ")" stmt
@@ -238,6 +262,12 @@ static Node *stmt() {
     } else if (consume(";", TK_RESERVED)) {
         node = new_node(ND_NULL_STMT);
 
+    } else if (consume("int", TK_KEYWORD)) {
+        Type *ty = declarator(ty_int);
+        LVar *var =
+            new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+        node = new_node_var(var);
+        expect(";");
     } else {
         node = expr();
         expect(";");
@@ -259,6 +289,7 @@ static Node *compound_stmt() {
         Node *node = calloc(1, sizeof(Node));
         node = stmt();
         cur->next = node;
+        add_type(cur->next);
     }
 
     node->body = head.next;
@@ -409,7 +440,12 @@ static Node *primary() {
         }
 
         //変数
-        return new_node_var(tok);
+        LVar *var = find_lvar(tok);
+        if (!var) {
+            error("定義されていない変数です");
+        }
+
+        return new_node_var(var);
     }
 
     //そうでなければ数値のはず

@@ -3,12 +3,9 @@ SRCS=$(wildcard *.c)
 OBJS=$(SRCS: .c=.o)
 
 9cc: $(OBJS)
-	$(CC) -o 9cc $(OBJS) $(LDFLAGS)
+	$(CC) -o 9cc $(OBJS) $(LDFLAGS) $(CFLAGS)
 
 $(OBJS): 9cc.h
-
-debug: $(OBJS)
-	$(CC) -o 9cc.debug $(OBJS) $(LDFLAGS) -g
 
 test: 9cc
 	./test.sh

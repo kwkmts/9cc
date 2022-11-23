@@ -20,7 +20,6 @@ static int align_to(int n, int align) {
 }
 
 static void gen_lval(Node *node) {
-
     switch (node->kind) {
         case ND_LVAR:
             printf("    mov rax, rbp\n");

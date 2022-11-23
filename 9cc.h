@@ -5,6 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct Token Token;
+typedef struct LVar LVar;
+typedef struct Function Function;
+typedef struct Node Node;
+typedef struct Type Type;
+
 //
 // tokenize.c
 //
@@ -21,8 +27,6 @@ typedef enum {
     TK_KEYWORD,   //予約語
     TK_EOF,       //入力の終わり
 } TokenKind;
-
-typedef struct Token Token;
 
 //トークン型
 struct Token {
@@ -42,14 +46,11 @@ Token *tokenize();
 // parse.c
 //
 
-typedef struct LVar LVar;
-typedef struct Function Function;
-typedef struct Node Node;
-
 //ローカル変数の型
 struct LVar {
     LVar *next;  //次の変数かNULL
     char *name;  //変数名
+    Type *ty;    //型
     int len;     //名前の長さ
     int offset;  // RBPからのオフセット
 };
@@ -95,11 +96,13 @@ typedef enum {
 
 struct Node {
     NodeKind kind;  //ノードの種類
+    Type *ty;       //型
     Node *lhs;      //左辺
     Node *rhs;      //右辺
 
     int val;  // kindがND_NUMの場合、その値
     int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
+    LVar *lvar;  // kindがND_LVARの場合
 
     char *funcname;  // kindがND_FUNCALLの場合、関数名
     Node *args;      // kindがND_FUNCALLの場合、その引数リスト
@@ -117,6 +120,27 @@ struct Node {
 extern Function prog;
 
 void program();
+
+//
+// type.c
+//
+
+typedef enum {
+    TY_INT,
+    TY_PTR,
+} TypeKind;
+
+struct Type {
+    TypeKind kind;
+    Type *base;
+    Token *name;
+};
+
+extern Type *ty_int;
+
+bool is_integer(Type *ty);
+Type *pointer_to(Type *base);
+void add_type(Node *node);
 
 //
 // codegen.c
