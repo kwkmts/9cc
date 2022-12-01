@@ -107,6 +107,56 @@ static Node *new_node_var(LVar *var) {
     return node;
 }
 
+static Node *new_node_add(Node *lhs, Node *rhs) {
+    add_type(lhs);
+    add_type(rhs);
+
+    // num + num
+    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
+        return new_node_binary(ND_ADD, lhs, rhs);
+    }
+
+    if (lhs->ty->base && rhs->ty->base) {
+        error("ポインタ同士の加算はできません");
+    }
+
+    // num + ptr => ptr + num
+    if (is_integer(lhs->ty) && rhs->ty->base) {
+        Node *tmp = lhs;
+        lhs = rhs;
+        rhs = lhs;
+    }
+
+    // ptr + num
+    rhs = new_node_binary(ND_MUL, rhs, new_node_num(8));
+    return new_node_binary(ND_ADD, lhs, rhs);
+}
+
+static Node *new_node_sub(Node *lhs, Node *rhs) {
+    add_type(lhs);
+    add_type(rhs);
+
+    // num - num
+    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
+        return new_node_binary(ND_SUB, lhs, rhs);
+    }
+
+    // ptr - num
+    if (lhs->ty->base && is_integer(rhs->ty)) {
+        rhs = new_node_binary(ND_MUL, rhs, new_node_num(8));
+        return new_node_binary(ND_SUB, lhs, rhs);
+    }
+
+    // ptr - ptr (ポインタ間の要素数を返す)
+    if (lhs->ty->base && rhs->ty->base) {
+        Node *node = new_node_binary(ND_SUB, lhs, rhs);
+        node->ty = ty_int;
+        return new_node_binary(ND_DIV, node, new_node_num(8));
+    }
+
+    error("数値からポインタ値を引くことはできません");
+}
+
 static LVar *new_lvar(Token *tok, char *name, Type *ty) {
     LVar *lvar = calloc(1, sizeof(LVar));
     lvar->next = locals;
@@ -357,10 +407,10 @@ static Node *add() {
 
     for (;;) {
         if (consume("+", TK_RESERVED)) {
-            node = new_node_binary(ND_ADD, node, mul());
+            node = new_node_add(node, mul());
 
         } else if (consume("-", TK_RESERVED)) {
-            node = new_node_binary(ND_SUB, node, mul());
+            node = new_node_sub(node, mul());
 
         } else {
             return node;
