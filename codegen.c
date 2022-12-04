@@ -23,7 +23,7 @@ static void gen_lval(Node *node) {
     switch (node->kind) {
         case ND_LVAR:
             printf("    mov rax, rbp\n");
-            printf("    sub rax, %d\n", node->offset);
+            printf("    sub rax, %d\n", node->lvar->offset);
             printf("    push rax\n");
             return;
         case ND_DEREF:
@@ -203,12 +203,9 @@ static void gen_stmt(Node *node) {
 }
 
 static void assign_lvar_offset(Function *fn) {
-    int offset = 0;
-    for (LVar *var = locals; var; var = var->next) {
-        offset += 8;
-        var->offset = -offset;
+    if (locals != NULL) {
+        fn->stack_size = align_to(locals->offset, 16);
     }
-    fn->stack_size = align_to(offset, 16);
 }
 
 void codegen() {
@@ -227,10 +224,15 @@ void codegen() {
         printf("    mov rbp, rsp\n");
         printf("    sub rsp, %d\n", fn->stack_size);
 
+        int nparams = 0;
+        for (LVar *var = fn->params; var; var = var = var->next) {
+            nparams++;
+        }
+
         //レジスタによって渡された引数の値をスタックに保存する
-        int i = 0;
+        int i = nparams - 1;
         for (LVar *var = fn->params; var; var = var->next) {
-            printf("    mov [rbp%d], %s\n", var->offset, argreg[i++]);
+            printf("    mov [rbp-%d], %s\n", var->offset, argreg[i--]);
         }
 
         //先頭の式から順にコード生成

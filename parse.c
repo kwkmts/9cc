@@ -101,7 +101,6 @@ static Node *new_node_num(int val) {
 
 static Node *new_node_var(LVar *var) {
     Node *node = new_node(ND_LVAR);
-    node->offset = var->offset;
     node->ty = var->ty;
     node->lvar = var;
     return node;

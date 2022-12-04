@@ -101,7 +101,6 @@ struct Node {
     Node *rhs;      //右辺
 
     int val;  // kindがND_NUMの場合、その値
-    int offset;  // kindがND_LVARの場合、ベースポインタからのオフセット
     LVar *lvar;  // kindがND_LVARの場合
 
     char *funcname;  // kindがND_FUNCALLの場合、関数名

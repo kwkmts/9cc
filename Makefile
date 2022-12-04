@@ -11,6 +11,6 @@ test: 9cc
 	./test.sh
 
 clean:
-	rm -f 9cc 9cc.debug *.o *~ tmp* *.core core
+	rm -f 9cc *.o *~ tmp* *.core core
 
 .PHONY: test clean debug
