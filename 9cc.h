@@ -131,6 +131,7 @@ typedef enum {
 
 struct Type {
     TypeKind kind;
+    int size;
     Type *base;
     Token *name;
 };
@@ -138,6 +139,7 @@ struct Type {
 extern Type *ty_int;
 
 bool is_integer(Type *ty);
+bool is_pointer(Type *ty);
 Type *pointer_to(Type *base);
 void add_type(Node *node);
 

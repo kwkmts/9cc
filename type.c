@@ -2,10 +2,13 @@
 
 bool is_integer(Type *ty) { return ty->kind == TY_INT; }
 
+bool is_pointer(Type *ty) { return ty->kind == TY_PTR; }
+
 Type *pointer_to(Type *base) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_PTR;
     ty->base = base;
+    ty->size = 8;
     return ty;
 }
 
@@ -49,7 +52,7 @@ void add_type(Node *node) {
             node->ty = pointer_to(node->lhs->ty);
             return;
         case ND_DEREF:
-            if (node->lhs->ty->kind != TY_PTR) {
+            if (!is_pointer(node->lhs->ty)) {
                 error("ポインタではありません");
             }
             node->ty = node->lhs->ty->base;

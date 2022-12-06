@@ -59,7 +59,7 @@ static bool is_alnum(char c) {
 }
 
 static size_t is_keyword(char *c) {
-    char *kw[] = {"if", "else", "while", "for", "return", "int"};
+    char *kw[] = {"if", "else", "while", "for", "return", "int", "sizeof"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         size_t len = strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {

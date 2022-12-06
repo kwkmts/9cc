@@ -115,19 +115,19 @@ static Node *new_node_add(Node *lhs, Node *rhs) {
         return new_node_binary(ND_ADD, lhs, rhs);
     }
 
-    if (lhs->ty->base && rhs->ty->base) {
+    if (is_pointer(lhs->ty) && is_pointer(rhs->ty)) {
         error("ポインタ同士の加算はできません");
     }
 
     // num + ptr => ptr + num
-    if (is_integer(lhs->ty) && rhs->ty->base) {
+    if (is_integer(lhs->ty) && is_pointer(rhs->ty)) {
         Node *tmp = lhs;
         lhs = rhs;
         rhs = lhs;
     }
 
     // ptr + num
-    rhs = new_node_binary(ND_MUL, rhs, new_node_num(8));
+    rhs = new_node_binary(ND_MUL, rhs, new_node_num(lhs->ty->base->size));
     return new_node_binary(ND_ADD, lhs, rhs);
 }
 
@@ -141,16 +141,16 @@ static Node *new_node_sub(Node *lhs, Node *rhs) {
     }
 
     // ptr - num
-    if (lhs->ty->base && is_integer(rhs->ty)) {
-        rhs = new_node_binary(ND_MUL, rhs, new_node_num(8));
+    if (is_pointer(lhs->ty) && is_integer(rhs->ty)) {
+        rhs = new_node_binary(ND_MUL, rhs, new_node_num(lhs->ty->base->size));
         return new_node_binary(ND_SUB, lhs, rhs);
     }
 
     // ptr - ptr (ポインタ間の要素数を返す)
-    if (lhs->ty->base && rhs->ty->base) {
+    if (is_pointer(lhs->ty) && is_pointer(rhs->ty)) {
         Node *node = new_node_binary(ND_SUB, lhs, rhs);
         node->ty = ty_int;
-        return new_node_binary(ND_DIV, node, new_node_num(8));
+        return new_node_binary(ND_DIV, node, new_node_num(lhs->ty->base->size));
     }
 
     error("数値からポインタ値を引くことはできません");
@@ -161,7 +161,7 @@ static LVar *new_lvar(Token *tok, char *name, Type *ty) {
     lvar->next = locals;
     lvar->name = name;
     lvar->len = tok->len;
-    lvar->offset = locals ? locals->offset + 8 : 8;
+    lvar->offset = locals ? locals->offset + ty->size : ty->size;
     lvar->ty = ty;
     locals = lvar;
     return lvar;
@@ -434,8 +434,14 @@ static Node *mul() {
     }
 }
 
-// unary = ("+" | "-")? unary | ("*" | "&") unary | primary
+// unary = "sizeof" unary | ("+" | "-")? unary | ("*" | "&") unary | primary
 static Node *unary() {
+    if (consume("sizeof", TK_KEYWORD)) {
+        Node *node = unary();
+        add_type(node);
+        return new_node_num(node->ty->size);
+    }
+    
     if (consume("+", TK_RESERVED)) {
         return unary();
     }

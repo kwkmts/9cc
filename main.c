@@ -10,7 +10,7 @@ char *user_input;
 Token *token;
 Function prog;
 LVar *locals;
-Type *ty_int = &(Type){TY_INT};
+Type *ty_int = &(Type){TY_INT, 8};
 
 int main(int argc, char **argv) {
     if (argc != 2) {
