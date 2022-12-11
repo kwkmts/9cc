@@ -1,11 +1,11 @@
 #include "9cc.h"
 
 #ifndef ___DEBUG
-//下の１行をアンコメントしてデバッグフラグを有効化
-// #define ___DEBUG
+// 下の１行をアンコメントしてデバッグフラグを有効化
+//  #define ___DEBUG
 #endif
 
-//グローバル変数の定義
+// グローバル変数の定義
 char *user_input;
 Token *token;
 Function prog;
@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
         error("引数の個数が正しくありません");
     }
 
-    //トークナイズ
+    // トークナイズ
     user_input = argv[1];
     token = tokenize();
 
@@ -27,10 +27,10 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    //パース
+    // パース
     program();
 
-    //コード生成
+    // コード生成
     codegen();
 
     return 0;

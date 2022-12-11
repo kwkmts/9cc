@@ -1,16 +1,16 @@
 #include "9cc.h"
 
 #ifndef ___DEBUG
-//下の１行をアンコメントしてデバッグフラグを有効化
-// #define ___DEBUG
+// 下の１行をアンコメントしてデバッグフラグを有効化
+//  #define ___DEBUG
 #endif
 
 //
-//パーサー
+// パーサー
 //
 
-//次のトークンが期待している記号の時は、トークンを1つ読み進めて真を返す
-//それ以外の場合は偽を返す
+// 次のトークンが期待している記号の時は、トークンを1つ読み進めて真を返す
+// それ以外の場合は偽を返す
 static bool consume(char *op, TokenKind kind) {
     if (token->kind != kind || strlen(op) != token->len ||
         memcmp(token->str, op, token->len)) {
@@ -20,8 +20,8 @@ static bool consume(char *op, TokenKind kind) {
     return true;
 }
 
-//次のトークンが識別子の場合、トークンを1つ読み進めてその識別子を返す
-//それ以外の場合はNULLを返す
+// 次のトークンが識別子の場合、トークンを1つ読み進めてその識別子を返す
+// それ以外の場合はNULLを返す
 static Token *consume_ident() {
     if (token->kind != TK_IDENT) {
         return NULL;
@@ -31,8 +31,8 @@ static Token *consume_ident() {
     return tok;
 }
 
-//次のトークンが期待している記号の時は、トークンを1つ読み進める
-//それ以外の場合にはエラーを報告
+// 次のトークンが期待している記号の時は、トークンを1つ読み進める
+// それ以外の場合にはエラーを報告
 static void expect(char *op) {
     if (token->kind != TK_RESERVED || strlen(op) != token->len ||
         memcmp(token->str, op, token->len)) {
@@ -41,8 +41,8 @@ static void expect(char *op) {
     token = token->next;
 }
 
-//次のトークンが数値の場合、トークンを1つ読み進めてその数値を返す
-//それ以外の場合にはエラーを報告
+// 次のトークンが数値の場合、トークンを1つ読み進めてその数値を返す
+// それ以外の場合にはエラーを報告
 static int expect_number() {
     if (token->kind != TK_NUM) {
         error_at(token->str, "数ではありません");
@@ -52,8 +52,8 @@ static int expect_number() {
     return val;
 }
 
-//次のトークンが識別子の場合、トークンを1つ読み進めてその識別子を返す
-//それ以外の場合にはエラーを報告
+// 次のトークンが識別子の場合、トークンを1つ読み進めてその識別子を返す
+// それ以外の場合にはエラーを報告
 static Token *expect_ident() {
     Token *ident = consume_ident();
     if (!ident) {
@@ -64,7 +64,7 @@ static Token *expect_ident() {
 
 static bool at_eof() { return token->kind == TK_EOF; }
 
-//変数を名前で検索。見つからなければNULLを返す
+// 変数を名前で検索。見つからなければNULLを返す
 static LVar *find_lvar(Token *tok) {
     for (LVar *var = locals; var; var = var->next) {
         if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
@@ -111,16 +111,16 @@ static Node *new_node_add(Node *lhs, Node *rhs) {
     add_type(rhs);
 
     // num + num
-    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
+    if (type_of(TY_INT, lhs->ty) && type_of(TY_INT, rhs->ty)) {
         return new_node_binary(ND_ADD, lhs, rhs);
     }
 
-    if (is_pointer(lhs->ty) && is_pointer(rhs->ty)) {
+    if (lhs->ty->base && rhs->ty->base) {
         error("ポインタ同士の加算はできません");
     }
 
     // num + ptr => ptr + num
-    if (is_integer(lhs->ty) && is_pointer(rhs->ty)) {
+    if (type_of(TY_INT, lhs->ty) && rhs->ty->base) {
         Node *tmp = lhs;
         lhs = rhs;
         rhs = lhs;
@@ -136,18 +136,18 @@ static Node *new_node_sub(Node *lhs, Node *rhs) {
     add_type(rhs);
 
     // num - num
-    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
+    if (type_of(TY_INT, lhs->ty) && type_of(TY_INT, rhs->ty)) {
         return new_node_binary(ND_SUB, lhs, rhs);
     }
 
     // ptr - num
-    if (is_pointer(lhs->ty) && is_integer(rhs->ty)) {
+    if (lhs->ty->base && type_of(TY_INT, rhs->ty)) {
         rhs = new_node_binary(ND_MUL, rhs, new_node_num(lhs->ty->base->size));
         return new_node_binary(ND_SUB, lhs, rhs);
     }
 
     // ptr - ptr (ポインタ間の要素数を返す)
-    if (is_pointer(lhs->ty) && is_pointer(rhs->ty)) {
+    if (lhs->ty->base && rhs->ty->base) {
         Node *node = new_node_binary(ND_SUB, lhs, rhs);
         node->ty = ty_int;
         return new_node_binary(ND_DIV, node, new_node_num(lhs->ty->base->size));
@@ -187,19 +187,25 @@ void program() {
     }
 }
 
-// declspec = int
+// declspec = "int"
 static Type *declspec() {
     consume("int", TK_KEYWORD);
     return ty_int;
 }
 
-// declarator = "*"* indent
+// declarator = "*"* indent ("[" num "]")?
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
     }
 
     Token *tok = expect_ident();
+
+    if (consume("[", TK_RESERVED)) {
+        ty = array_of(ty, expect_number());
+        expect("]");
+    }
+
     ty->name = tok;
     return ty;
 }
@@ -441,7 +447,7 @@ static Node *unary() {
         add_type(node);
         return new_node_num(node->ty->size);
     }
-    
+
     if (consume("+", TK_RESERVED)) {
         return unary();
     }
@@ -463,17 +469,17 @@ static Node *unary() {
 
 // primary = "(" expr ")" | ident ("(" (assign ("," assign)*)? ")")? | num
 static Node *primary() {
-    //次のトークンが"("なら、"(" expr ")"のはず
+    // 次のトークンが"("なら、"(" expr ")"のはず
     if (consume("(", TK_RESERVED)) {
         Node *node = expr();
         expect(")");
         return node;
     }
 
-    //もしくは識別子のはず
+    // もしくは識別子のはず
     Token *tok = consume_ident();
     if (tok) {
-        //関数呼び出し
+        // 関数呼び出し
         if (consume("(", TK_RESERVED)) {
             Token *start = tok;
             tok = tok->next->next;
@@ -494,7 +500,7 @@ static Node *primary() {
             return node;
         }
 
-        //変数
+        // 変数
         LVar *var = find_lvar(tok);
         if (!var) {
             error("定義されていない変数です");
@@ -503,6 +509,6 @@ static Node *primary() {
         return new_node_var(var);
     }
 
-    //そうでなければ数値のはず
+    // そうでなければ数値のはず
     return new_node_num(expect_number());
 }

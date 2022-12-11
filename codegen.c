@@ -1,12 +1,12 @@
 #include "9cc.h"
 
 #ifndef ___DEBUG
-//下の１行をアンコメントしてデバッグフラグを有効化
-// #define ___DEBUG
+// 下の１行をアンコメントしてデバッグフラグを有効化
+//  #define ___DEBUG
 #endif
 
 //
-//コード生成部
+// コード生成部
 //
 
 static int label_count;
@@ -43,9 +43,11 @@ static void gen_expr(Node *node) {
         case ND_LVAR:
             gen_lval(node);
 
-            printf("    pop rax\n");
-            printf("    mov rax, [rax]\n");
-            printf("    push rax\n");
+            if (!type_of(TY_ARY, node->ty)) {
+                printf("    pop rax\n");
+                printf("    mov rax, [rax]\n");
+                printf("    push rax\n");
+            }
             return;
         case ND_ADDR:
             gen_lval(node->lhs);
@@ -213,13 +215,13 @@ void codegen() {
     for (Function *fn = prog.next; fn; fn = fn->next) {
         assign_lvar_offset(fn);
 
-        //アセンブリの前半部分を出力
+        // アセンブリの前半部分を出力
         printf(".intel_syntax noprefix\n");
         printf(".globl %s\n", fn->name);
         printf("%s:\n", fn->name);
 
-        //プロローグ
-        //変数の領域を確保する
+        // プロローグ
+        // 変数の領域を確保する
         printf("    push rbp\n");
         printf("    mov rbp, rsp\n");
         printf("    sub rsp, %d\n", fn->stack_size);
@@ -229,20 +231,20 @@ void codegen() {
             nparams++;
         }
 
-        //レジスタによって渡された引数の値をスタックに保存する
+        // レジスタによって渡された引数の値をスタックに保存する
         int i = nparams - 1;
         for (LVar *var = fn->params; var; var = var->next) {
             printf("    mov [rbp-%d], %s\n", var->offset, argreg[i--]);
         }
 
-        //先頭の式から順にコード生成
+        // 先頭の式から順にコード生成
         gen_stmt(fn->body);
 
-        //スタックトップに式全体の値が残っているはずなのでスタックが溢れないようにポップしておく
+        // スタックトップに式全体の値が残っているはずなのでスタックが溢れないようにポップしておく
         printf("    pop rax\n");
 
-        //エピローグ
-        //最後の式の結果がRAXに残っているのでそれが戻り値となる
+        // エピローグ
+        // 最後の式の結果がRAXに残っているのでそれが戻り値となる
         printf("    mov rsp, rbp\n");
         printf("    pop rbp\n");
         printf("    ret\n");
