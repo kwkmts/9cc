@@ -467,7 +467,8 @@ static Node *unary() {
     return primary();
 }
 
-// primary = "(" expr ")" | ident ("(" (assign ("," assign)*)? ")")? | num
+// primary = "(" expr ")" | ident (("(" func-args? ")") | ("[" num "]"))? | num
+// func-args = assign ("," assign)*
 static Node *primary() {
     // 次のトークンが"("なら、"(" expr ")"のはず
     if (consume("(", TK_RESERVED)) {
@@ -506,7 +507,15 @@ static Node *primary() {
             error("定義されていない変数です");
         }
 
-        return new_node_var(var);
+        Node *node = new_node_var(var);
+
+        if (consume("[", TK_RESERVED)) {
+            Node *idx = expr();
+            expect("]");
+            return new_node_unary(ND_DEREF, new_node_add(node, idx));
+        }
+
+        return node;
     }
 
     // そうでなければ数値のはず
