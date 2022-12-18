@@ -21,10 +21,17 @@ static int align_to(int n, int align) {
 
 static void gen_lval(Node *node) {
     switch (node->kind) {
-        case ND_LVAR:
-            printf("    mov rax, rbp\n");
-            printf("    sub rax, %d\n", node->lvar->offset);
-            printf("    push rax\n");
+        case ND_VAR:
+            if (node->var->is_lvar) {
+                // ローカル変数
+                printf("    mov rax, rbp\n");
+                printf("    sub rax, %d\n", node->var->offset);
+                printf("    push rax\n");
+            } else {
+                // グローバル変数
+                printf("    lea rax, %s[rip]\n", node->var->name);
+                printf("    push rax\n");
+            }
             return;
         case ND_DEREF:
             gen_expr(node->lhs);
@@ -40,10 +47,10 @@ static void gen_expr(Node *node) {
         case ND_NUM:
             printf("    push %d\n", node->val);
             return;
-        case ND_LVAR:
+        case ND_VAR:
             gen_lval(node);
 
-            if (!type_of(TY_ARY, node->ty)) {
+            if (!is_type_of(TY_ARY, node->ty)) {
                 printf("    pop rax\n");
                 printf("    mov rax, [rax]\n");
                 printf("    push rax\n");
@@ -211,13 +218,25 @@ static void assign_lvar_offset(Function *fn) {
 }
 
 void codegen() {
-    int i = 0;
+    printf("    .intel_syntax noprefix\n");
+
+    // グローバル変数
+    if (globals) {
+        for (Var *var = globals; var; var = var->next) {
+            printf("    .globl %s\n", var->name);
+            printf("    .bss\n");
+            printf("%s:\n", var->name);
+            printf("    .zero %d\n", var->ty->size);
+        }
+    }
+
+    // 関数
     for (Function *fn = prog.next; fn; fn = fn->next) {
         assign_lvar_offset(fn);
 
         // アセンブリの前半部分を出力
-        printf(".intel_syntax noprefix\n");
-        printf(".globl %s\n", fn->name);
+        printf("    .globl %s\n", fn->name);
+        printf("    .text\n");
         printf("%s:\n", fn->name);
 
         // プロローグ
@@ -227,13 +246,13 @@ void codegen() {
         printf("    sub rsp, %d\n", fn->stack_size);
 
         int nparams = 0;
-        for (LVar *var = fn->params; var; var = var = var->next) {
+        for (Var *var = fn->params; var; var = var->next) {
             nparams++;
         }
 
         // レジスタによって渡された引数の値をスタックに保存する
         int i = nparams - 1;
-        for (LVar *var = fn->params; var; var = var->next) {
+        for (Var *var = fn->params; var; var = var->next) {
             printf("    mov [rbp-%d], %s\n", var->offset, argreg[i--]);
         }
 

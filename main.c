@@ -5,11 +5,14 @@
 //  #define ___DEBUG
 #endif
 
+//
 // グローバル変数の定義
+//
 char *user_input;
 Token *token;
 Function prog;
-LVar *locals;
+Var *locals;
+Var *globals;
 Type *ty_int = &(Type){TY_INT, 8};
 
 int main(int argc, char **argv) {

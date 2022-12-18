@@ -65,12 +65,19 @@ static Token *expect_ident() {
 static bool at_eof() { return token->kind == TK_EOF; }
 
 // 変数を名前で検索。見つからなければNULLを返す
-static LVar *find_lvar(Token *tok) {
-    for (LVar *var = locals; var; var = var->next) {
+static Var *find_var(Token *tok) {
+    for (Var *var = locals; var; var = var->next) {
         if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
             return var;
         }
     }
+
+    for (Var *var = globals; var; var = var->next) {
+        if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
+            return var;
+        }
+    }
+
     return NULL;
 }
 
@@ -99,10 +106,10 @@ static Node *new_node_num(int val) {
     return node;
 }
 
-static Node *new_node_var(LVar *var) {
-    Node *node = new_node(ND_LVAR);
+static Node *new_node_var(Var *var) {
+    Node *node = new_node(ND_VAR);
     node->ty = var->ty;
-    node->lvar = var;
+    node->var = var;
     return node;
 }
 
@@ -111,7 +118,7 @@ static Node *new_node_add(Node *lhs, Node *rhs) {
     add_type(rhs);
 
     // num + num
-    if (type_of(TY_INT, lhs->ty) && type_of(TY_INT, rhs->ty)) {
+    if (is_type_of(TY_INT, lhs->ty) && is_type_of(TY_INT, rhs->ty)) {
         return new_node_binary(ND_ADD, lhs, rhs);
     }
 
@@ -120,7 +127,7 @@ static Node *new_node_add(Node *lhs, Node *rhs) {
     }
 
     // num + ptr => ptr + num
-    if (type_of(TY_INT, lhs->ty) && rhs->ty->base) {
+    if (is_type_of(TY_INT, lhs->ty) && rhs->ty->base) {
         Node *tmp = lhs;
         lhs = rhs;
         rhs = lhs;
@@ -136,12 +143,12 @@ static Node *new_node_sub(Node *lhs, Node *rhs) {
     add_type(rhs);
 
     // num - num
-    if (type_of(TY_INT, lhs->ty) && type_of(TY_INT, rhs->ty)) {
+    if (is_type_of(TY_INT, lhs->ty) && is_type_of(TY_INT, rhs->ty)) {
         return new_node_binary(ND_SUB, lhs, rhs);
     }
 
     // ptr - num
-    if (lhs->ty->base && type_of(TY_INT, rhs->ty)) {
+    if (lhs->ty->base && is_type_of(TY_INT, rhs->ty)) {
         rhs = new_node_binary(ND_MUL, rhs, new_node_num(lhs->ty->base->size));
         return new_node_binary(ND_SUB, lhs, rhs);
     }
@@ -156,18 +163,34 @@ static Node *new_node_sub(Node *lhs, Node *rhs) {
     error("数値からポインタ値を引くことはできません");
 }
 
-static LVar *new_lvar(Token *tok, char *name, Type *ty) {
-    LVar *lvar = calloc(1, sizeof(LVar));
-    lvar->next = locals;
-    lvar->name = name;
-    lvar->len = tok->len;
-    lvar->offset = locals ? locals->offset + ty->size : ty->size;
-    lvar->ty = ty;
-    locals = lvar;
-    return lvar;
+static Var *new_var(Token *tok, char *name, Type *ty) {
+    Var *var = calloc(1, sizeof(Var));
+    var->name = name;
+    var->len = tok->len;
+    var->ty = ty;
+    return var;
 }
 
-static Function *function();
+static Var *new_lvar(Token *tok, char *name, Type *ty) {
+    Var *var = new_var(tok, name, ty);
+    var->next = locals;
+    var->offset = locals ? locals->offset + ty->size : ty->size;
+    var->is_lvar = true;
+    locals = var;
+    return var;
+}
+
+static Var *new_gvar(Token *tok, char *name, Type *ty) {
+    Var *var = new_var(tok, name, ty);
+    var->next = globals;
+    var->is_lvar = false;
+    globals = var;
+    return var;
+}
+
+static Type *declspec();
+static Type *declarator(Type *ty);
+static Function *function(Type *ty);
 static Node *stmt();
 static Node *compound_stmt();
 static Node *expr();
@@ -179,11 +202,22 @@ static Node *mul();
 static Node *primary();
 static Node *unary();
 
-// program = function-definition*
+// program = (declspec declarator ("(" function-definition | ";"))*
 void program() {
     Function *cur = &prog;
     while (!at_eof()) {
-        cur = cur->next = function();
+        Type *basety = declspec();
+        Type *ty = declarator(basety);
+
+        // 関数定義
+        if (consume("(", TK_RESERVED)) {
+            cur = cur->next = function(ty);
+            continue;
+        }
+
+        // グローバル変数
+        new_gvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+        expect(";");
     }
 }
 
@@ -210,30 +244,24 @@ static Type *declarator(Type *ty) {
     return ty;
 }
 
-// function-definition
-//             = declspec declarator "(" func-params? ")" "{" compound-stmt
+// function-definition = func-params? ")" "{" compound-stmt
 // func-params = declspec declarator ("," declspec declarator)*
-static Function *function() {
-    Type *basety = declspec();
-    Type *ty = declarator(basety);
-
+static Function *function(Type *ty) {
     locals = NULL;
 
     Function *fn = calloc(1, sizeof(Function));
     fn->name = strndup(ty->name->str, ty->name->len);
 
-    if (consume("(", TK_RESERVED)) {
-        while (!consume(")", TK_RESERVED)) {
-            if (consume(",", TK_RESERVED)) {
-                continue;
-            }
-
-            Type *basety = declspec();
-            Type *ty = declarator(basety);
-
-            new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+    while (!consume(")", TK_RESERVED)) {
+        if (consume(",", TK_RESERVED)) {
+            continue;
         }
-    };
+
+        Type *basety = declspec();
+        Type *ty = declarator(basety);
+
+        new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+    }
 
     fn->params = locals;
 
@@ -319,7 +347,7 @@ static Node *stmt() {
 
     } else if (consume("int", TK_KEYWORD)) {
         Type *ty = declarator(ty_int);
-        LVar *var =
+        Var *var =
             new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
         node = new_node_var(var);
         expect(";");
@@ -502,7 +530,7 @@ static Node *primary() {
         }
 
         // 変数
-        LVar *var = find_lvar(tok);
+        Var *var = find_var(tok);
         if (!var) {
             error("定義されていない変数です");
         }

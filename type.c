@@ -1,6 +1,6 @@
 #include "9cc.h"
 
-bool type_of(TypeKind kind, Type *ty) { return ty->kind == kind; }
+bool is_type_of(TypeKind kind, Type *ty) { return ty->kind == kind; }
 
 Type *pointer_to(Type *base) {
     Type *ty = calloc(1, sizeof(Type));
@@ -44,7 +44,7 @@ void add_type(Node *node) {
             node->ty = node->lhs->ty;
             return;
         case ND_ASSIGN:
-            if (type_of(TY_ARY, node->lhs->ty)) {
+            if (is_type_of(TY_ARY, node->lhs->ty)) {
                 error("左辺値ではありません");
             }
             node->ty = node->lhs->ty;
@@ -57,11 +57,11 @@ void add_type(Node *node) {
         case ND_FUNCALL:
             node->ty = ty_int;
             return;
-        case ND_LVAR:
-            node->ty = node->lvar->ty;
+        case ND_VAR:
+            node->ty = node->var->ty;
             return;
         case ND_ADDR:
-            if (type_of(TY_ARY, node->lhs->ty)) {
+            if (is_type_of(TY_ARY, node->lhs->ty)) {
                 node->ty = pointer_to(node->lhs->ty->base);
             } else {
                 node->ty = pointer_to(node->lhs->ty);

@@ -6,7 +6,7 @@
 #include <string.h>
 
 typedef struct Token Token;
-typedef struct LVar LVar;
+typedef struct Var Var;
 typedef struct Function Function;
 typedef struct Node Node;
 typedef struct Type Type;
@@ -46,28 +46,29 @@ Token *tokenize();
 // parse.c
 //
 
-// ローカル変数の型
-struct LVar {
-    LVar *next;  // 次の変数かNULL
+// 変数の型
+struct Var {
+    Var *next;   // 次の変数かNULL
     char *name;  // 変数名
     Type *ty;    // 型
     int len;     // 名前の長さ
-    int offset;  // RBPからのオフセット
+    int offset;  // RBPからのオフセット(ローカル変数)
+    bool is_lvar;
 };
 
-// ローカル変数の連結リスト
-extern LVar *locals;
+extern Var *locals;   // ローカル変数の連結リスト
+extern Var *globals;  // グローバル変数の連結リスト
 
 // 現在着目しているトークン
 extern Token *token;
 
 // 関数の型
 struct Function {
-    Function *next;
-    char *name;
-    Node *body;
-    LVar *params;
-    LVar *locals;
+    Function *next;  // 次の関数かNULL
+    char *name;      // 関数名
+    Node *body;      // {}内
+    Var *params;     // パラメータ
+    Var *locals;     // ローカル変数
     int stack_size;
 };
 
@@ -84,7 +85,7 @@ typedef enum {
     ND_LT,         // <
     ND_LE,         // <=
     ND_ASSIGN,     // =
-    ND_LVAR,       // ローカル変数
+    ND_VAR,        // ローカル変数
     ND_NUM,        // 整数
     ND_FUNCALL,    // 関数呼出
     ND_BLOCK,      // { ... }
@@ -94,14 +95,16 @@ typedef enum {
     ND_NULL_STMT,  // 空文
 } NodeKind;
 
+// 抽象構文木のノードの型
 struct Node {
     NodeKind kind;  // ノードの種類
-    Type *ty;       // 型
+    Type *ty;       // データ型
     Node *lhs;      // 左辺
     Node *rhs;      // 右辺
 
-    int val;     // kindがND_NUMの場合、その値
-    LVar *lvar;  // kindがND_LVARの場合
+    int val;  // kindがND_NUMの場合、その値
+
+    Var *var;  // kindがND_VARの場合
 
     char *funcname;  // kindがND_FUNCALLの場合、関数名
     Node *args;      // kindがND_FUNCALLの場合、その引数リスト
@@ -116,6 +119,7 @@ struct Node {
     Node *next;  //{ ... }の中において、次の式を表す
 };
 
+// 関数の連結リスト
 extern Function prog;
 
 void program();
@@ -124,23 +128,25 @@ void program();
 // type.c
 //
 
+// データ型の種類
 typedef enum {
     TY_INT,
     TY_PTR,
     TY_ARY,
 } TypeKind;
 
+// データ型の型
 struct Type {
-    TypeKind kind;
-    int size;
+    TypeKind kind;   // データ型の種類
+    int size;        // サイズ
     size_t ary_len;  // 配列の要素数
-    Type *base;
-    Token *name;
+    Type *base;   // データ型がポインタや配列の場合使われる
+    Token *name;  // 識別子名
 };
 
 extern Type *ty_int;
 
-bool type_of(TypeKind kind, Type *ty);
+bool is_type_of(TypeKind kind, Type *ty);
 Type *pointer_to(Type *base);
 Type *array_of(Type *base, size_t len);
 void add_type(Node *node);
