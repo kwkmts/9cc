@@ -348,7 +348,7 @@ static Node *stmt() {
     } else if (consume("int", TK_KEYWORD)) {
         Type *ty = declarator(ty_int);
         Var *var =
-            new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+          new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
         node = new_node_var(var);
         expect(";");
     } else {

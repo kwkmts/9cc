@@ -21,22 +21,22 @@ static int align_to(int n, int align) {
 
 static void gen_lval(Node *node) {
     switch (node->kind) {
-        case ND_VAR:
-            if (node->var->is_lvar) {
-                // ローカル変数
-                printf("    mov rax, rbp\n");
-                printf("    sub rax, %d\n", node->var->offset);
-                printf("    push rax\n");
-            } else {
-                // グローバル変数
-                printf("    lea rax, %s[rip]\n", node->var->name);
-                printf("    push rax\n");
-            }
-            return;
-        case ND_DEREF:
-            gen_expr(node->lhs);
-            return;
-        default:;
+    case ND_VAR:
+        if (node->var->is_lvar) {
+            // ローカル変数
+            printf("    mov rax, rbp\n");
+            printf("    sub rax, %d\n", node->var->offset);
+            printf("    push rax\n");
+        } else {
+            // グローバル変数
+            printf("    lea rax, %s[rip]\n", node->var->name);
+            printf("    push rax\n");
+        }
+        return;
+    case ND_DEREF:
+        gen_expr(node->lhs);
+        return;
+    default:;
     }
 
     error("代入の左辺値が変数ではありません");
@@ -44,54 +44,54 @@ static void gen_lval(Node *node) {
 
 static void gen_expr(Node *node) {
     switch (node->kind) {
-        case ND_NUM:
-            printf("    push %d\n", node->val);
-            return;
-        case ND_VAR:
-            gen_lval(node);
+    case ND_NUM:
+        printf("    push %d\n", node->val);
+        return;
+    case ND_VAR:
+        gen_lval(node);
 
-            if (!is_type_of(TY_ARY, node->ty)) {
-                printf("    pop rax\n");
-                printf("    mov rax, [rax]\n");
-                printf("    push rax\n");
-            }
-            return;
-        case ND_ADDR:
-            gen_lval(node->lhs);
-            return;
-        case ND_DEREF:
-            gen_expr(node->lhs);
-
+        if (!is_type_of(TY_ARY, node->ty)) {
             printf("    pop rax\n");
             printf("    mov rax, [rax]\n");
             printf("    push rax\n");
-            return;
-        case ND_FUNCALL: {
-            int nargs = 0;
-            for (Node *arg = node->args; arg; arg = arg->next) {
-                gen_expr(arg);
-                nargs++;
-            }
-
-            for (int i = nargs - 1; i >= 0; i--) {
-                printf("    pop %s\n", argreg[i]);
-            }
-
-            printf("    mov rax, 0\n");
-            printf("    call %s\n", node->funcname);
-            printf("    push rax\n");
-            return;
         }
-        case ND_ASSIGN:
-            gen_lval(node->lhs);
-            gen_expr(node->rhs);
+        return;
+    case ND_ADDR:
+        gen_lval(node->lhs);
+        return;
+    case ND_DEREF:
+        gen_expr(node->lhs);
 
-            printf("    pop rdi\n");
-            printf("    pop rax\n");
-            printf("    mov [rax], rdi\n");
-            printf("    push rdi\n");
-            return;
-        default:;
+        printf("    pop rax\n");
+        printf("    mov rax, [rax]\n");
+        printf("    push rax\n");
+        return;
+    case ND_FUNCALL: {
+        int nargs = 0;
+        for (Node *arg = node->args; arg; arg = arg->next) {
+            gen_expr(arg);
+            nargs++;
+        }
+
+        for (int i = nargs - 1; i >= 0; i--) {
+            printf("    pop %s\n", argreg[i]);
+        }
+
+        printf("    mov rax, 0\n");
+        printf("    call %s\n", node->funcname);
+        printf("    push rax\n");
+        return;
+    }
+    case ND_ASSIGN:
+        gen_lval(node->lhs);
+        gen_expr(node->rhs);
+
+        printf("    pop rdi\n");
+        printf("    pop rax\n");
+        printf("    mov [rax], rdi\n");
+        printf("    push rdi\n");
+        return;
+    default:;
     }
 
     gen_expr(node->lhs);
@@ -101,40 +101,40 @@ static void gen_expr(Node *node) {
     printf("    pop rax\n");
 
     switch (node->kind) {
-        case ND_ADD:
-            printf("    add rax, rdi\n");
-            break;
-        case ND_SUB:
-            printf("    sub rax, rdi\n");
-            break;
-        case ND_MUL:
-            printf("    imul rax, rdi\n");
-            break;
-        case ND_DIV:
-            printf("    cqo\n");
-            printf("    idiv rdi\n");
-            break;
-        case ND_EQ:
-            printf("    cmp rax, rdi\n");
-            printf("    sete al\n");
-            printf("    movzb rax, al\n");
-            break;
-        case ND_NE:
-            printf("    cmp rax, rdi\n");
-            printf("    setne al\n");
-            printf("    movzb rax, al\n");
-            break;
-        case ND_LT:
-            printf("    cmp rax, rdi\n");
-            printf("    setl al\n");
-            printf("    movzb rax, al\n");
-            break;
-        case ND_LE:
-            printf("    cmp rax, rdi\n");
-            printf("    setle al\n");
-            printf("    movzb rax, al\n");
-            break;
-        default:;
+    case ND_ADD:
+        printf("    add rax, rdi\n");
+        break;
+    case ND_SUB:
+        printf("    sub rax, rdi\n");
+        break;
+    case ND_MUL:
+        printf("    imul rax, rdi\n");
+        break;
+    case ND_DIV:
+        printf("    cqo\n");
+        printf("    idiv rdi\n");
+        break;
+    case ND_EQ:
+        printf("    cmp rax, rdi\n");
+        printf("    sete al\n");
+        printf("    movzb rax, al\n");
+        break;
+    case ND_NE:
+        printf("    cmp rax, rdi\n");
+        printf("    setne al\n");
+        printf("    movzb rax, al\n");
+        break;
+    case ND_LT:
+        printf("    cmp rax, rdi\n");
+        printf("    setl al\n");
+        printf("    movzb rax, al\n");
+        break;
+    case ND_LE:
+        printf("    cmp rax, rdi\n");
+        printf("    setle al\n");
+        printf("    movzb rax, al\n");
+        break;
+    default:;
     }
 
     printf("    push rax\n");
@@ -142,72 +142,72 @@ static void gen_expr(Node *node) {
 
 static void gen_stmt(Node *node) {
     switch (node->kind) {
-        case ND_BLOCK: {
-            for (Node *cur = node->body; cur; cur = cur->next) {
-                gen_stmt(cur);
-            }
-
-            return;
+    case ND_BLOCK: {
+        for (Node *cur = node->body; cur; cur = cur->next) {
+            gen_stmt(cur);
         }
-        case ND_RETURN:
-            gen_expr(node->lhs);
 
-            printf("    pop rax\n");
-            printf("    mov rsp, rbp\n");
-            printf("    pop rbp\n");
-            printf("    ret\n");
-            return;
-        case ND_IF: {
-            int c = label_count++;
+        return;
+    }
+    case ND_RETURN:
+        gen_expr(node->lhs);
+
+        printf("    pop rax\n");
+        printf("    mov rsp, rbp\n");
+        printf("    pop rbp\n");
+        printf("    ret\n");
+        return;
+    case ND_IF: {
+        int c = label_count++;
+        gen_expr(node->cond);
+
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    je .Lelse%d\n", c);
+
+        gen_stmt(node->then);
+
+        printf("    jmp .Lend%d\n", c);
+        printf(".Lelse%d:\n", c);
+
+        if (node->els) {
+            gen_stmt(node->els);
+        }
+
+        printf(".Lend%d:\n", c);
+
+        return;
+    }
+    case ND_LOOP: {
+        int c = label_count++;
+
+        if (node->init) {
+            gen_expr(node->init);
+        }
+
+        printf(".Lbegin%d:\n", c);
+
+        if (node->cond) {
             gen_expr(node->cond);
-
-            printf("    pop rax\n");
-            printf("    cmp rax, 0\n");
-            printf("    je .Lelse%d\n", c);
-
-            gen_stmt(node->then);
-
-            printf("    jmp .Lend%d\n", c);
-            printf(".Lelse%d:\n", c);
-
-            if (node->els) {
-                gen_stmt(node->els);
-            }
-
-            printf(".Lend%d:\n", c);
-
-            return;
         }
-        case ND_LOOP: {
-            int c = label_count++;
 
-            if (node->init) {
-                gen_expr(node->init);
-            }
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    je .Lend%d\n", c);
 
-            printf(".Lbegin%d:\n", c);
-
-            if (node->cond) {
-                gen_expr(node->cond);
-            }
-
-            printf("    pop rax\n");
-            printf("    cmp rax, 0\n");
-            printf("    je .Lend%d\n", c);
-
-            gen_stmt(node->then);
-            if (node->after) {
-                gen_expr(node->after);
-            }
-
-            printf("    jmp .Lbegin%d\n", c);
-            printf(".Lend%d:\n", c);
-            return;
+        gen_stmt(node->then);
+        if (node->after) {
+            gen_expr(node->after);
         }
-        case ND_NULL_STMT:
-            return;
-        default:
-            gen_expr(node);
+
+        printf("    jmp .Lbegin%d\n", c);
+        printf(".Lend%d:\n", c);
+        return;
+    }
+    case ND_NULL_STMT:
+        return;
+    default:
+        gen_expr(node);
     }
 }
 

@@ -37,42 +37,42 @@ void add_type(Node *node) {
     }
 
     switch (node->kind) {
-        case ND_ADD:
-        case ND_SUB:
-        case ND_MUL:
-        case ND_DIV:
-            node->ty = node->lhs->ty;
-            return;
-        case ND_ASSIGN:
-            if (is_type_of(TY_ARY, node->lhs->ty)) {
-                error("左辺値ではありません");
-            }
-            node->ty = node->lhs->ty;
-            return;
-        case ND_EQ:
-        case ND_LE:
-        case ND_LT:
-        case ND_NE:
-        case ND_NUM:
-        case ND_FUNCALL:
-            node->ty = ty_int;
-            return;
-        case ND_VAR:
-            node->ty = node->var->ty;
-            return;
-        case ND_ADDR:
-            if (is_type_of(TY_ARY, node->lhs->ty)) {
-                node->ty = pointer_to(node->lhs->ty->base);
-            } else {
-                node->ty = pointer_to(node->lhs->ty);
-            }
-            return;
-        case ND_DEREF:
-            if (!node->lhs->ty->base) {
-                error("参照外しできません");
-            }
-            node->ty = node->lhs->ty->base;
-            return;
-        default:;
+    case ND_ADD:
+    case ND_SUB:
+    case ND_MUL:
+    case ND_DIV:
+        node->ty = node->lhs->ty;
+        return;
+    case ND_ASSIGN:
+        if (is_type_of(TY_ARY, node->lhs->ty)) {
+            error("左辺値ではありません");
+        }
+        node->ty = node->lhs->ty;
+        return;
+    case ND_EQ:
+    case ND_LE:
+    case ND_LT:
+    case ND_NE:
+    case ND_NUM:
+    case ND_FUNCALL:
+        node->ty = ty_int;
+        return;
+    case ND_VAR:
+        node->ty = node->var->ty;
+        return;
+    case ND_ADDR:
+        if (is_type_of(TY_ARY, node->lhs->ty)) {
+            node->ty = pointer_to(node->lhs->ty->base);
+        } else {
+            node->ty = pointer_to(node->lhs->ty);
+        }
+        return;
+    case ND_DEREF:
+        if (!node->lhs->ty->base) {
+            error("参照外しできません");
+        }
+        node->ty = node->lhs->ty->base;
+        return;
+    default:;
     }
 }
