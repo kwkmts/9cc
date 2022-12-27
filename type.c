@@ -2,6 +2,10 @@
 
 bool is_type_of(TypeKind kind, Type *ty) { return ty->kind == kind; }
 
+bool is_integer(Type *ty) {
+    return is_type_of(TY_INT, ty) || is_type_of(TY_CHAR, ty);
+}
+
 Type *pointer_to(Type *base) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_PTR;

@@ -9,11 +9,16 @@
 // パーサー
 //
 
-// 次のトークンが期待している記号の時は、トークンを1つ読み進めて真を返す
+//次のトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
+static bool equal(char *op, TokenKind kind) {
+    return token->kind == kind && strlen(op) == token->len &&
+           !memcmp(token->str, op, token->len);
+}
+
+// 次のトークンが期待しているトークンの時は、トークンを1つ読み進めて真を返す
 // それ以外の場合は偽を返す
 static bool consume(char *op, TokenKind kind) {
-    if (token->kind != kind || strlen(op) != token->len ||
-        memcmp(token->str, op, token->len)) {
+    if (!equal(op, kind)) {
         return false;
     }
     token = token->next;
@@ -118,7 +123,7 @@ static Node *new_node_add(Node *lhs, Node *rhs) {
     add_type(rhs);
 
     // num + num
-    if (is_type_of(TY_INT, lhs->ty) && is_type_of(TY_INT, rhs->ty)) {
+    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
         return new_node_binary(ND_ADD, lhs, rhs);
     }
 
@@ -127,10 +132,10 @@ static Node *new_node_add(Node *lhs, Node *rhs) {
     }
 
     // num + ptr => ptr + num
-    if (is_type_of(TY_INT, lhs->ty) && rhs->ty->base) {
+    if (is_integer(lhs->ty) && rhs->ty->base) {
         Node *tmp = lhs;
         lhs = rhs;
-        rhs = lhs;
+        rhs = tmp;
     }
 
     // ptr + num
@@ -143,12 +148,12 @@ static Node *new_node_sub(Node *lhs, Node *rhs) {
     add_type(rhs);
 
     // num - num
-    if (is_type_of(TY_INT, lhs->ty) && is_type_of(TY_INT, rhs->ty)) {
+    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
         return new_node_binary(ND_SUB, lhs, rhs);
     }
 
     // ptr - num
-    if (lhs->ty->base && is_type_of(TY_INT, rhs->ty)) {
+    if (lhs->ty->base && is_integer(rhs->ty)) {
         rhs = new_node_binary(ND_MUL, rhs, new_node_num(lhs->ty->base->size));
         return new_node_binary(ND_SUB, lhs, rhs);
     }
@@ -221,10 +226,15 @@ void program() {
     }
 }
 
-// declspec = "int"
+// declspec = "int" | "char"
 static Type *declspec() {
-    consume("int", TK_KEYWORD);
-    return ty_int;
+    if (consume("int", TK_KEYWORD)) {
+        return ty_int;
+    }
+
+    if (consume("char", TK_KEYWORD)) {
+        return ty_char;
+    }
 }
 
 // declarator = "*"* indent ("[" num "]")?
@@ -345,8 +355,13 @@ static Node *stmt() {
     } else if (consume(";", TK_RESERVED)) {
         node = new_node(ND_NULL_STMT);
 
-    } else if (consume("int", TK_KEYWORD)) {
-        Type *ty = declarator(ty_int);
+    } else if (equal("int", TK_KEYWORD) || equal("char", TK_KEYWORD)) {
+        Type *ty;
+        if (consume("int", TK_KEYWORD)) {
+            ty = declarator(ty_int);
+        } else if (consume("char", TK_KEYWORD)) {
+            ty = declarator(ty_char);
+        }
         Var *var =
           new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
         node = new_node_var(var);

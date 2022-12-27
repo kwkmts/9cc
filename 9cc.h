@@ -130,6 +130,7 @@ void program();
 
 // データ型の種類
 typedef enum {
+    TY_CHAR,
     TY_INT,
     TY_PTR,
     TY_ARY,
@@ -144,9 +145,11 @@ struct Type {
     Token *name;   // 識別子名
 };
 
+extern Type *ty_char;
 extern Type *ty_int;
 
 bool is_type_of(TypeKind kind, Type *ty);
+bool is_integer(Type *ty);
 Type *pointer_to(Type *base);
 Type *array_of(Type *base, size_t len);
 void add_type(Node *node);

@@ -48,7 +48,7 @@ static bool startswith(char *p, char *q) {
 }
 
 static bool is_ident1(char c) {
-    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
 }
 
 static bool is_ident2(char c) { return is_ident1(c) || ('0' <= c && c <= '9'); }
@@ -59,7 +59,8 @@ static bool is_alnum(char c) {
 }
 
 static size_t is_keyword(char *c) {
-    char *kw[] = {"if", "else", "while", "for", "return", "int", "sizeof"};
+    char *kw[] = {"if", "else", "while", "for", "return", "int",
+                  "char", "sizeof"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         size_t len = strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {

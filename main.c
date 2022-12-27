@@ -13,6 +13,7 @@ Token *token;
 Function prog;
 Var *locals;
 Var *globals;
+Type *ty_char = &(Type){TY_CHAR, 1};
 Type *ty_int = &(Type){TY_INT, 8};
 
 int main(int argc, char **argv) {

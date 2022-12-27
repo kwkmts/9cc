@@ -10,13 +10,38 @@
 //
 
 static int label_count;
-static char *const argreg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *const argreg64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *const argreg8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
 
 static void gen_expr(Node *node);
 
 // nをalignの直近の倍数に切り上げる
 static int align_to(int n, int align) {
     return (n + align - 1) / align * align;
+}
+
+static void load(Type *ty) {
+    switch (ty->size) {
+    case 1:
+        printf("    movsx rax, BYTE PTR [rax]\n");
+        return;
+    case 8:
+        printf("    mov rax, [rax]\n");
+        return;
+    default:;
+    }
+}
+
+static void store(Type *ty) {
+    switch (ty->size) {
+    case 1:
+        printf("    mov [rax], dil\n");
+        return;
+    case 8:
+        printf("    mov [rax], rdi\n");
+        return;
+    default:;
+    }
 }
 
 static void gen_lval(Node *node) {
@@ -52,7 +77,7 @@ static void gen_expr(Node *node) {
 
         if (!is_type_of(TY_ARY, node->ty)) {
             printf("    pop rax\n");
-            printf("    mov rax, [rax]\n");
+            load(node->ty);
             printf("    push rax\n");
         }
         return;
@@ -63,7 +88,7 @@ static void gen_expr(Node *node) {
         gen_expr(node->lhs);
 
         printf("    pop rax\n");
-        printf("    mov rax, [rax]\n");
+        load(node->ty);
         printf("    push rax\n");
         return;
     case ND_FUNCALL: {
@@ -74,7 +99,7 @@ static void gen_expr(Node *node) {
         }
 
         for (int i = nargs - 1; i >= 0; i--) {
-            printf("    pop %s\n", argreg[i]);
+            printf("    pop %s\n", argreg64[i]);
         }
 
         printf("    mov rax, 0\n");
@@ -88,7 +113,7 @@ static void gen_expr(Node *node) {
 
         printf("    pop rdi\n");
         printf("    pop rax\n");
-        printf("    mov [rax], rdi\n");
+        store(node->ty);
         printf("    push rdi\n");
         return;
     default:;
@@ -253,7 +278,15 @@ void codegen() {
         // レジスタによって渡された引数の値をスタックに保存する
         int i = nparams - 1;
         for (Var *var = fn->params; var; var = var->next) {
-            printf("    mov [rbp-%d], %s\n", var->offset, argreg[i--]);
+            switch (var->ty->size) {
+            case 1:
+                printf("    mov [rbp-%d], %s\n", var->offset, argreg8[i--]);
+                continue;
+            case 8:
+                printf("    mov [rbp-%d], %s\n", var->offset, argreg64[i--]);
+                continue;
+            default:;
+            }
         }
 
         // 先頭の式から順にコード生成
