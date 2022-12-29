@@ -249,9 +249,15 @@ void codegen() {
     if (globals) {
         for (Var *var = globals; var; var = var->next) {
             printf("    .globl %s\n", var->name);
-            printf("    .bss\n");
-            printf("%s:\n", var->name);
-            printf("    .zero %d\n", var->ty->size);
+            if (var->init_data) {
+                printf("    .section .rodata\n");
+                printf("%s:\n", var->name);
+                printf("    .string \"%s\"\n", var->init_data);
+            } else {
+                printf("    .bss\n");
+                printf("%s:\n", var->name);
+                printf("    .zero %d\n", var->ty->size);
+            }
         }
     }
 

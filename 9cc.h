@@ -24,6 +24,7 @@ typedef enum {
     TK_RESERVED,// 記号
     TK_IDENT,   // 識別子
     TK_NUM,     // 整数
+    TK_STR,     // 文字列リテラル
     TK_KEYWORD, // 予約語
     TK_EOF,     // 入力の終わり
 } TokenKind;
@@ -48,11 +49,12 @@ Token *tokenize();
 
 // 変数の型
 struct Var {
-    Var *next; // 次の変数かNULL
-    char *name;// 変数名
-    Type *ty;  // 型
-    int len;   // 名前の長さ
-    int offset;// RBPからのオフセット(ローカル変数)
+    Var *next;      // 次の変数かNULL
+    char *name;     // 変数名
+    Type *ty;       // 型
+    int len;        // 名前の長さ
+    int offset;     // RBPからのオフセット(ローカル変数)
+    char *init_data;// 初期値(グローバル変数)
     bool is_lvar;
 };
 

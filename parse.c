@@ -9,7 +9,7 @@
 // パーサー
 //
 
-//次のトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
+// 次のトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
 static bool equal(char *op, TokenKind kind) {
     return token->kind == kind && strlen(op) == token->len &&
            !memcmp(token->str, op, token->len);
@@ -190,6 +190,15 @@ static Var *new_gvar(Token *tok, char *name, Type *ty) {
     var->next = globals;
     var->is_lvar = false;
     globals = var;
+    return var;
+}
+
+static Var *new_str_literal(Token *tok, char *str) {
+    static int str_count = 0;
+    char *bf = calloc(1, 16);
+    sprintf(bf, ".Lstr%d", str_count++);
+    Var *var = new_gvar(tok, bf, array_of(ty_char, tok->len + 1));
+    var->init_data = str;
     return var;
 }
 
@@ -510,7 +519,14 @@ static Node *unary() {
     return primary();
 }
 
-// primary = "(" expr ")" | ident (("(" func-args? ")") | ("[" num "]"))? | num
+// ary_element = num "]"
+static Node *ary_element(Node *var) {
+    int idx = expect_number();
+    expect("]");
+    return new_node_unary(ND_DEREF, new_node_add(var, new_node_num(idx)));
+}
+
+// primary = "(" expr ")" | ident (("(" func-args? ")") | "[" postfix )? | str ("[" postfix )? | num
 // func-args = assign ("," assign)*
 static Node *primary() {
     // 次のトークンが"("なら、"(" expr ")"のはず
@@ -520,7 +536,7 @@ static Node *primary() {
         return node;
     }
 
-    // もしくは識別子のはず
+    // 識別子
     Token *tok = consume_ident();
     if (tok) {
         // 関数呼び出し
@@ -553,14 +569,26 @@ static Node *primary() {
         Node *node = new_node_var(var);
 
         if (consume("[", TK_RESERVED)) {
-            Node *idx = expr();
-            expect("]");
-            return new_node_unary(ND_DEREF, new_node_add(node, idx));
+            return ary_element(node);
         }
 
         return node;
     }
 
-    // そうでなければ数値のはず
+    // 文字列リテラル
+    if (token->kind == TK_STR) {
+        Var *var = new_str_literal(token, strndup(token->str, token->len));
+        Node *node = new_node_var(var);
+
+        token = token->next;
+
+        if (consume("[", TK_RESERVED)) {
+            return ary_element(node);
+        }
+
+        return node;
+    }
+
+    // 数値
     return new_node_num(expect_number());
 }

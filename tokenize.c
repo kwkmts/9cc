@@ -112,6 +112,22 @@ Token *tokenize() {
             continue;
         }
 
+        // 文字列リテラル
+        if (*p == '"') {
+            char *start = ++p;
+            int len = 0;
+            while (*p != '"') {
+                len++;
+                p++;
+                if (*p == '\n' || *p == '\0') {
+                    error_at(p, "'\"'がありません");
+                }
+            }
+            cur = new_token(TK_STR, cur, start, len);
+            p++;//結びの`"`を読み飛ばす
+            continue;
+        }
+
         // 識別子
         if (is_ident1(*p)) {
             char *start = p;
