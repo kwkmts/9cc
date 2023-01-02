@@ -526,7 +526,7 @@ static Node *ary_element(Node *var) {
     return new_node_unary(ND_DEREF, new_node_add(var, new_node_num(idx)));
 }
 
-// primary = "(" expr ")" | ident (("(" func-args? ")") | "[" postfix )? | str ("[" postfix )? | num
+// primary = "(" expr ")" | ident (("(" func-args? ")") | ("[" postfix))? | str ("[" postfix)? | num
 // func-args = assign ("," assign)*
 static Node *primary() {
     // 次のトークンが"("なら、"(" expr ")"のはず

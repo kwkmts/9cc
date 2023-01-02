@@ -13,7 +13,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  ./9cc "$input" > tmp.s
+  echo "$input" | ./9cc - > tmp.s || exit
   cc -o tmp tmp.s tmp2.o -g
   ./tmp
   actual="$?"

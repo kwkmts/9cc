@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -17,7 +18,7 @@ typedef struct Type Type;
 
 void error(char *fmt, ...);
 
-void error_at(const char *loc, char *fmt, ...);
+void error_at(char *loc, char *fmt, ...);
 
 // トークンの種類
 typedef enum {
@@ -38,8 +39,8 @@ struct Token {
     int len;       // トークンの長さ
 };
 
-// 入力プログラム
-extern char *user_input;
+extern char *filepath;  // ソースファイルのパス
+extern char *user_input;// 入力プログラム
 
 Token *tokenize();
 

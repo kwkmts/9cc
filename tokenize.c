@@ -16,12 +16,31 @@ void error(char *fmt, ...) {
 }
 
 // エラー箇所を報告
-void error_at(const char *loc, char *fmt, ...) {
+void error_at(char *loc, char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
 
-    int pos = loc - user_input;
-    fprintf(stderr, "%s\n", user_input);
+    char *line = loc;
+    while (line > user_input && line[-1] != '\n') {
+        line--;
+    }
+
+    char *end = loc;
+    while (*end != '\n') {
+        end++;
+    }
+
+    int line_num = 1;
+    for (char *p = user_input; p < line; p++) {
+        if (*p == '\n') {
+            line_num++;
+        }
+    }
+
+    int indent = fprintf(stderr, "%s:%d: ", filepath, line_num);
+    fprintf(stderr, "%.*s\n", end - line, line);
+
+    int pos = loc - line + indent;
     fprintf(stderr, "%*s", pos, "");
     fprintf(stderr, "^ ");
     vfprintf(stderr, fmt, ap);
