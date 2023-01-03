@@ -96,9 +96,28 @@ Token *tokenize() {
     Token *cur = &head;
 
     while (*p) {
-        // 空白文字はスキップ
+        // 空白文字をスキップ
         if (isspace(*p)) {
             p++;
+            continue;
+        }
+
+        // 行コメントをスキップ
+        if (startswith(p, "//")) {
+            p += 2;
+            while (*p != '\n') {
+                p++;
+            }
+            continue;
+        }
+
+        // ブロックコメントをスキップ
+        if (startswith(p, "/*")) {
+            char *q = strstr(p + 2, "*/");
+            if (q == NULL) {
+                error_at(p, "コメントが閉じられていません");
+            }
+            p = q + 2;
             continue;
         }
 
@@ -155,7 +174,6 @@ Token *tokenize() {
             } while (is_ident2(*p));
 
             cur = new_token(TK_IDENT, cur, start, p - start);
-            start++;
             continue;
         }
 
