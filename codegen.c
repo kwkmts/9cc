@@ -14,6 +14,7 @@ static char *const argreg64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 static char *const argreg8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
 
 static void gen_expr(Node *node);
+static void gen_stmt(Node *node);
 
 // nをalignの直近の倍数に切り上げる
 static int align_to(int n, int align) {
@@ -115,6 +116,11 @@ static void gen_expr(Node *node) {
         printf("    pop rax\n");
         store(node->ty);
         printf("    push rdi\n");
+        return;
+    case ND_STMT_EXPR:
+        for (Node *n = node->body; n; n = n->next) {
+            gen_stmt(n);
+        }
         return;
     default:;
     }
@@ -229,6 +235,9 @@ static void gen_stmt(Node *node) {
         printf(".Lend%d:\n", c);
         return;
     }
+    case ND_EXPR_STMT:
+        gen_expr(node->lhs);
+        return;
     case ND_NULL_STMT:
         return;
     default:

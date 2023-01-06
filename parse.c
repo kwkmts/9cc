@@ -376,7 +376,8 @@ static Node *stmt() {
         node = new_node_var(var);
         expect(";");
     } else {
-        node = expr();
+        node = new_node(ND_EXPR_STMT);
+        node->lhs = expr();
         expect(";");
     }
 
@@ -526,12 +527,21 @@ static Node *ary_element(Node *var) {
     return new_node_unary(ND_DEREF, new_node_add(var, new_node_num(idx)));
 }
 
-// primary = "(" expr ")" | ident (("(" func-args? ")") | ("[" postfix))? | str ("[" postfix)? | num
+// primary = "(" (expr | ("{" compound-stmt)) ")"
+//         | ident (("(" func-args? ")")
+//         | ("[" postfix))?
+//         | str ("[" postfix)?
+//         | num
 // func-args = assign ("," assign)*
 static Node *primary() {
-    // 次のトークンが"("なら、"(" expr ")"のはず
     if (consume("(", TK_RESERVED)) {
-        Node *node = expr();
+        Node *node;
+        if (consume("{", TK_RESERVED)) {// GNU Statement Exprs
+            node = new_node(ND_STMT_EXPR);
+            node->body = compound_stmt()->body;
+        } else {
+            node = expr();
+        }
         expect(")");
         return node;
     }

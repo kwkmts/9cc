@@ -155,4 +155,10 @@ assert 2 'int main() { /* return 1; */ return 2; }'
 assert 2 'int main() { // return 1;
 return 2; }'
 
+assert 0 'int main() { return ({ 0; }); }'
+assert 2 'int main() { return ({ 0; 1; 2; }); }'
+assert 1 'int main() { ({ 0; return 1; 2; }); return 3; }'
+assert 6 'int main() { return ({ 1; }) + ({ 2; }) + ({ 3; }); }'
+assert 3 'int main() { return ({ int x; x=3; x; }); }'
+
 echo OK
