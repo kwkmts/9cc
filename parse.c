@@ -587,7 +587,7 @@ static Node *primary() {
 
     // 文字列リテラル
     if (token->kind == TK_STR) {
-        Var *var = new_str_literal(token, strndup(token->str, token->len));
+        Var *var = new_str_literal(token, token->str);
         Node *node = new_node_var(var);
 
         token = token->next;

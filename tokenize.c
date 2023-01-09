@@ -52,13 +52,11 @@ void error_at(char *loc, char *fmt, ...) {
 // トークナイザー
 //
 
-// 新しいトークンを作成してcurに繋げる
-static Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
+static Token *new_token(TokenKind kind, char *str, int len) {
     Token *tok = calloc(1, sizeof(Token));
     tok->kind = kind;
     tok->str = str;
     tok->len = len;
-    cur->next = tok;
     return tok;
 }
 
@@ -77,16 +75,55 @@ static bool is_alnum(char c) {
            ('0' <= c && c <= '9') || (c == '_');
 }
 
-static size_t is_keyword(char *c) {
-    char *kw[] = {"if", "else", "while", "for", "return", "int",
-                  "char", "sizeof"};
+static int is_keyword(char *c) {
+    static char *kw[] = {"if", "else", "while", "for", "return", "int",
+                         "char", "sizeof"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-        size_t len = strlen(kw[i]);
+        int len = strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {
             return len;
         }
     }
     return 0;
+}
+
+static char *str_literal_end(char *p) {
+    while (*p != '\"') {
+        if (*p == '\n' || *p == '\0') {
+            error_at(p, "'\"'がありません");
+        }
+        p++;
+    }
+    return p;
+}
+
+static char *read_escaped_char(const char *p) {
+    switch (*p) {
+    case 'a':
+        return "\\007";
+    case 'b':
+        return "\\b";
+    case 't':
+        return "\\t";
+    case 'n':
+        return "\\n";
+    case 'v':
+        return "\\013";
+    case 'f':
+        return "\\f";
+    case 'r':
+        return "\\r";
+    case 'e':
+        return "\\033";// GNU拡張(ASCII ESC)
+    case '"':
+        return "\\\"";
+    case '\\':
+        return "\\\\";
+    case '0':
+        return "\\000";
+    default:
+        return strndup(p, 1);
+    }
 }
 
 // 入力文字列pをトークナイズしてそれを返す
@@ -122,9 +159,9 @@ Token *tokenize() {
         }
 
         // 予約語
-        size_t length = is_keyword(p);
+        int length = is_keyword(p);
         if (length) {
-            cur = new_token(TK_KEYWORD, cur, p, length);
+            cur = cur->next = new_token(TK_KEYWORD, p, length);
             p += length;
             continue;
         }
@@ -132,20 +169,20 @@ Token *tokenize() {
         // 2文字の区切り文字
         if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") ||
             startswith(p, ">=")) {
-            cur = new_token(TK_RESERVED, cur, p, 2);
+            cur = cur->next = new_token(TK_RESERVED, p, 2);
             p += 2;
             continue;
         }
 
         // 1文字の区切り文字
         if (strchr("+-*/&()<>{}[]=;,", *p)) {
-            cur = new_token(TK_RESERVED, cur, p++, 1);
+            cur = cur->next = new_token(TK_RESERVED, p++, 1);
             continue;
         }
 
         // 数値リテラル
         if (isdigit(*p)) {
-            cur = new_token(TK_NUM, cur, p, 0);
+            cur = cur->next = new_token(TK_NUM, p, 0);
             cur->val = strtol(p, &p, 10);
             continue;
         }
@@ -153,15 +190,25 @@ Token *tokenize() {
         // 文字列リテラル
         if (*p == '"') {
             char *start = ++p;
+            char *end = str_literal_end(start);
+            char *buf = calloc(2 * (end - start) + 1, sizeof(char));
             int len = 0;
             while (*p != '"') {
+                if (*p == '\\') {
+                    strcat(buf, read_escaped_char(p + 1));
+                    len++;
+                    p += 2;
+                    continue;
+                }
+
+                strcat(buf, strndup(p, 1));
                 len++;
                 p++;
-                if (*p == '\n' || *p == '\0') {
-                    error_at(p, "'\"'がありません");
-                }
             }
-            cur = new_token(TK_STR, cur, start, len);
+
+            cur = cur->next = new_token(TK_STR, start, len);
+            cur->str = buf;
+
             p++;//結びの`"`を読み飛ばす
             continue;
         }
@@ -173,13 +220,13 @@ Token *tokenize() {
                 p++;
             } while (is_ident2(*p));
 
-            cur = new_token(TK_IDENT, cur, start, p - start);
+            cur = cur->next = new_token(TK_IDENT, start, p - start);
             continue;
         }
 
         error_at(p, "トークナイズできません");
     }
 
-    new_token(TK_EOF, cur, p, 0);
+    cur->next = new_token(TK_EOF, p, 0);
     return head.next;
 }
