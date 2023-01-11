@@ -50,7 +50,8 @@ Token *tokenize();
 
 // 変数の型
 struct Var {
-    Var *next;      // 次の変数かNULL
+    Var *next;      // 次の変数
+    Var *scope_next;// スコープ内での次の変数
     char *name;     // 変数名
     Type *ty;       // 型
     int len;        // 名前の長さ
@@ -67,7 +68,7 @@ extern Token *token;
 
 // 関数の型
 struct Function {
-    Function *next;// 次の関数かNULL
+    Function *next;// 次の関数
     char *name;    // 関数名
     Node *body;    // {}内
     Var *params;   // パラメータ

@@ -9,6 +9,15 @@
 // パーサー
 //
 
+// ブロックスコープの型
+typedef struct Scope Scope;
+struct Scope {
+    Scope *parent;// 親のスコープ
+    Var *vars;    // スコープに属する変数
+};
+
+Scope *scope = &(Scope){};
+
 // 次のトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
 static bool equal(char *op, TokenKind kind) {
     return token->kind == kind && strlen(op) == token->len &&
@@ -69,17 +78,23 @@ static Token *expect_ident() {
 
 static bool at_eof() { return token->kind == TK_EOF; }
 
+static void enter_scope() {
+    Scope *sc = calloc(1, sizeof(Scope));
+    sc->parent = scope;
+    scope = sc;
+}
+
+static void leave_scope() {
+    scope = scope->parent;
+}
+
 // 変数を名前で検索。見つからなければNULLを返す
 static Var *find_var(Token *tok) {
-    for (Var *var = locals; var; var = var->next) {
-        if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
-            return var;
-        }
-    }
-
-    for (Var *var = globals; var; var = var->next) {
-        if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
-            return var;
+    for (Scope *sc = scope; sc; sc = sc->parent) {
+        for (Var *var = sc->vars; var; var = var->scope_next) {
+            if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
+                return var;
+            }
         }
     }
 
@@ -173,6 +188,11 @@ static Var *new_var(Token *tok, char *name, Type *ty) {
     var->name = name;
     var->len = tok->len;
     var->ty = ty;
+
+    // 変数とスコープを紐付ける
+    var->scope_next = scope->vars;
+    scope->vars = var;
+
     return var;
 }
 
@@ -294,7 +314,6 @@ static Function *function(Type *ty) {
 }
 
 // stmt = expr? ";"
-//      | declspec declarator ";"
 //      | "{" compound-stmt
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "while" "(" expr ")" stmt
@@ -364,17 +383,6 @@ static Node *stmt() {
     } else if (consume(";", TK_RESERVED)) {
         node = new_node(ND_NULL_STMT);
 
-    } else if (equal("int", TK_KEYWORD) || equal("char", TK_KEYWORD)) {
-        Type *ty;
-        if (consume("int", TK_KEYWORD)) {
-            ty = declarator(ty_int);
-        } else if (consume("char", TK_KEYWORD)) {
-            ty = declarator(ty_char);
-        }
-        Var *var =
-          new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
-        node = new_node_var(var);
-        expect(";");
     } else {
         node = new_node(ND_EXPR_STMT);
         node->lhs = expr();
@@ -388,17 +396,32 @@ static Node *stmt() {
     return node;
 }
 
-// compound-stmt = stmt* "}"
+// compound-stmt = (stmt | (declspec declarator ";"))* "}"
 static Node *compound_stmt() {
     Node *node = new_node(ND_BLOCK);
     Node head = {};
 
-    for (Node *cur = &head; !consume("}", TK_RESERVED); cur = cur->next) {
-        Node *node = calloc(1, sizeof(Node));
-        node = stmt();
-        cur->next = node;
-        add_type(cur->next);
+    enter_scope();
+
+    for (Node *cur = &head; !consume("}", TK_RESERVED);) {
+        // 宣言文
+        if (equal("int", TK_KEYWORD) || equal("char", TK_KEYWORD)) {
+            Type *ty;
+            if (consume("int", TK_KEYWORD)) {
+                ty = declarator(ty_int);
+            } else if (consume("char", TK_KEYWORD)) {
+                ty = declarator(ty_char);
+            }
+            new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+            expect(";");
+            continue;
+        }
+
+        // それ以外
+        add_type(cur = cur->next = stmt());
     }
+
+    leave_scope();
 
     node->body = head.next;
 

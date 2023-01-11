@@ -182,4 +182,8 @@ assert 1 'int main() { ({ 0; return 1; 2; }); return 3; }'
 assert 6 'int main() { return ({ 1; }) + ({ 2; }) + ({ 3; }); }'
 assert 3 'int main() { return ({ int x; x=3; x; }); }'
 
+assert 2 'int main() { int x; x=2; { int x; x=3; } return x; }'
+assert 2 'int main() { int x; x=2; { int x; x=3; } { int y; y=4; return x; }}'
+assert 3 'int main() { int x; x=2; { x=3; } return x; }'
+
 echo OK
