@@ -233,6 +233,7 @@ static void gen_stmt(Node *node) {
         printf(".Lend%d:\n", c);
         return;
     }
+    case ND_INIT:
     case ND_EXPR_STMT:
         gen_expr(node->lhs);
         printf("    pop rax\n");
@@ -257,10 +258,19 @@ void codegen() {
     if (globals) {
         for (Var *var = globals; var; var = var->next) {
             printf("    .globl %s\n", var->name);
-            if (var->init_data) {
+            if (var->init_data_str) {
                 printf("    .section .rodata\n");
                 printf("%s:\n", var->name);
-                printf("    .string \"%s\"\n", var->init_data);
+                printf("    .string \"%s\"\n", var->init_data_str);
+            } else if (var->init_data) {
+                printf("    .data\n");
+                printf("%s:\n", var->name);
+                switch (var->ty->size) {
+                case 1:
+                    printf("    .byte %d\n", var->init_data);
+                case 8:
+                    printf("    .quad %d\n", var->init_data);
+                }
             } else {
                 printf("    .bss\n");
                 printf("%s:\n", var->name);
