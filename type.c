@@ -40,6 +40,10 @@ void add_type(Node *node) {
         add_type(n);
     }
 
+    for (Node *n = node->args; n; n = n->next) {
+        add_type(n);
+    }
+
     switch (node->kind) {
     case ND_ADD:
     case ND_SUB:

@@ -1,10 +1,5 @@
 #include "9cc.h"
 
-#ifndef ___DEBUG
-// 下の１行をアンコメントしてデバッグフラグを有効化
-//  #define ___DEBUG
-#endif
-
 // エラーを報告する関数
 //  printf()と同じ引数
 void error(char *fmt, ...) {

@@ -6,6 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef ___DEBUG
+// 下の１行をアンコメントしてデバッグフラグを有効化
+//#define ___DEBUG
+#endif
+
 typedef struct Token Token;
 typedef struct Var Var;
 typedef struct Function Function;

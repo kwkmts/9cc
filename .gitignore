@@ -3,8 +3,7 @@
 tmp*
 a.out
 9cc
-9cc.debug
 .devcontainer/
 .vscode/
-*.core
-core
+test/test
+test/test.s

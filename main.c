@@ -1,10 +1,5 @@
 #include "9cc.h"
 
-#ifndef ___DEBUG
-// 下の１行をアンコメントしてデバッグフラグを有効化
-//  #define ___DEBUG
-#endif
-
 char *filepath;
 char *user_input;
 Token *token;

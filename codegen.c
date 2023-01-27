@@ -1,10 +1,5 @@
 #include "9cc.h"
 
-#ifndef ___DEBUG
-// 下の１行をアンコメントしてデバッグフラグを有効化
-//  #define ___DEBUG
-#endif
-
 //
 // コード生成部
 //
@@ -121,6 +116,7 @@ static void gen_expr(Node *node) {
         for (Node *n = node->body; n; n = n->next) {
             gen_stmt(n);
         }
+        printf("    push rax\n");
         return;
     default:;
     }
@@ -214,6 +210,7 @@ static void gen_stmt(Node *node) {
 
         if (node->init) {
             gen_expr(node->init);
+            printf("    pop rax\n");
         }
 
         printf(".Lbegin%d:\n", c);
@@ -229,6 +226,7 @@ static void gen_stmt(Node *node) {
         gen_stmt(node->then);
         if (node->after) {
             gen_expr(node->after);
+            printf("    pop rax\n");
         }
 
         printf("    jmp .Lbegin%d\n", c);
@@ -237,6 +235,7 @@ static void gen_stmt(Node *node) {
     }
     case ND_EXPR_STMT:
         gen_expr(node->lhs);
+        printf("    pop rax\n");
         return;
     case ND_NULL_STMT:
         return;

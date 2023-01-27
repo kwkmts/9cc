@@ -8,9 +8,11 @@ OBJS=$(SRCS: .c=.o)
 $(OBJS): 9cc.h
 
 test: 9cc
-	./test.sh
+	$(CC) -E -P -C test/test.c -o- | ./9cc - > test/test.s
+	$(CC) test/test.s -xc test/common -o test/test
+	./test/test
 
 clean:
-	rm -f 9cc *.o *~ tmp* *.core core
+	rm -f 9cc *.o *~ tmp* test/test test/test.s
 
 .PHONY: test clean
