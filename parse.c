@@ -570,11 +570,11 @@ static Node *unary() {
     return primary();
 }
 
-// ary_element = num "]"
+// ary_element = expr "]"
 static Node *ary_element(Node *var) {
-    int idx = expect_number();
+    Node *idx = expr();
     expect("]");
-    return new_node_unary(ND_DEREF, new_node_add(var, new_node_num(idx)));
+    return new_node_unary(ND_DEREF, new_node_add(var, idx));
 }
 
 // primary = "(" (expr | ("{" compound-stmt)) ")"
