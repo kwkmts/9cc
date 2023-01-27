@@ -391,7 +391,7 @@ static Node *stmt() {
     return node;
 }
 
-// compound-stmt = (stmt | (declspec declarator ";"))* "}"
+// compound-stmt = (stmt | (declspec declarator ("=" expr)? ";"))* "}"
 static Node *compound_stmt() {
     Node *node = new_node(ND_BLOCK);
     Node head = {};
@@ -407,8 +407,12 @@ static Node *compound_stmt() {
             } else if (consume("char", TK_KEYWORD)) {
                 ty = declarator(ty_char);
             }
-            new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
-            expect(";");
+            Var *var = new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+            if (consume("=", TK_RESERVED)) {
+                Node *n = new_node(ND_INIT);
+                n->lhs = new_node_binary(ND_ASSIGN, new_node_var(var), expr());
+                cur = cur->next = n;
+            }
             continue;
         }
 

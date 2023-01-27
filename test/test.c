@@ -41,10 +41,10 @@ int main() {
     ASSERT(0, 2 <= 1);
 
     ASSERT(3, ({ int a; a=3; a; }));
-    ASSERT(8, ({ int a; int z; a=3; z=5; a+z; }));
+    ASSERT(8, ({ int a=3; int z=5; a+z; }));
     ASSERT(6, ({ int a; int b; a=b=3; a+b; }));
     ASSERT(3, ({ int foo; foo=3; foo; }));
-    ASSERT(8, ({ int foo123; int bar; foo123=3; bar=5; foo123+bar; }));
+    ASSERT(8, ({ int foo123=3; int bar=5; foo123+bar; }));
 
     ASSERT(3, ({ 1; {2;} 3; }));
     ASSERT(5, ({ ;;; 5; }));
@@ -56,9 +56,9 @@ int main() {
     ASSERT(4, ({ int x; if (0) { x=1; x=2; x=3; } else { x=4; } x; }));
     ASSERT(3, ({ int x; if (1) { x=1; x=2; x=3; } else { x=4; } x; }));
 
-    ASSERT(55, ({ int i; int j; i=0; j=0; for (i=0; i<=10; i=i+1) j=i+j; j; }));
+    ASSERT(55, ({ int i=0; int j=0; for (i=0; i<=10; i=i+1) j=i+j; j; }));
 
-    ASSERT(10, ({ int i; i=0; while(i<10) { i=i+1; } i; }));
+    ASSERT(10, ({ int i=0; while(i<10) { i=i+1; } i; }));
 
     ASSERT(3, ret3());
     ASSERT(5, ret5());
@@ -69,22 +69,22 @@ int main() {
     ASSERT(136, add6(1,2,add6(3,add6(4,5,6,7,8,9),10,11,12,13),14,15,16));
     ASSERT(55, fib(9));
 
-    ASSERT(3, ({ int x; x=3; *&x; }));
-    ASSERT(3, ({ int x; int *y; int **z; x=3; y=&x; z=&y; **z; }));
-    ASSERT(5, ({ int x; int y; x=3; y=5; *(&x-1); }));
-    ASSERT(3, ({ int x; int y; x=3; y=5; *(&y+1); }));
-    ASSERT(5, ({ int x; int y; x=3; y=5; *(&x+(-1)); }));
-    ASSERT(5, ({ int x; int *y; x=3; y=&x; *y=5; x; }));
-    ASSERT(7, ({ int x; int y; x=3; y=5; *(&x-1)=7; y; }));
-    ASSERT(7, ({ int x; int y; x=3; y=5; *(&y+1)=7; x; }));
-    ASSERT(5, ({ int x; x=3; (&x+2)-&x+3; }));
+    ASSERT(3, ({ int x=3; *&x; }));
+    ASSERT(3, ({ int x=3; int *y; int **z; y=&x; z=&y; **z; }));
+    ASSERT(5, ({ int x=3; int y=5; *(&x-1); }));
+    ASSERT(3, ({ int x=3; int y=5; *(&y+1); }));
+    ASSERT(5, ({ int x=3; int y=5; *(&x+(-1)); }));
+    ASSERT(5, ({ int x=3; int *y; y=&x; *y=5; x; }));
+    ASSERT(7, ({ int x=3; int y=5; *(&x-1)=7; y; }));
+    ASSERT(7, ({ int x=3; int y=5; *(&y+1)=7; x; }));
+    ASSERT(5, ({ int x=3; (&x+2)-&x+3; }));
 
     ASSERT(8, ({ int x; sizeof(x); }));
     ASSERT(8, ({ int x; sizeof x; }));
     ASSERT(8, ({ int *x; sizeof(x); }));
     ASSERT(32, ({ int x[4]; sizeof(x); }));
-    ASSERT(8, ({ int x; x=1; sizeof(x=2); }));
-    ASSERT(1, ({ int x; x=1; sizeof(x=2); x; }));
+    ASSERT(8, ({ int x=1; sizeof(x=2); }));
+    ASSERT(1, ({ int x=1; sizeof(x=2); x; }));
 
     ASSERT(3, ({ int x[2]; int *y; y=&x; *y=3; *x; }));
 
@@ -108,9 +108,9 @@ int main() {
     ASSERT(8, sizeof(g1));
     ASSERT(32, sizeof(g3));
 
-    ASSERT(1, ({ char x; x=1; x; }));
-    ASSERT(1, ({ char x; char y; x=1; y=2; x; }));
-    ASSERT(2, ({ char x; char y; x=1; y=2; y; }));
+    ASSERT(1, ({ char x=1; x; }));
+    ASSERT(1, ({ char x=1; char y=2; x; }));
+    ASSERT(2, ({ char x=1; char y=2; y; }));
 
     ASSERT(1, ({ char x; sizeof(x); }));
     ASSERT(10, ({ char x[10]; sizeof(x); }));
@@ -146,9 +146,9 @@ int main() {
     ASSERT(10, "\ax\ny"[2]);
     ASSERT(121, "\ax\ny"[3]);
 
-    ASSERT(2,({ int x; x=2; { int x; x=3; } x; }));
-    ASSERT(2,({ int x; x=2; { int x; x=3; } int y; y=4; x; }));
-    ASSERT(3,({ int x; x=2; { x=3; } x; }));
+    ASSERT(2,({ int x=2; { int x=3; } x; }));
+    ASSERT(2,({ int x=2; { int x=3; } int y=4; x; }));
+    ASSERT(3,({ int x=2; { x=3; } x; }));
 
     printf("OK\n");
 

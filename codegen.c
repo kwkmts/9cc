@@ -233,6 +233,7 @@ static void gen_stmt(Node *node) {
         printf(".Lend%d:\n", c);
         return;
     }
+    case ND_INIT:
     case ND_EXPR_STMT:
         gen_expr(node->lhs);
         printf("    pop rax\n");
