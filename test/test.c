@@ -7,6 +7,17 @@
 int g1;
 int g2;
 int g3[4];
+int g4 = 42;
+int g5 = 12 + 34 - 5;
+int g6 = 5 + 6 * 7;
+int g7 = 5 * (9 - 6);
+int g8 = (3 + 5) / 2;
+int g9 = -10 + 20;
+int g10 = - -+10;
+int g11 = 0 == 1;
+int g12 = 0 != 1;
+int g13 = 0 < 1;
+int g14 = 0 <= 1;
 
 int ret3() {return 3;}
 int ret5() {return 5;}
@@ -104,6 +115,18 @@ int main() {
     ASSERT(1, ({ g3[0]=0; g3[1]=1; g3[2]=2; g3[3]=3; g3[1]; }));
     ASSERT(2, ({ g3[0]=0; g3[1]=1; g3[2]=2; g3[3]=3; g3[2]; }));
     ASSERT(3, ({ g3[0]=0; g3[1]=1; g3[2]=2; g3[3]=3; g3[3]; }));
+
+    ASSERT(42, g4);
+    ASSERT(41, g5);
+    ASSERT(47, g6);
+    ASSERT(15, g7);
+    ASSERT(4, g8);
+    ASSERT(10, g9);
+    ASSERT(10, g10);
+    ASSERT(0, g11);
+    ASSERT(1, g12);
+    ASSERT(1, g13);
+    ASSERT(1, g14);
 
     ASSERT(8, sizeof(g1));
     ASSERT(32, sizeof(g3));

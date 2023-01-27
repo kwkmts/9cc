@@ -55,13 +55,14 @@ Token *tokenize();
 
 // 変数の型
 struct Var {
-    Var *next;      // 次の変数
-    Var *scope_next;// スコープ内での次の変数
-    char *name;     // 変数名
-    Type *ty;       // 型
-    int len;        // 名前の長さ
-    int offset;     // RBPからのオフセット(ローカル変数)
-    char *init_data;// 初期値(グローバル変数)
+    Var *next;          // 次の変数
+    Var *scope_next;    // スコープ内での次の変数
+    char *name;         // 変数名
+    Type *ty;           // 型
+    int len;            // 名前の長さ
+    int offset;         // RBPからのオフセット(ローカル変数)
+    int init_data;      // 初期値(グローバル変数)
+    char *init_data_str;// 文字列リテラル(グローバル変数)
     bool is_lvar;
 };
 

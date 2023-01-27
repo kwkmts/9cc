@@ -83,6 +83,31 @@ static void leave_scope() {
     scope = scope->parent;
 }
 
+static int calc_const_expr(Node *node) {
+    switch (node->kind) {
+    case ND_ADD:
+        return calc_const_expr(node->lhs) + calc_const_expr(node->rhs);
+    case ND_SUB:
+        return calc_const_expr(node->lhs) - calc_const_expr(node->rhs);
+    case ND_MUL:
+        return calc_const_expr(node->lhs) * calc_const_expr(node->rhs);
+    case ND_DIV:
+        return calc_const_expr(node->lhs) / calc_const_expr(node->rhs);
+    case ND_EQ:
+        return calc_const_expr(node->lhs) == calc_const_expr(node->rhs);
+    case ND_NE:
+        return calc_const_expr(node->lhs) != calc_const_expr(node->rhs);
+    case ND_LT:
+        return calc_const_expr(node->lhs) < calc_const_expr(node->rhs);
+    case ND_LE:
+        return calc_const_expr(node->lhs) <= calc_const_expr(node->rhs);
+    case ND_NUM:
+        return node->val;
+    default:
+        error("初期化子が定数ではありません");
+    }
+}
+
 // 変数を名前で検索。見つからなければNULLを返す
 static Var *find_var(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->parent) {
@@ -213,7 +238,7 @@ static Var *new_str_literal(Token *tok, char *str) {
     char *bf = calloc(1, 16);
     sprintf(bf, ".Lstr%d", str_count++);
     Var *var = new_gvar(tok, bf, array_of(ty_char, tok->len + 1));
-    var->init_data = str;
+    var->init_data_str = str;
     return var;
 }
 
@@ -231,7 +256,7 @@ static Node *mul();
 static Node *primary();
 static Node *unary();
 
-// program = (declspec declarator ("(" function-definition | ";"))*
+// program = (declspec declarator (("(" function-definition) | ("=" expr ";")))*
 void program() {
     Function *cur = &prog;
     while (!at_eof()) {
@@ -245,7 +270,10 @@ void program() {
         }
 
         // グローバル変数
-        new_gvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+        Var *var = new_gvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+        if (consume("=", TK_RESERVED)) {
+            var->init_data = calc_const_expr(expr());
+        }
         expect(";");
     }
 }
