@@ -289,19 +289,26 @@ static Type *declspec() {
     }
 }
 
-// declarator = "*"* indent ("[" num "]")?
+// ary-suffix = "[" num "]" ary-suffix? | ε
+static Type *ary_suffix(Type *ty) {
+    if (consume("[", TK_RESERVED)) {
+        int size = expect_number();
+        expect("]");
+        ty = ary_suffix(ty);
+        return array_of(ty, size);
+    }
+
+    return ty;
+}
+
+// declarator = "*"* indent ary-suffix
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
     }
 
     Token *tok = expect_ident();
-
-    if (consume("[", TK_RESERVED)) {
-        ty = array_of(ty, expect_number());
-        expect("]");
-    }
-
+    ty = ary_suffix(ty);
     ty->name = tok;
     return ty;
 }
@@ -579,8 +586,8 @@ static Node *ary_element(Node *var) {
 
 // primary = "(" (expr | ("{" compound-stmt)) ")"
 //         | ident (("(" func-args? ")")
-//         | ("[" postfix))?
-//         | str ("[" postfix)?
+//         | ident ("[" ary-element))*
+//         | str ("[" ary-element)?
 //         | num
 // func-args = assign ("," assign)*
 static Node *primary() {
@@ -628,8 +635,8 @@ static Node *primary() {
 
         Node *node = new_node_var(var);
 
-        if (consume("[", TK_RESERVED)) {
-            return ary_element(node);
+        while (consume("[", TK_RESERVED)) {
+            node = ary_element(node);
         }
 
         return node;
