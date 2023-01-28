@@ -19,15 +19,22 @@ int g12 = 0 != 1;
 int g13 = 0 < 1;
 int g14 = 0 <= 1;
 
-int ret3() {return 3;}
-int ret5() {return 5;}
-int add(int x, int y) {return x+y;}
-int sub(int x, int y) {return x-y;}
-int add6(int a, int b, int c, int d, int e, int f) {return a+b+c+d+e+f;}
-int sub_char(char a, char b, char c) {return a-b-c;}
-int fib(int x) { if (x<=1) return 1; return fib(x-1) + fib(x-2); }
+int ret3() { return 3; }
+int ret5() { return 5; }
+int add(int x, int y) { return x + y; }
+int sub(int x, int y) { return x - y; }
+int add6(int a, int b, int c, int d, int e, int f) { return a + b + c + d + e + f; }
+int sub_char(char a, char b, char c) { return a - b - c; }
+int fib(int x) {
+    if (x <= 1) return 1;
+    return fib(x - 1) + fib(x - 2);
+}
 
 int main() {
+    int l1 = 0;
+    int l2 = 42;
+    int l3[3] = {0, 1, 2};
+
     ASSERT(0, 0);
     ASSERT(42, 42);
     ASSERT(21, 5+20-4);
@@ -50,6 +57,12 @@ int main() {
     ASSERT(1, 0 <= 1);
     ASSERT(1, 1 <= 1);
     ASSERT(0, 2 <= 1);
+
+    ASSERT(0, l1);
+    ASSERT(42, l2);
+    ASSERT(0, l3[0]);
+    ASSERT(1, l3[1]);
+    ASSERT(2, l3[2]);
 
     ASSERT(3, ({ int a; a=3; a; }));
     ASSERT(8, ({ int a=3; int z=5; a+z; }));
@@ -75,9 +88,9 @@ int main() {
     ASSERT(5, ret5());
     ASSERT(8, add(3, 5));
     ASSERT(2, sub(5, 3));
-    ASSERT(21, add6(1,2,3,4,5,6));
-    ASSERT(66, add6(1,2,add6(3,4,5,6,7,8),9,10,11));
-    ASSERT(136, add6(1,2,add6(3,add6(4,5,6,7,8,9),10,11,12,13),14,15,16));
+    ASSERT(21, add6(1, 2, 3, 4, 5, 6));
+    ASSERT(66, add6(1, 2, add6(3, 4, 5, 6, 7, 8), 9, 10, 11));
+    ASSERT(136, add6(1, 2, add6(3, add6(4, 5, 6, 7, 8, 9), 10, 11, 12, 13), 14, 15, 16));
     ASSERT(55, fib(9));
 
     ASSERT(3, ({ int x=3; *&x; }));
@@ -122,6 +135,10 @@ int main() {
     ASSERT(3, ({ int x[2][3]; int *y=x; y[3]=3; x[1][0]; }));
     ASSERT(4, ({ int x[2][3]; int *y=x; y[4]=4; x[1][1]; }));
     ASSERT(5, ({ int x[2][3]; int *y=x; y[5]=5; x[1][2]; }));
+
+    ASSERT(1, ({ int x[3]={1,2,3}; x[0]; }));
+    ASSERT(2, ({ int x[3]={1,2,3}; x[1]; }));
+    ASSERT(3, ({ int x[3]={1,2,3}; x[2]; }));
 
     ASSERT(0, g1);
     ASSERT(3, ({ g1=3; g1; }));
@@ -184,9 +201,9 @@ int main() {
     ASSERT(10, "\ax\ny"[2]);
     ASSERT(121, "\ax\ny"[3]);
 
-    ASSERT(2,({ int x=2; { int x=3; } x; }));
-    ASSERT(2,({ int x=2; { int x=3; } int y=4; x; }));
-    ASSERT(3,({ int x=2; { x=3; } x; }));
+    ASSERT(2, ({ int x=2; { int x=3; } x; }));
+    ASSERT(2, ({ int x=2; { int x=3; } int y=4; x; }));
+    ASSERT(3, ({ int x=2; { x=3; } x; }));
 
     printf("OK\n");
 

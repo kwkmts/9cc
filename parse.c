@@ -426,7 +426,7 @@ static Node *stmt() {
     return node;
 }
 
-// compound-stmt = (stmt | (declspec declarator ("=" expr)? ";"))* "}"
+// compound-stmt = (stmt | (declspec declarator ("=" (expr | "{" (expr ("," expr)*)? "}"))? ";"))* "}"
 static Node *compound_stmt() {
     Node *node = new_node(ND_BLOCK);
     Node head = {};
@@ -443,11 +443,30 @@ static Node *compound_stmt() {
                 ty = declarator(ty_char);
             }
             Var *var = new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+
+            // 初期化
             if (consume("=", TK_RESERVED)) {
-                Node *n = new_node(ND_INIT);
-                n->lhs = new_node_binary(ND_ASSIGN, new_node_var(var), expr());
-                cur = cur->next = n;
+                if (consume("{", TK_RESERVED)) {
+                    int i = 0;
+                    while (!consume("}", TK_RESERVED) && i < var->ty->ary_len) {
+                        if (consume(",", TK_RESERVED)) {
+                            continue;
+                        }
+
+                        Node *n = new_node(ND_INIT);
+                        Node *ary_elem = new_node_unary(ND_DEREF,
+                                                        new_node_add(new_node_var(var),
+                                                                     new_node_num(i++)));
+                        n->lhs = new_node_binary(ND_ASSIGN, ary_elem, expr());
+                        add_type(cur = cur->next = n);
+                    }
+                } else {
+                    Node *n = new_node(ND_INIT);
+                    n->lhs = new_node_binary(ND_ASSIGN, new_node_var(var), expr());
+                    add_type(cur = cur->next = n);
+                }
             }
+            expect(";");
             continue;
         }
 
@@ -577,17 +596,10 @@ static Node *unary() {
     return primary();
 }
 
-// ary_element = expr "]"
-static Node *ary_element(Node *var) {
-    Node *idx = expr();
-    expect("]");
-    return new_node_unary(ND_DEREF, new_node_add(var, idx));
-}
-
 // primary = "(" (expr | ("{" compound-stmt)) ")"
 //         | ident (("(" func-args? ")")
-//         | ident ("[" ary-element))*
-//         | str ("[" ary-element)?
+//         | ident ("[" expr "]")*
+//         | str ("[" expr "]")?
 //         | num
 // func-args = assign ("," assign)*
 static Node *primary() {
@@ -636,7 +648,8 @@ static Node *primary() {
         Node *node = new_node_var(var);
 
         while (consume("[", TK_RESERVED)) {
-            node = ary_element(node);
+            node = new_node_unary(ND_DEREF, new_node_add(node, expr()));
+            expect("]");
         }
 
         return node;
@@ -650,7 +663,8 @@ static Node *primary() {
         token = token->next;
 
         if (consume("[", TK_RESERVED)) {
-            return ary_element(node);
+            node = new_node_unary(ND_DEREF, new_node_add(node, expr()));
+            expect("]");
         }
 
         return node;
