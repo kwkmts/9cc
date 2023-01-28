@@ -465,12 +465,32 @@ static Node *compound_stmt() {
 // expr = assign
 static Node *expr() { return assign(); }
 
-// assign = equality ("=" assign)?
+// assign = equality (("=" | "+=" | "-=" | "*=" | "/=") assign)?
 static Node *assign() {
     Node *node = equality();
 
     if (consume("=", TK_RESERVED)) {
         node = new_node_binary(ND_ASSIGN, node, assign());
+    }
+
+    if (consume("+=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN, node, new_node_add(node, assign()));
+    }
+
+    if (consume("-=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN, node, new_node_sub(node, assign()));
+    }
+
+    if (consume("*=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_binary(ND_MUL, node, assign()));
+    }
+
+    if (consume("/=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_binary(ND_DIV, node, assign()));
     }
 
     return node;

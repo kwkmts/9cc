@@ -163,7 +163,8 @@ Token *tokenize() {
 
         // 2文字の区切り文字
         if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") ||
-            startswith(p, ">=")) {
+            startswith(p, ">=") || startswith(p, "+=") || startswith(p, "-=") ||
+            startswith(p, "*=") || startswith(p, "/=")) {
             cur = cur->next = new_token(TK_RESERVED, p, 2);
             p += 2;
             continue;
