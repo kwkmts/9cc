@@ -242,6 +242,16 @@ static Var *new_str_literal(Token *tok, char *str) {
     return var;
 }
 
+static Node *new_node_initialize(Node *var, Node *initializer) {
+    Node *node = new_node(ND_INIT);
+    node->lhs = new_node_binary(ND_ASSIGN, var, initializer);
+    return node;
+}
+
+static Node *ary_elem(Node *var, Node *idx) {
+    return new_node_unary(ND_DEREF, new_node_add(var, idx));
+}
+
 static Type *declspec();
 static Type *declarator(Type *ty);
 static Function *function(Type *ty);
@@ -343,6 +353,48 @@ static Function *function(Type *ty) {
     return fn;
 }
 
+// declaration = declspec declarator ("=" (expr | "{" (expr ("," expr)*)? "}"))? ";"
+static Node *declaration() {
+    Node head = {};
+    Node *cur = &head;
+
+    Type *ty;
+    if (consume("int", TK_KEYWORD)) {
+        ty = declarator(ty_int);
+    } else if (consume("char", TK_KEYWORD)) {
+        ty = declarator(ty_char);
+    }
+    Var *var = new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+
+    // 初期化
+    if (consume("=", TK_RESERVED)) {
+        if (consume("{", TK_RESERVED)) {
+            int i = 0;
+            while (i < var->ty->ary_len) {
+                if (consume(",", TK_RESERVED)) {
+                    continue;
+                }
+
+                Node *n = new_node_initialize(ary_elem(new_node_var(var), new_node_num(i++)),
+                                              expr());
+                cur = cur->next = n;
+            }
+
+            while (!consume("}", TK_RESERVED)) {
+                token = token->next;
+            }
+        } else {
+            cur->next = new_node_initialize(new_node_var(var), expr());
+        }
+    }
+
+    expect(";");
+
+    Node *node = new_node(ND_BLOCK);
+    node->body = head.next;
+    return node;
+}
+
 // stmt = expr? ";"
 //      | "{" compound-stmt
 //      | "if" "(" expr ")" stmt ("else" stmt)?
@@ -434,44 +486,12 @@ static Node *compound_stmt() {
     enter_scope();
 
     for (Node *cur = &head; !consume("}", TK_RESERVED);) {
-        // 宣言文
         if (equal("int", TK_KEYWORD) || equal("char", TK_KEYWORD)) {
-            Type *ty;
-            if (consume("int", TK_KEYWORD)) {
-                ty = declarator(ty_int);
-            } else if (consume("char", TK_KEYWORD)) {
-                ty = declarator(ty_char);
-            }
-            Var *var = new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
-
-            // 初期化
-            if (consume("=", TK_RESERVED)) {
-                if (consume("{", TK_RESERVED)) {
-                    int i = 0;
-                    while (!consume("}", TK_RESERVED) && i < var->ty->ary_len) {
-                        if (consume(",", TK_RESERVED)) {
-                            continue;
-                        }
-
-                        Node *n = new_node(ND_INIT);
-                        Node *ary_elem = new_node_unary(ND_DEREF,
-                                                        new_node_add(new_node_var(var),
-                                                                     new_node_num(i++)));
-                        n->lhs = new_node_binary(ND_ASSIGN, ary_elem, expr());
-                        add_type(cur = cur->next = n);
-                    }
-                } else {
-                    Node *n = new_node(ND_INIT);
-                    n->lhs = new_node_binary(ND_ASSIGN, new_node_var(var), expr());
-                    add_type(cur = cur->next = n);
-                }
-            }
-            expect(";");
-            continue;
+            cur = cur->next = declaration();
+        } else {
+            cur = cur->next = stmt();
         }
-
-        // それ以外
-        add_type(cur = cur->next = stmt());
+        add_type(cur);
     }
 
     leave_scope();
@@ -648,7 +668,7 @@ static Node *primary() {
         Node *node = new_node_var(var);
 
         while (consume("[", TK_RESERVED)) {
-            node = new_node_unary(ND_DEREF, new_node_add(node, expr()));
+            node = ary_elem(node, expr());
             expect("]");
         }
 
@@ -663,7 +683,7 @@ static Node *primary() {
         token = token->next;
 
         if (consume("[", TK_RESERVED)) {
-            node = new_node_unary(ND_DEREF, new_node_add(node, expr()));
+            node = ary_elem(node, expr());
             expect("]");
         }
 
