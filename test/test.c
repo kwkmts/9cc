@@ -201,6 +201,10 @@ int main() {
     ASSERT(2,({ int x=2; { int x=3; } int y=4; x; }));
     ASSERT(3,({ int x=2; { x=3; } x; }));
 
+    ASSERT(3, (1,2,3));
+    ASSERT(3, ({ int i=2; int j=3; int k=(i, j); k; }));
+    ASSERT(2, ({ int i=2; int j=3; int k=(j, i); k; }));
+
     printf("OK\n");
 
     return 0;

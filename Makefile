@@ -9,7 +9,7 @@ $(OBJS): 9cc.h
 
 test: 9cc
 	$(CC) -E -P -C test/test.c -o- | ./9cc - > test/test.s
-	$(CC) test/test.s -xc test/common -o test/test
+	$(CC) test/test.s -xc test/common -o test/test -g
 	./test/test
 
 clean:

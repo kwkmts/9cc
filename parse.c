@@ -462,8 +462,16 @@ static Node *compound_stmt() {
     return node;
 }
 
-// expr = assign
-static Node *expr() { return assign(); }
+// expr = assign ("," expr)?
+static Node *expr() {
+    Node *node = assign();
+
+    if (consume(",", TK_RESERVED)) {
+        node = new_node_binary(ND_COMMA, node, expr());
+    }
+
+    return node;
+}
 
 // assign = equality (("=" | "+=" | "-=" | "*=" | "/=") assign)?
 static Node *assign() {
