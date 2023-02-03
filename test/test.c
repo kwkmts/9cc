@@ -70,6 +70,24 @@ int main() {
     ASSERT(2, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; ++*p; }));
     ASSERT(0, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; --*p; }));
 
+    ASSERT(2, ({ int i=2; i++; }));
+    ASSERT(2, ({ int i=2; i--; }));
+    ASSERT(3, ({ int i=2; i++; i; }));
+    ASSERT(1, ({ int i=2; i--; i; }));
+    ASSERT(1, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; *p++; }));
+    ASSERT(1, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; *p--; }));
+
+    ASSERT(0, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*p++)--; a[0]; }));
+    ASSERT(0, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*(p--))--; a[1]; }));
+
+    ASSERT(2, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*p)--; a[2]; }));
+    ASSERT(2, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*p)--; p++; *p; }));
+
+    ASSERT(0, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*p++)--; a[0]; }));
+    ASSERT(0, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*p++)--; a[1]; }));
+    ASSERT(2, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*p++)--; a[2]; }));
+    ASSERT(2, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; (*p++)--; *p; }));
+
     ASSERT(3, ({ 1; {2;} 3; }));
     ASSERT(5, ({ ;;; 5; }));
 
@@ -109,6 +127,8 @@ int main() {
     ASSERT(32, ({ int x[4]; sizeof(x); }));
     ASSERT(8, ({ int x=1; sizeof(x=2); }));
     ASSERT(1, ({ int x=1; sizeof(x=2); x; }));
+    ASSERT(1, ({ char i; sizeof(++i); }));
+    ASSERT(1, ({ char i; sizeof(i++); }));
 
     ASSERT(3, ({ int x[2]; int *y; y=&x; *y=3; *x; }));
 

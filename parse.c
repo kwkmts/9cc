@@ -242,6 +242,26 @@ static Var *new_str_literal(Token *tok, char *str) {
     return var;
 }
 
+// A op= B を `tmp = &A, *tmp = *tmp op B` に変換する
+static Node *to_assign(Node *binary) {
+    add_type(binary->lhs);
+    add_type(binary->rhs);
+
+    Node *var = new_node_var(new_lvar("", 0, pointer_to(binary->lhs->ty)));
+
+    Node *expr1 = new_node_binary(ND_ASSIGN,
+                                  var,
+                                  new_node_unary(ND_ADDR, binary->lhs));
+
+    Node *expr2 = new_node_binary(ND_ASSIGN,
+                                  new_node_unary(ND_DEREF, var),
+                                  new_node_binary(binary->kind,
+                                                  new_node_unary(ND_DEREF, var),
+                                                  binary->rhs));
+
+    return new_node_binary(ND_COMMA, expr1, expr2);
+}
+
 static Type *declspec();
 static Type *declarator(Type *ty);
 static Function *function(Type *ty);
@@ -253,6 +273,7 @@ static Node *equality();
 static Node *relational();
 static Node *add();
 static Node *mul();
+static Node *postfix();
 static Node *primary();
 static Node *unary();
 
@@ -581,7 +602,7 @@ static Node *mul() {
 // unary = "sizeof" unary
 //       | ("+" | "-")? unary
 //       | ("*" | "&" | "++" | "--") unary
-//       | primary
+//       | postfix
 static Node *unary() {
     if (consume("sizeof", TK_KEYWORD)) {
         Node *node = unary();
@@ -619,7 +640,26 @@ static Node *unary() {
                                new_node_sub(node, new_node_num(1)));
     }
 
-    return primary();
+    return postfix();
+}
+
+// postfix = primary ("++" | "--")*
+static Node *postfix() {
+    Node *node = primary();
+    Node *node_one = new_node_num(1);
+
+    for (;;) {
+        if (consume("++", TK_RESERVED)) {
+            // `A++` は `(A += 1) - 1` と等価
+            node = new_node_sub(to_assign(new_node_add(node, node_one)), node_one);
+
+        } else if (consume("--", TK_RESERVED)) {
+            // `A--` は `(A -= 1) + 1` と等価
+            node = new_node_add(to_assign(new_node_sub(node, node_one)), node_one);
+        } else {
+            return node;
+        }
+    }
 }
 
 // ary_element = expr "]"
