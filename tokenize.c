@@ -70,7 +70,7 @@ static bool is_alnum(char c) {
            ('0' <= c && c <= '9') || (c == '_');
 }
 
-static int is_keyword(char *c) {
+static int read_keyword(char *c) {
     static char *kw[] = {"if", "else", "while", "for", "return", "int",
                          "char", "sizeof"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
@@ -80,6 +80,16 @@ static int is_keyword(char *c) {
         }
     }
     return 0;
+}
+
+static bool is_punct_with_2char(char *p) {
+    static char *kw[] = {"==", "!=", "<=", ">=", "+=", "-=", "*=", "/=", "++", "--"};
+    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+        if (startswith(p, kw[i])) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static char *str_literal_end(char *p) {
@@ -154,7 +164,7 @@ Token *tokenize() {
         }
 
         // 予約語
-        int length = is_keyword(p);
+        int length = read_keyword(p);
         if (length) {
             cur = cur->next = new_token(TK_KEYWORD, p, length);
             p += length;
@@ -162,8 +172,7 @@ Token *tokenize() {
         }
 
         // 2文字の区切り文字
-        if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") ||
-            startswith(p, ">=")) {
+        if (is_punct_with_2char(p)) {
             cur = cur->next = new_token(TK_RESERVED, p, 2);
             p += 2;
             continue;

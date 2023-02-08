@@ -203,10 +203,10 @@ static Node *new_node_sub(Node *lhs, Node *rhs) {
     error("数値からポインタ値を引くことはできません");
 }
 
-static Var *new_var(Token *tok, char *name, Type *ty) {
+static Var *new_var(char *str, int len, Type *ty) {
     Var *var = calloc(1, sizeof(Var));
-    var->name = name;
-    var->len = tok->len;
+    var->name = strndup(str, len);
+    var->len = len;
     var->ty = ty;
 
     // 変数とスコープを紐付ける
@@ -216,8 +216,8 @@ static Var *new_var(Token *tok, char *name, Type *ty) {
     return var;
 }
 
-static Var *new_lvar(Token *tok, char *name, Type *ty) {
-    Var *var = new_var(tok, name, ty);
+static Var *new_lvar(char *str, int len, Type *ty) {
+    Var *var = new_var(str, len, ty);
     var->next = locals;
     var->offset = locals ? locals->offset + ty->size : ty->size;
     var->is_lvar = true;
@@ -225,8 +225,8 @@ static Var *new_lvar(Token *tok, char *name, Type *ty) {
     return var;
 }
 
-static Var *new_gvar(Token *tok, char *name, Type *ty) {
-    Var *var = new_var(tok, name, ty);
+static Var *new_gvar(char *str, int len, Type *ty) {
+    Var *var = new_var(str, len, ty);
     var->next = globals;
     var->is_lvar = false;
     globals = var;
@@ -237,7 +237,7 @@ static Var *new_str_literal(Token *tok, char *str) {
     static int str_count = 0;
     char *bf = calloc(1, 16);
     sprintf(bf, ".Lstr%d", str_count++);
-    Var *var = new_gvar(tok, bf, array_of(ty_char, tok->len + 1));
+    Var *var = new_gvar(bf, strlen(bf), array_of(ty_char, tok->len + 1));
     var->init_data_str = str;
     return var;
 }
@@ -252,6 +252,26 @@ static Node *ary_elem(Node *var, Node *idx) {
     return new_node_unary(ND_DEREF, new_node_add(var, idx));
 }
 
+// A op= B を `tmp = &A, *tmp = *tmp op B` に変換する
+static Node *to_assign(Node *binary) {
+    add_type(binary->lhs);
+    add_type(binary->rhs);
+
+    Node *var = new_node_var(new_lvar("", 0, pointer_to(binary->lhs->ty)));
+
+    Node *expr1 = new_node_binary(ND_ASSIGN,
+                                  var,
+                                  new_node_unary(ND_ADDR, binary->lhs));
+
+    Node *expr2 = new_node_binary(ND_ASSIGN,
+                                  new_node_unary(ND_DEREF, var),
+                                  new_node_binary(binary->kind,
+                                                  new_node_unary(ND_DEREF, var),
+                                                  binary->rhs));
+
+    return new_node_binary(ND_COMMA, expr1, expr2);
+}
+
 static Type *declspec();
 static Type *declarator(Type *ty);
 static Function *function(Type *ty);
@@ -263,6 +283,7 @@ static Node *equality();
 static Node *relational();
 static Node *add();
 static Node *mul();
+static Node *postfix();
 static Node *primary();
 static Node *unary();
 
@@ -280,7 +301,7 @@ void program() {
         }
 
         // グローバル変数
-        Var *var = new_gvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+        Var *var = new_gvar(ty->name->str, ty->name->len, ty);
         if (consume("=", TK_RESERVED)) {
             var->init_data = calc_const_expr(expr());
         }
@@ -339,7 +360,7 @@ static Function *function(Type *ty) {
         Type *basety = declspec();
         Type *ty = declarator(basety);
 
-        new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+        new_lvar(ty->name->str, ty->name->len, ty);
     }
 
     fn->params = locals;
@@ -353,7 +374,7 @@ static Function *function(Type *ty) {
     return fn;
 }
 
-// declaration = declspec declarator ("=" (expr | "{" (expr ("," expr)*)? "}"))? ";"
+// declaration = declspec declarator ("=" (assign | "{" (assign ("," assign)*)? "}"))? ";"
 static Node *declaration() {
     Node head = {};
     Node *cur = &head;
@@ -364,19 +385,20 @@ static Node *declaration() {
     } else if (consume("char", TK_KEYWORD)) {
         ty = declarator(ty_char);
     }
-    Var *var = new_lvar(ty->name, strndup(ty->name->str, ty->name->len), ty);
+    Var *var = new_lvar(ty->name->str, ty->name->len, ty);
 
     // 初期化
     if (consume("=", TK_RESERVED)) {
         if (consume("{", TK_RESERVED)) {
             int i = 0;
             while (i < var->ty->ary_len) {
+
                 if (consume(",", TK_RESERVED)) {
                     continue;
                 }
 
                 Node *n = new_node_initialize(ary_elem(new_node_var(var), new_node_num(i++)),
-                                              expr());
+                                              assign());
                 cur = cur->next = n;
             }
 
@@ -384,7 +406,7 @@ static Node *declaration() {
                 token = token->next;
             }
         } else {
-            cur->next = new_node_initialize(new_node_var(var), expr());
+            cur->next = new_node_initialize(new_node_var(var), assign());
         }
     }
 
@@ -501,15 +523,43 @@ static Node *compound_stmt() {
     return node;
 }
 
-// expr = assign
-static Node *expr() { return assign(); }
+// expr = assign ("," expr)?
+static Node *expr() {
+    Node *node = assign();
 
-// assign = equality ("=" assign)?
+    if (consume(",", TK_RESERVED)) {
+        node = new_node_binary(ND_COMMA, node, expr());
+    }
+
+    return node;
+}
+
+// assign = equality (("=" | "+=" | "-=" | "*=" | "/=") assign)?
 static Node *assign() {
     Node *node = equality();
 
     if (consume("=", TK_RESERVED)) {
         node = new_node_binary(ND_ASSIGN, node, assign());
+    }
+
+    if (consume("+=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN, node, new_node_add(node, assign()));
+    }
+
+    if (consume("-=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN, node, new_node_sub(node, assign()));
+    }
+
+    if (consume("*=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_binary(ND_MUL, node, assign()));
+    }
+
+    if (consume("/=", TK_RESERVED)) {
+        node = new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_binary(ND_DIV, node, assign()));
     }
 
     return node;
@@ -589,7 +639,10 @@ static Node *mul() {
     }
 }
 
-// unary = "sizeof" unary | ("+" | "-")? unary | ("*" | "&") unary | primary
+// unary = "sizeof" unary
+//       | ("+" | "-")? unary
+//       | ("*" | "&" | "++" | "--") unary
+//       | postfix
 static Node *unary() {
     if (consume("sizeof", TK_KEYWORD)) {
         Node *node = unary();
@@ -613,7 +666,40 @@ static Node *unary() {
         return new_node_unary(ND_ADDR, unary());
     }
 
-    return primary();
+    if (consume("++", TK_RESERVED)) {
+        Node *node = unary();
+        return new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_add(node, new_node_num(1)));
+    }
+
+    if (consume("--", TK_RESERVED)) {
+        Node *node = unary();
+        return new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_sub(node, new_node_num(1)));
+    }
+
+    return postfix();
+}
+
+// postfix = primary ("++" | "--")*
+static Node *postfix() {
+    Node *node = primary();
+    Node *node_one = new_node_num(1);
+
+    for (;;) {
+        if (consume("++", TK_RESERVED)) {
+            // `A++` は `(A += 1) - 1` と等価
+            node = new_node_sub(to_assign(new_node_add(node, node_one)), node_one);
+
+        } else if (consume("--", TK_RESERVED)) {
+            // `A--` は `(A -= 1) + 1` と等価
+            node = new_node_add(to_assign(new_node_sub(node, node_one)), node_one);
+        } else {
+            return node;
+        }
+    }
 }
 
 // primary = "(" (expr | ("{" compound-stmt)) ")"
