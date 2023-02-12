@@ -112,6 +112,15 @@ static void gen_expr(Node *node) {
         store(node->ty);
         printf("    push rdi\n");
         return;
+    case ND_NOT:
+        gen_expr(node->lhs);
+
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    sete al\n");
+        printf("    movzb rax, al\n");
+        printf("    push rax\n");
+        return;
     case ND_COMMA:
         gen_expr(node->lhs);
         printf("    pop rax\n");

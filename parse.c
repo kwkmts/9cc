@@ -600,8 +600,7 @@ static Node *mul() {
 }
 
 // unary = "sizeof" unary
-//       | ("+" | "-")? unary
-//       | ("*" | "&" | "++" | "--") unary
+//       | ("+" | "-" | "*" | "&" | "++" | "--" | "!") unary
 //       | postfix
 static Node *unary() {
     if (consume("sizeof", TK_KEYWORD)) {
@@ -638,6 +637,10 @@ static Node *unary() {
         return new_node_binary(ND_ASSIGN,
                                node,
                                new_node_sub(node, new_node_num(1)));
+    }
+
+    if (consume("!", TK_RESERVED)) {
+        return new_node_unary(ND_NOT, unary());
     }
 
     return postfix();

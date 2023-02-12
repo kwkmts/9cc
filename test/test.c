@@ -51,6 +51,10 @@ int main() {
     ASSERT(1, 1 <= 1);
     ASSERT(0, 2 <= 1);
 
+    ASSERT(0, !1);
+    ASSERT(0, !2);
+    ASSERT(1, !0);
+
     ASSERT(3, ({ int a; a=3; a; }));
     ASSERT(8, ({ int a=3; int z=5; a+z; }));
     ASSERT(6, ({ int a; int b; a=b=3; a+b; }));
