@@ -96,6 +96,8 @@ typedef enum {
     ND_LE,       // <=
     ND_ASSIGN,   // =
     ND_NOT,      // !
+    ND_LOGAND,   // &&
+    ND_LOGOR,    // ||
     ND_COMMA,    // ,
     ND_VAR,      // ローカル変数
     ND_NUM,      // 整数

@@ -269,6 +269,8 @@ static Node *stmt();
 static Node *compound_stmt();
 static Node *expr();
 static Node *assign();
+static Node *logor();
+static Node *logand();
 static Node *equality();
 static Node *relational();
 static Node *add();
@@ -494,9 +496,9 @@ static Node *expr() {
     return node;
 }
 
-// assign = equality (("=" | "+=" | "-=" | "*=" | "/=") assign)?
+// assign = logor (("=" | "+=" | "-=" | "*=" | "/=") assign)?
 static Node *assign() {
-    Node *node = equality();
+    Node *node = logor();
 
     if (consume("=", TK_RESERVED)) {
         node = new_node_binary(ND_ASSIGN, node, assign());
@@ -523,6 +525,32 @@ static Node *assign() {
     }
 
     return node;
+}
+
+// logor = logand ("||" logand)*
+static Node *logor() {
+    Node *node = logand();
+
+    for (;;) {
+        if (consume("||", TK_RESERVED)) {
+            node = new_node_binary(ND_LOGOR, node, logand());
+        } else {
+            return node;
+        }
+    }
+}
+
+// logand = equality ("&&" equality)*
+static Node *logand() {
+    Node *node = equality();
+
+    for (;;) {
+        if (consume("&&", TK_RESERVED)) {
+            node = new_node_binary(ND_LOGAND, node, equality());
+        } else {
+            return node;
+        }
+    }
 }
 
 // equality = relational ("==" relational | "!=" relational)*

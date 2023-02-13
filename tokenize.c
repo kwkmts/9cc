@@ -83,7 +83,8 @@ static int read_keyword(char *c) {
 }
 
 static bool is_punct_with_2char(char *p) {
-    static char *kw[] = {"==", "!=", "<=", ">=", "+=", "-=", "*=", "/=", "++", "--"};
+    static char *kw[] = {"==", "!=", "<=", ">=", "+=", "-=", "*=", "/=",
+                         "++", "--", "&&", "||"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (startswith(p, kw[i])) {
             return true;
