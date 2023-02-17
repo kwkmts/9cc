@@ -123,6 +123,9 @@ static void gen_expr(Node *node) {
         }
         printf("    push rax\n");
         return;
+    case ND_NULL_EXPR:
+        printf("    push rax\n");
+        return;
     default:;
     }
 

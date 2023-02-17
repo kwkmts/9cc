@@ -106,6 +106,7 @@ typedef enum {
     ND_INIT,     // 初期化
     ND_EXPR_STMT,// 式文
     ND_STMT_EXPR,// GNU Statement Exprs
+    ND_NULL_EXPR,// 何もしない式
     ND_NULL_STMT,// 空文
 } NodeKind;
 

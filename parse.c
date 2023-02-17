@@ -13,6 +13,22 @@ struct Scope {
 
 Scope *scope = &(Scope){};
 
+// 初期化子の型
+typedef struct Initializer Initializer;
+struct Initializer {
+    Type *ty;
+    Node *expr;
+    Initializer **children;
+};
+
+// 初期化における指示子の型
+typedef struct InitDesg InitDesg;
+struct InitDesg {
+    InitDesg *next;
+    int idx;
+    Var *var;
+};
+
 // 次のトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
 static bool equal(char *op, TokenKind kind) {
     return token->kind == kind && strlen(op) == token->len &&
@@ -242,12 +258,6 @@ static Var *new_str_literal(Token *tok, char *str) {
     return var;
 }
 
-static Node *new_node_initialize(Node *var, Node *initializer) {
-    Node *node = new_node(ND_INIT);
-    node->lhs = new_node_binary(ND_ASSIGN, var, initializer);
-    return node;
-}
-
 static Node *ary_elem(Node *var, Node *idx) {
     return new_node_unary(ND_DEREF, new_node_add(var, idx));
 }
@@ -270,6 +280,20 @@ static Node *to_assign(Node *binary) {
                                                   binary->rhs));
 
     return new_node_binary(ND_COMMA, expr1, expr2);
+}
+
+static Initializer *new_initializer(Type *ty) {
+    Initializer *init = calloc(1, sizeof(Initializer));
+    init->ty = ty;
+
+    if (is_type_of(TY_ARY, ty)) {
+        init->children = calloc(ty->ary_len, sizeof(Initializer *));
+        for (int i = 0; i < ty->ary_len; i++) {
+            init->children[i] = new_initializer(ty->base);
+        }
+    }
+
+    return init;
 }
 
 static Type *declspec();
@@ -374,7 +398,64 @@ static Function *function(Type *ty) {
     return fn;
 }
 
-// declaration = declspec declarator ("=" (assign | "{" (assign ("," assign)*)? "}"))? ";"
+// initializer = "{" initializer ("," initializer)* "}"
+//             | assign
+static void initializer2(Initializer *init) {
+    if (is_type_of(TY_ARY, init->ty)) {
+        expect("{");
+
+        int i = 0;
+        while (i < init->ty->ary_len) {
+            if (consume(",", TK_RESERVED)) {
+                continue;
+            }
+
+            initializer2(init->children[i++]);
+        }
+
+        expect("}");
+        return;
+    }
+
+    init->expr = assign();
+}
+
+static Initializer *initializer(Type *ty) {
+    Initializer *init = new_initializer(ty);
+    initializer2(init);
+    return init;
+}
+
+static Node *init_designator(InitDesg *desg) {
+    if (desg->var) {
+        return new_node_var(desg->var);
+    }
+
+    return new_node_unary(ND_DEREF,
+                          new_node_add(init_designator(desg->next), new_node_num(desg->idx)));
+}
+
+static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
+    if (is_type_of(TY_ARY, init->ty)) {
+        Node *node = new_node(ND_NULL_EXPR);
+        for (int i = 0; i < init->ty->ary_len; i++) {
+            InitDesg desg2 = {desg, i};
+            node = new_node_binary(ND_COMMA, node, create_lvar_init(init->children[i], &desg2));
+        }
+
+        return node;
+    }
+
+    new_node_binary(ND_ASSIGN, init_designator(desg), init->expr);
+}
+
+static Node *lvar_initializer(Var *var) {
+    Initializer *init = initializer(var->ty);
+    InitDesg desg = {NULL, 0, var};
+    return create_lvar_init(init, &desg);
+}
+
+// declaration = declspec declarator ("=" initializer)? ";"
 static Node *declaration() {
     Node head = {};
     Node *cur = &head;
@@ -385,29 +466,14 @@ static Node *declaration() {
     } else if (consume("char", TK_KEYWORD)) {
         ty = declarator(ty_char);
     }
+
     Var *var = new_lvar(ty->name->str, ty->name->len, ty);
 
     // 初期化
     if (consume("=", TK_RESERVED)) {
-        if (consume("{", TK_RESERVED)) {
-            int i = 0;
-            while (i < var->ty->ary_len) {
-
-                if (consume(",", TK_RESERVED)) {
-                    continue;
-                }
-
-                Node *n = new_node_initialize(ary_elem(new_node_var(var), new_node_num(i++)),
-                                              assign());
-                cur = cur->next = n;
-            }
-
-            while (!consume("}", TK_RESERVED)) {
-                token = token->next;
-            }
-        } else {
-            cur->next = new_node_initialize(new_node_var(var), assign());
-        }
+        Node *node = new_node(ND_INIT);
+        node->lhs = lvar_initializer(var);
+        cur->next = node;
     }
 
     expect(";");
