@@ -394,31 +394,43 @@ static Function *function(Type *ty) {
     return fn;
 }
 
-// initializer = "{" initializer ("," initializer)* "}"
+// initializer = "{" (initializer ("," initializer)*)? "}"
 //             | assign
-static void initializer2(Initializer *init) {
+static void initializer2(Initializer *init, bool set_zero) {
     if (is_type_of(TY_ARY, init->ty)) {
-        expect("{");
+        if (consume("{", TK_RESERVED)) {
+            int i = 0;
+            while (i < init->ty->ary_len && !equal("}", TK_RESERVED)) {
+                if (consume(",", TK_RESERVED)) {
+                    continue;
+                }
 
-        int i = 0;
-        while (i < init->ty->ary_len) {
-            if (consume(",", TK_RESERVED)) {
-                continue;
+                initializer2(init->children[i++], false);
             }
 
-            initializer2(init->children[i++]);
+            expect("}");
+
+            while (i < init->ty->ary_len) {
+                initializer2(init->children[i++], true);
+            }
+
+            return;
         }
 
-        expect("}");
+        // e.g) int a[2][3] = {{1, 2, 3}}; のa[1]のように、"{"が現れない場合
+        for (int i = 0; i < init->ty->ary_len; i++) {
+            initializer2(init->children[i], true);
+        }
+
         return;
     }
 
-    init->expr = assign();
+    init->expr = set_zero ? new_node_num(0) : assign();
 }
 
 static Initializer *initializer(Type *ty) {
     Initializer *init = new_initializer(ty);
-    initializer2(init);
+    initializer2(init, false);
     return init;
 }
 
@@ -442,7 +454,7 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
         return node;
     }
 
-    new_node_binary(ND_ASSIGN, init_designator(desg), init->expr);
+    return new_node_binary(ND_ASSIGN, init_designator(desg), init->expr);
 }
 
 static Node *lvar_initializer(Var *var) {
