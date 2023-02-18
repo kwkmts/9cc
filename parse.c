@@ -13,14 +13,6 @@ struct Scope {
 
 Scope *scope = &(Scope){};
 
-// 初期化子の型
-typedef struct Initializer Initializer;
-struct Initializer {
-    Type *ty;
-    Node *expr;
-    Initializer **children;
-};
-
 // 初期化における指示子の型
 typedef struct InitDesg InitDesg;
 struct InitDesg {
@@ -99,7 +91,7 @@ static void leave_scope() {
     scope = scope->parent;
 }
 
-static int calc_const_expr(Node *node) {
+int calc_const_expr(Node *node) {
     switch (node->kind) {
     case ND_ADD:
         return calc_const_expr(node->lhs) + calc_const_expr(node->rhs);
@@ -299,6 +291,9 @@ static Initializer *new_initializer(Type *ty) {
 static Type *declspec();
 static Type *declarator(Type *ty);
 static Function *function(Type *ty);
+static Node *lvar_initializer(Var *var);
+static void gvar_initializer(Var *var);
+static Node *declaration();
 static Node *stmt();
 static Node *compound_stmt();
 static Node *expr();
@@ -311,7 +306,7 @@ static Node *postfix();
 static Node *primary();
 static Node *unary();
 
-// program = (declspec declarator (("(" function-definition) | ("=" expr ";")))*
+// program = (declspec declarator (("(" function-definition) | (("=" initializer)? ";")))*
 void program() {
     Function *cur = &prog;
     while (!at_eof()) {
@@ -327,8 +322,9 @@ void program() {
         // グローバル変数
         Var *var = new_gvar(ty->name->str, ty->name->len, ty);
         if (consume("=", TK_RESERVED)) {
-            var->init_data = calc_const_expr(expr());
+            gvar_initializer(var);
         }
+
         expect(";");
     }
 }
@@ -453,6 +449,10 @@ static Node *lvar_initializer(Var *var) {
     Initializer *init = initializer(var->ty);
     InitDesg desg = {NULL, 0, var};
     return create_lvar_init(init, &desg);
+}
+
+static void gvar_initializer(Var *var) {
+    var->init = initializer(var->ty);
 }
 
 // declaration = declspec declarator ("=" initializer)? ";"

@@ -53,6 +53,16 @@ Token *tokenize();
 // parse.c
 //
 
+// 初期化子の型
+typedef struct Initializer Initializer;
+struct Initializer {
+    Type *ty;
+    Node *expr;
+    Initializer **children;
+};
+
+int calc_const_expr(Node *node);
+
 // 変数の型
 struct Var {
     Var *next;          // 次の変数
@@ -61,7 +71,7 @@ struct Var {
     Type *ty;           // 型
     int len;            // 名前の長さ
     int offset;         // RBPからのオフセット(ローカル変数)
-    int init_data;      // 初期値(グローバル変数)
+    Initializer *init;  // 初期値(グローバル変数)
     char *init_data_str;// 文字列リテラル(グローバル変数)
     bool is_lvar;
 };

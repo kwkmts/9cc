@@ -18,6 +18,8 @@ int g11 = 0 == 1;
 int g12 = 0 != 1;
 int g13 = 0 < 1;
 int g14 = 0 <= 1;
+int g15[3] = {0, 1, 2};
+int g16[2][3] = {{1, 2, 3}, {4, 5, 6}};
 
 int ret3() { return 3; }
 int ret5() { return 5; }
@@ -196,6 +198,12 @@ int main() {
     ASSERT(1, g12);
     ASSERT(1, g13);
     ASSERT(1, g14);
+    ASSERT(0, g15[0]);
+    ASSERT(1, g15[1]);
+    ASSERT(2, g15[2]);
+    ASSERT(2, g16[0][1]);
+    ASSERT(4, g16[1][0]);
+    ASSERT(6, g16[1][2]);
 
     ASSERT(8, sizeof(g1));
     ASSERT(32, sizeof(g3));
