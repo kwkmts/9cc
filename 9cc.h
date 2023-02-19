@@ -59,6 +59,7 @@ struct Initializer {
     Type *ty;
     Node *expr;
     Initializer **children;
+    bool is_flexible;
 };
 
 int calc_const_expr(Node *node);
@@ -165,7 +166,7 @@ typedef enum {
 struct Type {
     TypeKind kind; // データ型の種類
     int size;      // サイズ
-    size_t ary_len;// 配列の要素数
+    int ary_len;// 配列の要素数
     Type *base;    // データ型がポインタや配列の場合使われる
     Token *name;   // 識別子名
 };

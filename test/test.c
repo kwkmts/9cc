@@ -22,6 +22,8 @@ int g15[3] = {0, 1, 2};
 int g16[2][3] = {{1, 2, 3}, {4, 5, 6}};
 int g17[3] = {};
 int g18[2][3]={{1, 2}};
+int g19[]={0, 1, 2, 3};
+int g20[][2]={{0, 1}, {2, 3}, {4, 5}};
 
 int ret3() { return 3; }
 int ret5() { return 5; }
@@ -38,6 +40,8 @@ int main() {
     int l1 = 0;
     int l2 = 42;
     int l3[3] = {0, 1, 2};
+    int l4[] = {0, 1, 2, 3};
+    int l5[][2] = {{0, 1}, {2, 3}, {4, 5}};
 
     ASSERT(0, 0);
     ASSERT(42, 42);
@@ -67,6 +71,8 @@ int main() {
     ASSERT(0, l3[0]);
     ASSERT(1, l3[1]);
     ASSERT(2, l3[2]);
+    ASSERT(3, l4[3]);
+    ASSERT(4, l5[2][0]);
 
     ASSERT(3, ({ int a; a=3; a; }));
     ASSERT(8, ({ int a=3; int z=5; a+z; }));
@@ -189,6 +195,11 @@ int main() {
     ASSERT(0, ({ int x[2][3]={{1,2}}; x[1][0]; }));
     ASSERT(0, ({ int x[2][3]={{1,2}}; x[1][2]; }));
 
+    ASSERT(4, ({ int x[]={1,2,3,4}; x[3]; }));
+    ASSERT(32, ({ int x[]={1,2,3,4}; sizeof(x); }));
+    ASSERT(5, ({ int x[][2] = {{1, 2}, {3, 4}, {5, 6}}; x[2][0]; }));
+    ASSERT(48, ({ int x[][2] = {{1, 2}, {3, 4}, {5, 6}}; sizeof(x); }));
+
     ASSERT(0, g1);
     ASSERT(3, ({ g1=3; g1; }));
     ASSERT(7, ({ g1=3; g2=4; g1+g2; }));
@@ -220,6 +231,8 @@ int main() {
     ASSERT(2, g18[0][1]);
     ASSERT(0, g18[1][0]);
     ASSERT(0, g18[1][2]);
+    ASSERT(3, g19[3]);
+    ASSERT(4, g20[2][0]);
 
     ASSERT(8, sizeof(g1));
     ASSERT(32, sizeof(g3));

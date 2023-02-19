@@ -274,14 +274,19 @@ static Node *to_assign(Node *binary) {
     return new_node_binary(ND_COMMA, expr1, expr2);
 }
 
-static Initializer *new_initializer(Type *ty) {
+static Initializer *new_initializer(Type *ty, bool is_flexible) {
     Initializer *init = calloc(1, sizeof(Initializer));
     init->ty = ty;
 
     if (is_type_of(TY_ARY, ty)) {
+        if (is_flexible && ty->ary_len < 0) {
+            init->is_flexible = true;
+            return init;
+        }
+
         init->children = calloc(ty->ary_len, sizeof(Initializer *));
         for (int i = 0; i < ty->ary_len; i++) {
-            init->children[i] = new_initializer(ty->base);
+            init->children[i] = new_initializer(ty->base, false);
         }
     }
 
@@ -343,7 +348,7 @@ static Type *declspec() {
 // ary-suffix = "[" num "]" ary-suffix? | ε
 static Type *ary_suffix(Type *ty) {
     if (consume("[", TK_RESERVED)) {
-        int size = expect_number();
+        int size = token->kind == TK_NUM ? expect_number() : -1;
         expect("]");
         ty = ary_suffix(ty);
         return array_of(ty, size);
@@ -394,11 +399,34 @@ static Function *function(Type *ty) {
     return fn;
 }
 
+static void initializer2(Initializer *init, bool set_zero);
+
+static int count_ary_init_elems(Type *ty) {
+    Token *tmp = token;// 要素数を数える直前のトークンのアドレスを退避
+    Initializer *dummy = new_initializer(ty->base, false);
+    int i = 0;
+    while (!equal("}", TK_RESERVED)) {
+        if (consume(",", TK_RESERVED)) {
+            continue;
+        }
+        initializer2(dummy, false);
+        i++;
+    }
+
+    token = tmp;// 現在着目しているトークンを元に戻す
+    return i;
+}
+
 // initializer = "{" (initializer ("," initializer)*)? "}"
 //             | assign
 static void initializer2(Initializer *init, bool set_zero) {
     if (is_type_of(TY_ARY, init->ty)) {
         if (consume("{", TK_RESERVED)) {
+            if (init->is_flexible) {
+                *init = *new_initializer(array_of(init->ty->base, count_ary_init_elems(init->ty)),
+                                         false);
+            }
+
             int i = 0;
             while (i < init->ty->ary_len && !equal("}", TK_RESERVED)) {
                 if (consume(",", TK_RESERVED)) {
@@ -428,9 +456,10 @@ static void initializer2(Initializer *init, bool set_zero) {
     init->expr = set_zero ? new_node_num(0) : assign();
 }
 
-static Initializer *initializer(Type *ty) {
-    Initializer *init = new_initializer(ty);
+static Initializer *initializer(Type *ty, Type **new_ty) {
+    Initializer *init = new_initializer(ty, true);
     initializer2(init, false);
+    *new_ty = init->ty;
     return init;
 }
 
@@ -458,13 +487,15 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
 }
 
 static Node *lvar_initializer(Var *var) {
-    Initializer *init = initializer(var->ty);
+    Initializer *init = initializer(var->ty, &var->ty);
+    // 配列の要素数が省略された場合、var->ty->sizeがこの時点で確定するのでvar->offsetを更新
+    var->offset = locals->next ? locals->next->offset + var->ty->size : var->ty->size;
     InitDesg desg = {NULL, 0, var};
     return create_lvar_init(init, &desg);
 }
 
 static void gvar_initializer(Var *var) {
-    var->init = initializer(var->ty);
+    var->init = initializer(var->ty, &var->ty);
 }
 
 // declaration = declspec declarator ("=" initializer)? ";"
@@ -486,6 +517,10 @@ static Node *declaration() {
         Node *node = new_node(ND_INIT);
         node->lhs = lvar_initializer(var);
         cur->next = node;
+    }
+
+    if (var->ty->ary_len < 0) {
+        error("配列の要素数が指定されていません");
     }
 
     expect(";");
