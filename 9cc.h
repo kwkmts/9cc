@@ -53,6 +53,17 @@ Token *tokenize();
 // parse.c
 //
 
+// 初期化子の型
+typedef struct Initializer Initializer;
+struct Initializer {
+    Type *ty;
+    Node *expr;
+    Initializer **children;
+    bool is_flexible;
+};
+
+int calc_const_expr(Node *node);
+
 // 変数の型
 struct Var {
     Var *next;          // 次の変数
@@ -61,7 +72,7 @@ struct Var {
     Type *ty;           // 型
     int len;            // 名前の長さ
     int offset;         // RBPからのオフセット(ローカル変数)
-    int init_data;      // 初期値(グローバル変数)
+    Initializer *init;  // 初期値(グローバル変数)
     char *init_data_str;// 文字列リテラル(グローバル変数)
     bool is_lvar;
 };
@@ -109,6 +120,7 @@ typedef enum {
     ND_INIT,     // 初期化
     ND_EXPR_STMT,// 式文
     ND_STMT_EXPR,// GNU Statement Exprs
+    ND_NULL_EXPR,// 何もしない式
     ND_NULL_STMT,// 空文
 } NodeKind;
 
@@ -157,7 +169,7 @@ typedef enum {
 struct Type {
     TypeKind kind; // データ型の種類
     int size;      // サイズ
-    size_t ary_len;// 配列の要素数
+    int ary_len;// 配列の要素数
     Type *base;    // データ型がポインタや配列の場合使われる
     Token *name;   // 識別子名
 };

@@ -132,6 +132,9 @@ static void gen_expr(Node *node) {
         }
         printf("    push rax\n");
         return;
+    case ND_NULL_EXPR:
+        printf("    push rax\n");
+        return;
     default:;
     }
 
@@ -299,35 +302,48 @@ static void assign_lvar_offset(Function *fn) {
     }
 }
 
-void codegen() {
-    printf("    .intel_syntax noprefix\n");
-
-    // グローバル変数
-    if (globals) {
-        for (Var *var = globals; var; var = var->next) {
-            printf("    .globl %s\n", var->name);
-            if (var->init_data_str) {
-                printf("    .section .rodata\n");
-                printf("%s:\n", var->name);
-                printf("    .string \"%s\"\n", var->init_data_str);
-            } else if (var->init_data) {
-                printf("    .data\n");
-                printf("%s:\n", var->name);
-                switch (var->ty->size) {
-                case 1:
-                    printf("    .byte %d\n", var->init_data);
-                case 8:
-                    printf("    .quad %d\n", var->init_data);
-                }
-            } else {
-                printf("    .bss\n");
-                printf("%s:\n", var->name);
-                printf("    .zero %d\n", var->ty->size);
-            }
+static void emit_gvar_init(Initializer *init) {
+    if (init->expr) {
+        int val = calc_const_expr(init->expr);
+        switch (init->ty->size) {
+        case 1:
+            printf("    .byte %d\n", val);
+        case 8:
+            printf("    .quad %d\n", val);
         }
+
+        return;
     }
 
-    // 関数
+    for (int i = 0; i < init->ty->ary_len; i++) {
+        emit_gvar_init(init->children[i]);
+    }
+}
+
+static void emit_global_variables() {
+    if (!globals) {
+        return;
+    }
+
+    for (Var *var = globals; var; var = var->next) {
+        printf("    .globl %s\n", var->name);
+        if (var->init_data_str) {
+            printf("    .section .rodata\n");
+            printf("%s:\n", var->name);
+            printf("    .string \"%s\"\n", var->init_data_str);
+        } else if (var->init) {
+            printf("    .data\n");
+            printf("%s:\n", var->name);
+            emit_gvar_init(var->init);
+        } else {
+            printf("    .bss\n");
+            printf("%s:\n", var->name);
+            printf("    .zero %d\n", var->ty->size);
+        }
+    }
+}
+
+static void emit_functions() {
     for (Function *fn = prog.next; fn; fn = fn->next) {
         assign_lvar_offset(fn);
 
@@ -373,4 +389,11 @@ void codegen() {
         printf("    pop rbp\n");
         printf("    ret\n");
     }
+}
+
+void codegen() {
+    printf("    .intel_syntax noprefix\n");
+
+    emit_global_variables();
+    emit_functions();
 }

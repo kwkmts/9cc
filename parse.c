@@ -13,6 +13,14 @@ struct Scope {
 
 Scope *scope = &(Scope){};
 
+// 初期化における指示子の型
+typedef struct InitDesg InitDesg;
+struct InitDesg {
+    InitDesg *next;
+    int idx;
+    Var *var;
+};
+
 // 次のトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
 static bool equal(char *op, TokenKind kind) {
     return token->kind == kind && strlen(op) == token->len &&
@@ -83,7 +91,7 @@ static void leave_scope() {
     scope = scope->parent;
 }
 
-static int calc_const_expr(Node *node) {
+int calc_const_expr(Node *node) {
     switch (node->kind) {
     case ND_ADD:
         return calc_const_expr(node->lhs) + calc_const_expr(node->rhs);
@@ -242,6 +250,10 @@ static Var *new_str_literal(Token *tok, char *str) {
     return var;
 }
 
+static Node *ary_elem(Node *var, Node *idx) {
+    return new_node_unary(ND_DEREF, new_node_add(var, idx));
+}
+
 // A op= B を `tmp = &A, *tmp = *tmp op B` に変換する
 static Node *to_assign(Node *binary) {
     add_type(binary->lhs);
@@ -262,9 +274,31 @@ static Node *to_assign(Node *binary) {
     return new_node_binary(ND_COMMA, expr1, expr2);
 }
 
+static Initializer *new_initializer(Type *ty, bool is_flexible) {
+    Initializer *init = calloc(1, sizeof(Initializer));
+    init->ty = ty;
+
+    if (is_type_of(TY_ARY, ty)) {
+        if (is_flexible && ty->ary_len < 0) {
+            init->is_flexible = true;
+            return init;
+        }
+
+        init->children = calloc(ty->ary_len, sizeof(Initializer *));
+        for (int i = 0; i < ty->ary_len; i++) {
+            init->children[i] = new_initializer(ty->base, false);
+        }
+    }
+
+    return init;
+}
+
 static Type *declspec();
 static Type *declarator(Type *ty);
 static Function *function(Type *ty);
+static Node *lvar_initializer(Var *var);
+static void gvar_initializer(Var *var);
+static Node *declaration();
 static Node *stmt();
 static Node *compound_stmt();
 static Node *expr();
@@ -279,7 +313,7 @@ static Node *postfix();
 static Node *primary();
 static Node *unary();
 
-// program = (declspec declarator (("(" function-definition) | ("=" expr ";")))*
+// program = (declspec declarator (("(" function-definition) | (("=" initializer)? ";")))*
 void program() {
     Function *cur = &prog;
     while (!at_eof()) {
@@ -295,8 +329,9 @@ void program() {
         // グローバル変数
         Var *var = new_gvar(ty->name->str, ty->name->len, ty);
         if (consume("=", TK_RESERVED)) {
-            var->init_data = calc_const_expr(expr());
+            gvar_initializer(var);
         }
+
         expect(";");
     }
 }
@@ -315,7 +350,7 @@ static Type *declspec() {
 // ary-suffix = "[" num "]" ary-suffix? | ε
 static Type *ary_suffix(Type *ty) {
     if (consume("[", TK_RESERVED)) {
-        int size = expect_number();
+        int size = token->kind == TK_NUM ? expect_number() : -1;
         expect("]");
         ty = ary_suffix(ty);
         return array_of(ty, size);
@@ -364,6 +399,137 @@ static Function *function(Type *ty) {
     fn->locals = locals;
 
     return fn;
+}
+
+static void initializer2(Initializer *init, bool set_zero);
+
+static int count_ary_init_elems(Type *ty) {
+    Token *tmp = token;// 要素数を数える直前のトークンのアドレスを退避
+    Initializer *dummy = new_initializer(ty->base, false);
+    int i = 0;
+    while (!equal("}", TK_RESERVED)) {
+        if (consume(",", TK_RESERVED)) {
+            continue;
+        }
+        initializer2(dummy, false);
+        i++;
+    }
+
+    token = tmp;// 現在着目しているトークンを元に戻す
+    return i;
+}
+
+// initializer = "{" (initializer ("," initializer)*)? "}"
+//             | assign
+static void initializer2(Initializer *init, bool set_zero) {
+    if (is_type_of(TY_ARY, init->ty)) {
+        if (consume("{", TK_RESERVED)) {
+            if (init->is_flexible) {
+                *init = *new_initializer(array_of(init->ty->base, count_ary_init_elems(init->ty)),
+                                         false);
+            }
+
+            int i = 0;
+            while (i < init->ty->ary_len && !equal("}", TK_RESERVED)) {
+                if (consume(",", TK_RESERVED)) {
+                    continue;
+                }
+
+                initializer2(init->children[i++], false);
+            }
+
+            expect("}");
+
+            while (i < init->ty->ary_len) {
+                initializer2(init->children[i++], true);
+            }
+
+            return;
+        }
+
+        // e.g) int a[2][3] = {{1, 2, 3}}; のa[1]のように、"{"が現れない場合
+        for (int i = 0; i < init->ty->ary_len; i++) {
+            initializer2(init->children[i], true);
+        }
+
+        return;
+    }
+
+    init->expr = set_zero ? new_node_num(0) : assign();
+}
+
+static Initializer *initializer(Type *ty, Type **new_ty) {
+    Initializer *init = new_initializer(ty, true);
+    initializer2(init, false);
+    *new_ty = init->ty;
+    return init;
+}
+
+static Node *init_designator(InitDesg *desg) {
+    if (desg->var) {
+        return new_node_var(desg->var);
+    }
+
+    return new_node_unary(ND_DEREF,
+                          new_node_add(init_designator(desg->next), new_node_num(desg->idx)));
+}
+
+static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
+    if (is_type_of(TY_ARY, init->ty)) {
+        Node *node = new_node(ND_NULL_EXPR);
+        for (int i = 0; i < init->ty->ary_len; i++) {
+            InitDesg desg2 = {desg, i};
+            node = new_node_binary(ND_COMMA, node, create_lvar_init(init->children[i], &desg2));
+        }
+
+        return node;
+    }
+
+    return new_node_binary(ND_ASSIGN, init_designator(desg), init->expr);
+}
+
+static Node *lvar_initializer(Var *var) {
+    Initializer *init = initializer(var->ty, &var->ty);
+    // 配列の要素数が省略された場合、var->ty->sizeがこの時点で確定するのでvar->offsetを更新
+    var->offset = locals->next ? locals->next->offset + var->ty->size : var->ty->size;
+    InitDesg desg = {NULL, 0, var};
+    return create_lvar_init(init, &desg);
+}
+
+static void gvar_initializer(Var *var) {
+    var->init = initializer(var->ty, &var->ty);
+}
+
+// declaration = declspec declarator ("=" initializer)? ";"
+static Node *declaration() {
+    Node head = {};
+    Node *cur = &head;
+
+    Type *ty;
+    if (consume("int", TK_KEYWORD)) {
+        ty = declarator(ty_int);
+    } else if (consume("char", TK_KEYWORD)) {
+        ty = declarator(ty_char);
+    }
+
+    Var *var = new_lvar(ty->name->str, ty->name->len, ty);
+
+    // 初期化
+    if (consume("=", TK_RESERVED)) {
+        Node *node = new_node(ND_INIT);
+        node->lhs = lvar_initializer(var);
+        cur->next = node;
+    }
+
+    if (var->ty->ary_len < 0) {
+        error("配列の要素数が指定されていません");
+    }
+
+    expect(";");
+
+    Node *node = new_node(ND_BLOCK);
+    node->body = head.next;
+    return node;
 }
 
 // stmt = expr? ";"
@@ -449,7 +615,7 @@ static Node *stmt() {
     return node;
 }
 
-// compound-stmt = (stmt | (declspec declarator ("=" expr)? ";"))* "}"
+// compound-stmt = (stmt | (declspec declarator ("=" (expr | "{" (expr ("," expr)*)? "}"))? ";"))* "}"
 static Node *compound_stmt() {
     Node *node = new_node(ND_BLOCK);
     Node head = {};
@@ -457,25 +623,12 @@ static Node *compound_stmt() {
     enter_scope();
 
     for (Node *cur = &head; !consume("}", TK_RESERVED);) {
-        // 宣言文
         if (equal("int", TK_KEYWORD) || equal("char", TK_KEYWORD)) {
-            Type *ty;
-            if (consume("int", TK_KEYWORD)) {
-                ty = declarator(ty_int);
-            } else if (consume("char", TK_KEYWORD)) {
-                ty = declarator(ty_char);
-            }
-            Var *var = new_lvar(ty->name->str, ty->name->len, ty);
-            if (consume("=", TK_RESERVED)) {
-                Node *n = new_node(ND_INIT);
-                n->lhs = new_node_binary(ND_ASSIGN, new_node_var(var), expr());
-                cur = cur->next = n;
-            }
-            continue;
+            cur = cur->next = declaration();
+        } else {
+            cur = cur->next = stmt();
         }
-
-        // それ以外
-        add_type(cur = cur->next = stmt());
+        add_type(cur);
     }
 
     leave_scope();
@@ -693,17 +846,10 @@ static Node *postfix() {
     }
 }
 
-// ary_element = expr "]"
-static Node *ary_element(Node *var) {
-    Node *idx = expr();
-    expect("]");
-    return new_node_unary(ND_DEREF, new_node_add(var, idx));
-}
-
 // primary = "(" (expr | ("{" compound-stmt)) ")"
 //         | ident (("(" func-args? ")")
-//         | ident ("[" ary-element))*
-//         | str ("[" ary-element)?
+//         | ident ("[" expr "]")*
+//         | str ("[" expr "]")?
 //         | num
 // func-args = assign ("," assign)*
 static Node *primary() {
@@ -752,7 +898,8 @@ static Node *primary() {
         Node *node = new_node_var(var);
 
         while (consume("[", TK_RESERVED)) {
-            node = ary_element(node);
+            node = ary_elem(node, expr());
+            expect("]");
         }
 
         return node;
@@ -766,7 +913,8 @@ static Node *primary() {
         token = token->next;
 
         if (consume("[", TK_RESERVED)) {
-            return ary_element(node);
+            node = ary_elem(node, expr());
+            expect("]");
         }
 
         return node;
