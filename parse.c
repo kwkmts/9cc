@@ -171,7 +171,7 @@ static Node *new_node_add(Node *lhs, Node *rhs) {
     }
 
     if (lhs->ty->base && rhs->ty->base) {
-        error("ポインタ同士の加算はできません");
+        error_at(token->str, "ポインタ同士の加算はできません");
     }
 
     // num + ptr => ptr + num
@@ -208,7 +208,7 @@ static Node *new_node_sub(Node *lhs, Node *rhs) {
         return new_node_binary(ND_DIV, node, new_node_num(lhs->ty->base->size));
     }
 
-    error("数値からポインタ値を引くことはできません");
+    error_at(token->str, "数値からポインタ値を引くことはできません");
 }
 
 static Var *new_var(char *str, int len, Type *ty) {
@@ -522,7 +522,7 @@ static Node *declaration() {
     }
 
     if (var->ty->ary_len < 0) {
-        error("配列の要素数が指定されていません");
+        error_at(token->str, "配列の要素数が指定されていません");
     }
 
     expect(";");
@@ -892,7 +892,7 @@ static Node *primary() {
         // 変数
         Var *var = find_var(tok);
         if (!var) {
-            error("定義されていない変数です");
+            error_at(token->str, "定義されていない変数です");
         }
 
         Node *node = new_node_var(var);
