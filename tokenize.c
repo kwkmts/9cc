@@ -43,6 +43,10 @@ void error_at(char *loc, char *fmt, ...) {
     exit(1);
 }
 
+void error_tok(Token *tok, char *fmt, ...) {
+    error_at(tok->str, fmt);
+}
+
 //
 // トークナイザー
 //

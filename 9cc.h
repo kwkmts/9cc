@@ -25,6 +25,8 @@ void error(char *fmt, ...);
 
 void error_at(char *loc, char *fmt, ...);
 
+void error_tok(Token *tok, char *fmt, ...);
+
 // トークンの種類
 typedef enum {
     TK_RESERVED,// 記号
@@ -128,8 +130,10 @@ typedef enum {
 struct Node {
     NodeKind kind;// ノードの種類
     Type *ty;     // データ型
-    Node *lhs;    // 左辺
-    Node *rhs;    // 右辺
+    Token *tok;   // 対応するトークン
+
+    Node *lhs;// 左辺
+    Node *rhs;// 右辺
 
     int val;// kindがND_NUMの場合、その値
 
@@ -167,11 +171,11 @@ typedef enum {
 
 // データ型の型
 struct Type {
-    TypeKind kind; // データ型の種類
-    int size;      // サイズ
-    int ary_len;// 配列の要素数
-    Type *base;    // データ型がポインタや配列の場合使われる
-    Token *name;   // 識別子名
+    TypeKind kind;// データ型の種類
+    int size;     // サイズ
+    int ary_len;  // 配列の要素数
+    Type *base;   // データ型がポインタや配列の場合使われる
+    Token *name;  // 識別子名
 };
 
 extern Type *ty_char;

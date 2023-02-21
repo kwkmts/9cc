@@ -60,7 +60,7 @@ static void gen_lval(Node *node) {
     default:;
     }
 
-    error("代入の左辺値が変数ではありません");
+    error_tok(node->tok, "代入の左辺値が変数ではありません");
 }
 
 static void gen_expr(Node *node) {

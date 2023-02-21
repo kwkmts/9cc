@@ -53,7 +53,7 @@ void add_type(Node *node) {
         return;
     case ND_ASSIGN:
         if (is_type_of(TY_ARY, node->lhs->ty)) {
-            error("左辺値ではありません");
+            error_tok(node->lhs->tok, "左辺値ではありません");
         }
         node->ty = node->lhs->ty;
         return;
@@ -80,7 +80,7 @@ void add_type(Node *node) {
         return;
     case ND_DEREF:
         if (!node->lhs->ty->base) {
-            error("参照外しできません");
+            error_tok(node->tok, "参照外しできません");
         }
         node->ty = node->lhs->ty->base;
         return;
@@ -96,7 +96,7 @@ void add_type(Node *node) {
                 return;
             }
         }
-        error("voidを返すことはできません");
+        error_tok(node->tok, "voidを返すことはできません");
         return;
     default:;
     }
