@@ -341,27 +341,33 @@ void program() {
 // struct-decl = "{" (declspec declarator ";")* "}"
 static Type *struct_decl() {
     expect("{");
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_STRUCT;
+    ty->align = 1;
+
     Member head = {};
     Member *cur = &head;
 
     int offset = 0;
     while (!consume("}", TK_RESERVED)) {
         Member *mem = calloc(1, sizeof(Member));
-        Type *basety = declspec();
-        Type *ty = declarator(basety);
+        Type *ty2 = declarator(declspec());
         expect(";");
 
-        mem->ty = ty;
-        mem->name = ty->name;
-        mem->offset = offset;
-        offset += ty->size;
+        mem->ty = ty2;
+        mem->name = ty2->name;
+        mem->offset = offset = align_to(offset, mem->ty->align);
+        offset += ty2->size;
+
+        if (ty->align < mem->ty->align) {
+            ty->align = mem->ty->align;
+        }
+
         cur = cur->next = mem;
     }
 
-    Type *ty = calloc(1, sizeof(Type));
-    ty->kind = TY_STRUCT;
     ty->members = head.next;
-    ty->size = offset;
+    ty->size = align_to(offset, ty->align);
     return ty;
 }
 

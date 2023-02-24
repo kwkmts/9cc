@@ -12,7 +12,7 @@ static void gen_expr(Node *node);
 static void gen_stmt(Node *node);
 
 // nをalignの直近の倍数に切り上げる
-static int align_to(int n, int align) {
+int align_to(int n, int align) {
     return (n + align - 1) / align * align;
 }
 

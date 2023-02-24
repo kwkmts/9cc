@@ -178,6 +178,7 @@ typedef enum {
 struct Type {
     TypeKind kind;  // データ型の種類
     int size;       // サイズ
+    int align;      // アライメント
     int ary_len;    // 配列の要素数
     Type *base;     // データ型がポインタや配列の場合使われる
     Token *name;    // 識別子名
@@ -204,4 +205,5 @@ void add_type(Node *node);
 // codegen.c
 //
 
+int align_to(int n, int align);
 void codegen();

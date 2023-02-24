@@ -10,7 +10,7 @@ Type *pointer_to(Type *base) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_PTR;
     ty->base = base;
-    ty->size = 8;
+    ty->size = ty->align = 8;
     return ty;
 }
 
@@ -19,6 +19,7 @@ Type *array_of(Type *base, size_t len) {
     ty->kind = TY_ARY;
     ty->base = base;
     ty->size = base->size * len;
+    ty->align = base->align;
     ty->ary_len = len;
     return ty;
 }
