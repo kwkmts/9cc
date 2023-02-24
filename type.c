@@ -87,6 +87,9 @@ void add_type(Node *node) {
     case ND_COMMA:
         node->ty = node->rhs->ty;
         return;
+    case ND_MEMBER:
+        node->ty = node->member->ty;
+        return;
     case ND_STMT_EXPR:
         if (node->body) {
             Node *stmt = node->body;

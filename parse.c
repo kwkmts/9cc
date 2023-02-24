@@ -253,10 +253,6 @@ static Var *new_str_literal(Token *tok, char *str) {
     return var;
 }
 
-static Node *ary_elem(Node *var, Node *idx) {
-    return new_node_unary(ND_DEREF, new_node_add(var, idx, NULL), NULL);
-}
-
 // A op= B を `tmp = &A, *tmp = *tmp op B` に変換する
 static Node *to_assign(Node *binary) {
     add_type(binary->lhs);
@@ -342,7 +338,34 @@ void program() {
     }
 }
 
-// declspec = "int" | "char"
+// struct-decl = "{" (declspec declarator ";")* "}"
+static Type *struct_decl() {
+    expect("{");
+    Member head = {};
+    Member *cur = &head;
+
+    int offset = 0;
+    while (!consume("}", TK_RESERVED)) {
+        Member *mem = calloc(1, sizeof(Member));
+        Type *basety = declspec();
+        Type *ty = declarator(basety);
+        expect(";");
+
+        mem->ty = ty;
+        mem->name = ty->name;
+        mem->offset = offset;
+        offset += ty->size;
+        cur = cur->next = mem;
+    }
+
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_STRUCT;
+    ty->members = head.next;
+    ty->size = offset;
+    return ty;
+}
+
+// declspec = "int" | "char" | "struct"
 static Type *declspec() {
     if (consume("int", TK_KEYWORD)) {
         return ty_int;
@@ -350,6 +373,10 @@ static Type *declspec() {
 
     if (consume("char", TK_KEYWORD)) {
         return ty_char;
+    }
+
+    if (consume("struct", TK_KEYWORD)) {
+        return struct_decl();
     }
 }
 
@@ -365,7 +392,7 @@ static Type *ary_suffix(Type *ty) {
     return ty;
 }
 
-// declarator = "*"* indent ary-suffix
+// declarator = "*"* ident ary-suffix
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
@@ -517,13 +544,7 @@ static Node *declaration() {
     Node head = {};
     Node *cur = &head;
 
-    Type *ty;
-    if (consume("int", TK_KEYWORD)) {
-        ty = declarator(ty_int);
-    } else if (consume("char", TK_KEYWORD)) {
-        ty = declarator(ty_char);
-    }
-
+    Type *ty = declarator(declspec());
     Var *var = new_lvar(ty->name->str, ty->name->len, ty);
 
     // 初期化
@@ -627,6 +648,16 @@ static Node *stmt() {
     return node;
 }
 
+static bool is_typename() {
+    static char *kw[] = {"int", "char", "struct"};
+    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+        if (equal(kw[i], TK_KEYWORD)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // compound-stmt = (stmt | (declspec declarator ("=" (expr | "{" (expr ("," expr)*)? "}"))? ";"))* "}"
 static Node *compound_stmt() {
     Node *node = new_node(ND_BLOCK, NULL);
@@ -635,7 +666,7 @@ static Node *compound_stmt() {
     enter_scope();
 
     for (Node *cur = &head; !consume("}", TK_RESERVED);) {
-        if (equal("int", TK_KEYWORD) || equal("char", TK_KEYWORD)) {
+        if (is_typename()) {
             cur = cur->next = declaration();
         } else {
             cur = cur->next = stmt();
@@ -859,7 +890,33 @@ static Node *unary() {
     return postfix();
 }
 
-// postfix = primary ("++" | "--")*
+static Node *ary_elem(Node *var, Node *idx) {
+    return new_node_unary(ND_DEREF, new_node_add(var, idx, NULL), NULL);
+}
+
+static Member *struct_member(Type *ty) {
+    for (Member *cur = ty->members; cur; cur = cur->next) {
+        if (cur->name->len == token->len && !memcmp(cur->name->str, token->str, token->len)) {
+            return cur;
+        }
+    }
+
+    error_tok(token, "そのようなメンバは存在しません");
+}
+
+static Node *struct_ref(Node *lhs, Token *tok) {
+    add_type(lhs);
+    if (!is_type_of(TY_STRUCT, lhs->ty)) {
+        error_tok(lhs->tok, "構造体ではありません");
+    }
+
+    Node *node = new_node(ND_MEMBER, tok);
+    node->lhs = lhs;
+    node->member = struct_member(lhs->ty);
+    return node;
+}
+
+// postfix = primary ("++" | "--" | ("." ident) | ("[" expr "]"))*
 static Node *postfix() {
     Node *node = primary();
     Node *node_one = new_node_num(1, NULL);
@@ -876,6 +933,14 @@ static Node *postfix() {
             node = new_node_add(to_assign(new_node_sub(node, node_one, NULL)),
                                 node_one,
                                 consume("--", TK_RESERVED));
+
+        } else if (equal(".", TK_RESERVED)) {
+            node = struct_ref(node, consume(".", TK_RESERVED));
+            token = token->next;
+
+        } else if (consume("[", TK_RESERVED)) {
+            node = ary_elem(node, expr());
+            expect("]");
         } else {
             return node;
         }
@@ -884,8 +949,8 @@ static Node *postfix() {
 
 // primary = "(" (expr | ("{" compound-stmt)) ")"
 //         | ident (("(" func-args? ")")
-//         | ident ("[" expr "]")*
-//         | str ("[" expr "]")?
+//         | ident
+//         | str
 //         | num
 // func-args = assign ("," assign)*
 static Node *primary() {
@@ -930,28 +995,14 @@ static Node *primary() {
             error_at(tok->str, "定義されていない変数です");
         }
 
-        Node *node = new_node_var(var, tok);
-
-        while (consume("[", TK_RESERVED)) {
-            node = ary_elem(node, expr());
-            expect("]");
-        }
-
-        return node;
+        return new_node_var(var, tok);
     }
 
     // 文字列リテラル
     if (token->kind == TK_STR) {
         Var *var = new_str_literal(token, token->str);
         Node *node = new_node_var(var, token);
-
         token = token->next;
-
-        if (consume("[", TK_RESERVED)) {
-            node = ary_elem(node, expr());
-            expect("]");
-        }
-
         return node;
     }
 

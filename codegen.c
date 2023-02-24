@@ -54,6 +54,12 @@ static void gen_lval(Node *node) {
             printf("    push rax\n");
         }
         return;
+    case ND_MEMBER:
+        gen_lval(node->lhs);
+        printf("    pop rax\n");
+        printf("    add rax, %d\n", node->member->offset);
+        printf("    push rax\n");
+        return;
     case ND_DEREF:
         gen_expr(node->lhs);
         return;
@@ -69,6 +75,7 @@ static void gen_expr(Node *node) {
         printf("    push %d\n", node->val);
         return;
     case ND_VAR:
+    case ND_MEMBER:
         gen_lval(node);
 
         if (!is_type_of(TY_ARY, node->ty)) {

@@ -16,6 +16,7 @@ typedef struct Var Var;
 typedef struct Function Function;
 typedef struct Node Node;
 typedef struct Type Type;
+typedef struct Member Member;
 
 //
 // tokenize.c
@@ -112,6 +113,7 @@ typedef enum {
     ND_LOGAND,   // &&
     ND_LOGOR,    // ||
     ND_COMMA,    // ,
+    ND_MEMBER,   // .
     ND_VAR,      // ローカル変数
     ND_NUM,      // 整数
     ND_FUNCALL,  // 関数呼出
@@ -138,6 +140,8 @@ struct Node {
     int val;// kindがND_NUMの場合、その値
 
     Var *var;// kindがND_VARの場合
+
+    Member *member;// 構造体のメンバ
 
     char *funcname;// kindがND_FUNCALLの場合、関数名
     Node *args;    // kindがND_FUNCALLの場合、その引数リスト
@@ -167,15 +171,24 @@ typedef enum {
     TY_INT,
     TY_PTR,
     TY_ARY,
+    TY_STRUCT,
 } TypeKind;
 
 // データ型の型
 struct Type {
-    TypeKind kind;// データ型の種類
-    int size;     // サイズ
-    int ary_len;  // 配列の要素数
-    Type *base;   // データ型がポインタや配列の場合使われる
-    Token *name;  // 識別子名
+    TypeKind kind;  // データ型の種類
+    int size;       // サイズ
+    int ary_len;    // 配列の要素数
+    Type *base;     // データ型がポインタや配列の場合使われる
+    Token *name;    // 識別子名
+    Member *members;// 構造体のメンバリスト
+};
+
+struct Member {
+    Member *next;
+    Type *ty;
+    Token *name;
+    int offset;
 };
 
 extern Type *ty_char;
