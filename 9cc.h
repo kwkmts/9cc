@@ -176,13 +176,15 @@ typedef enum {
 
 // データ型の型
 struct Type {
-    TypeKind kind;  // データ型の種類
-    int size;       // サイズ
-    int align;      // アライメント
-    int ary_len;    // 配列の要素数
-    Type *base;     // データ型がポインタや配列の場合使われる
-    Token *name;    // 識別子名
-    Member *members;// 構造体のメンバリスト
+    TypeKind kind;   // データ型の種類
+    int size;        // サイズ
+    int align;       // アライメント
+    Type *scope_next;// スコープ内での次のタグ
+    Token *name;     // タグ名
+    int ary_len;     // 配列の要素数
+    Type *base;      // データ型がポインタや配列の場合使われる
+    Token *ident;    // 識別子名
+    Member *members; // 構造体のメンバリスト
 };
 
 struct Member {

@@ -9,6 +9,7 @@ typedef struct Scope Scope;
 struct Scope {
     Scope *parent;// 親のスコープ
     Var *vars;    // スコープに属する変数
+    Type *tags;   // スコープに属するタグ
 };
 
 Scope *scope = &(Scope){};
@@ -127,7 +128,17 @@ static Var *find_var(Token *tok) {
             }
         }
     }
+    return NULL;
+}
 
+static Type *find_tag(Token *tok) {
+    for (Scope *sc = scope; sc; sc = sc->parent) {
+        for (Type *tag = sc->tags; tag; tag = tag->scope_next) {
+            if (tag->name->len == tok->len && !memcmp(tok->str, tag->name->str, tag->name->len)) {
+                return tag;
+            }
+        }
+    }
     return NULL;
 }
 
@@ -329,7 +340,7 @@ void program() {
         }
 
         // グローバル変数
-        Var *var = new_gvar(ty->name->str, ty->name->len, ty);
+        Var *var = new_gvar(ty->ident->str, ty->ident->len, ty);
         if (consume("=", TK_RESERVED)) {
             gvar_initializer(var);
         }
@@ -338,8 +349,18 @@ void program() {
     }
 }
 
-// struct-decl = "{" (declspec declarator ";")* "}"
+// struct-decl = ident? "{" (declspec declarator ";")* "}"
+//             | ident
 static Type *struct_decl() {
+    Token *tag = consume_ident();
+    if (tag && !equal("{", TK_RESERVED)) {
+        Type *ty = find_tag(tag);
+        if (!ty) {
+            error_tok(tag, "そのような構造体型はありません");
+        }
+        return ty;
+    }
+
     expect("{");
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_STRUCT;
@@ -355,7 +376,7 @@ static Type *struct_decl() {
         expect(";");
 
         mem->ty = ty2;
-        mem->name = ty2->name;
+        mem->name = ty2->ident;
         mem->offset = offset = align_to(offset, mem->ty->align);
         offset += ty2->size;
 
@@ -368,6 +389,14 @@ static Type *struct_decl() {
 
     ty->members = head.next;
     ty->size = align_to(offset, ty->align);
+
+    // タグとスコープを紐付ける
+    if (tag) {
+        ty->name = tag;
+        ty->scope_next = scope->tags;
+        scope->tags = ty;
+    }
+
     return ty;
 }
 
@@ -406,7 +435,7 @@ static Type *declarator(Type *ty) {
 
     Token *tok = expect_ident();
     ty = ary_suffix(ty);
-    ty->name = tok;
+    ty->ident = tok;
     return ty;
 }
 
@@ -416,7 +445,7 @@ static Function *function(Type *ty) {
     locals = NULL;
 
     Function *fn = calloc(1, sizeof(Function));
-    fn->name = strndup(ty->name->str, ty->name->len);
+    fn->name = strndup(ty->ident->str, ty->ident->len);
 
     while (!consume(")", TK_RESERVED)) {
         if (consume(",", TK_RESERVED)) {
@@ -426,7 +455,7 @@ static Function *function(Type *ty) {
         Type *basety = declspec();
         Type *ty = declarator(basety);
 
-        new_lvar(ty->name->str, ty->name->len, ty);
+        new_lvar(ty->ident->str, ty->ident->len, ty);
     }
 
     fn->params = locals;
@@ -546,22 +575,27 @@ static void gvar_initializer(Var *var) {
 }
 
 // declaration = declspec declarator ("=" initializer)? ";"
+//             | declspec ";"
 static Node *declaration() {
     Node head = {};
     Node *cur = &head;
 
-    Type *ty = declarator(declspec());
-    Var *var = new_lvar(ty->name->str, ty->name->len, ty);
+    Type *basety = declspec();
 
-    // 初期化
-    if (consume("=", TK_RESERVED)) {
-        Node *node = new_node(ND_INIT, NULL);
-        node->lhs = lvar_initializer(var);
-        cur->next = node;
-    }
+    if (!equal(";", TK_RESERVED)) {
+        Type *ty = declarator(basety);
+        Var *var = new_lvar(ty->ident->str, ty->ident->len, ty);
 
-    if (var->ty->ary_len < 0) {
-        error_at(ty->name->str, "配列の要素数が指定されていません");
+        // 初期化
+        if (consume("=", TK_RESERVED)) {
+            Node *node = new_node(ND_INIT, NULL);
+            node->lhs = lvar_initializer(var);
+            cur->next = node;
+        }
+
+        if (var->ty->ary_len < 0) {
+            error_at(ty->ident->str, "配列の要素数が指定されていません");
+        }
     }
 
     expect(";");
