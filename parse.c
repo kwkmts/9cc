@@ -956,7 +956,7 @@ static Node *struct_ref(Node *lhs, Token *tok) {
     return node;
 }
 
-// postfix = primary ("++" | "--" | ("." ident) | ("[" expr "]"))*
+// postfix = primary ("++" | "--" | (("." | "->") ident) | ("[" expr "]"))*
 static Node *postfix() {
     Node *node = primary();
     Node *node_one = new_node_num(1, NULL);
@@ -976,6 +976,11 @@ static Node *postfix() {
 
         } else if (equal(".", TK_RESERVED)) {
             node = struct_ref(node, consume(".", TK_RESERVED));
+            token = token->next;
+
+        } else if (equal("->", TK_RESERVED)) {
+            node = struct_ref(new_node_unary(ND_DEREF, node, NULL),
+                              consume("->", TK_RESERVED));
             token = token->next;
 
         } else if (consume("[", TK_RESERVED)) {
