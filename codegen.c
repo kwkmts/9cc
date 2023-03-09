@@ -29,6 +29,23 @@ static void load(Type *ty) {
 }
 
 static void store(Type *ty) {
+    if (is_type_of(TY_STRUCT, ty)) {
+        for (Member *mem = ty->members; mem; mem = mem->next) {
+            switch (mem->ty->size) {
+            case 1:
+                printf("    movsx rdx, BYTE PTR [rdi+%d]\n", mem->offset);
+                printf("    mov [rax+%d], dl\n", mem->offset);
+                continue;
+            case 8:
+                printf("    mov rdx, [rdi+%d]\n", mem->offset);
+                printf("    mov [rax+%d], rdx\n", mem->offset);
+                continue;
+            default:;
+            }
+        }
+        return;
+    }
+
     switch (ty->size) {
     case 1:
         printf("    mov [rax], dil\n");
@@ -78,11 +95,13 @@ static void gen_expr(Node *node) {
     case ND_MEMBER:
         gen_lval(node);
 
-        if (!is_type_of(TY_ARY, node->ty)) {
-            printf("    pop rax\n");
-            load(node->ty);
-            printf("    push rax\n");
+        if (is_type_of(TY_ARY, node->ty) || is_type_of(TY_STRUCT, node->ty)) {
+            return;
         }
+
+        printf("    pop rax\n");
+        load(node->ty);
+        printf("    push rax\n");
         return;
     case ND_ADDR:
         gen_lval(node->lhs);

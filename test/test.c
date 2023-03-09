@@ -255,6 +255,11 @@ int main() {
     ASSERT(3, ({ struct t {char a;} x; struct t *y = &x; x.a=3; y->a; }));
     ASSERT(3, ({ struct t {char a;} x; struct t *y = &x; y->a=3; x.a; }));
 
+    ASSERT(3, ({ struct t {int a; int b;}; struct t x; x.a=3; struct t y=x; y.a; }));
+    ASSERT(7, ({ struct t {int a; int b;}; struct t x; x.a=7; struct t y; struct t *z=&y; *z=x; y.a; }));
+    ASSERT(7, ({ struct t {int a; int b;}; struct t x; x.a=7; struct t y; struct t *p=&x; struct t *q=&y; *q=*p; y.a; }));
+    ASSERT(5, ({ struct t {char a; char b;} x; struct t y; x.a=5; y=x; y.a; }));
+
     ASSERT(42, g4);
     ASSERT(41, g5);
     ASSERT(47, g6);
