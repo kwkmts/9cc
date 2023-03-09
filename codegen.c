@@ -328,21 +328,48 @@ static void assign_lvar_offset(Function *fn) {
     }
 }
 
-static void emit_gvar_init(Initializer *init) {
-    if (init->expr) {
-        int val = calc_const_expr(init->expr);
-        switch (init->ty->size) {
-        case 1:
-            printf("    .byte %d\n", val);
-        case 8:
-            printf("    .quad %d\n", val);
+static void emit_gvar_init(Initializer *cur, Initializer *pre) {
+    if (pre) {
+        int padding = cur->ty->align - pre->ty->align;
+        if (padding > 0) {
+            printf("    .zero %d\n", padding);
         }
-
-        return;
     }
 
-    for (int i = 0; i < init->ty->ary_len; i++) {
-        emit_gvar_init(init->children[i]);
+    if (cur->expr) {
+        int val = calc_const_expr(cur->expr);
+        switch (cur->ty->size) {
+        case 1:
+            printf("    .byte %d\n", val);
+            return;
+        case 8:
+            printf("    .quad %d\n", val);
+            return;
+        default:;
+        }
+    }
+
+    switch (cur->ty->kind) {
+    case TY_ARY:
+        emit_gvar_init(cur->children[0], NULL);
+        for (int i = 1; i < cur->ty->ary_len; i++) {
+            emit_gvar_init(cur->children[i], cur->children[i - 1]);
+        }
+        break;
+    case TY_STRUCT: {
+        Member *mem = cur->ty->members;
+        emit_gvar_init(cur->children[mem->idx], NULL);
+        for (; mem->next; mem = mem->next) {
+            emit_gvar_init(cur->children[mem->next->idx], cur->children[mem->idx]);
+        }
+
+        int padding = cur->ty->align - mem->ty->align;
+        if (padding > 0) {
+            printf("    .zero %d\n", padding);
+        }
+        break;
+    }
+    default:;
     }
 }
 
@@ -360,7 +387,7 @@ static void emit_global_variables() {
         } else if (var->init) {
             printf("    .data\n");
             printf("%s:\n", var->name);
-            emit_gvar_init(var->init);
+            emit_gvar_init(var->init, NULL);
         } else {
             printf("    .bss\n");
             printf("%s:\n", var->name);

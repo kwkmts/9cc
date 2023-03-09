@@ -24,6 +24,8 @@ int g17[3] = {};
 int g18[2][3]={{1, 2}};
 int g19[]={0, 1, 2, 3};
 int g20[][2]={{0, 1}, {2, 3}, {4, 5}};
+struct {char a; int b;} g21[2] = {{1, 2}, {3, 4}};
+struct {int a[2];} g22[2] = {{{1, 2}}};
 
 int ret3() { return 3; }
 int ret5() { return 5; }
@@ -302,6 +304,14 @@ int main() {
     ASSERT(0, g18[1][2]);
     ASSERT(3, g19[3]);
     ASSERT(4, g20[2][0]);
+    ASSERT(1, g21[0].a);
+    ASSERT(2, g21[0].b);
+    ASSERT(3, g21[1].a);
+    ASSERT(4, g21[1].b);
+    ASSERT(1, g22[0].a[0]);
+    ASSERT(2, g22[0].a[1]);
+    ASSERT(0, g22[1].a[0]);
+    ASSERT(0, g22[1].a[1]);
 
     ASSERT(8, sizeof(g1));
     ASSERT(32, sizeof(g3));

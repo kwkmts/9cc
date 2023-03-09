@@ -539,8 +539,6 @@ static void initialize_with_zero(Initializer *init) {
 // initializer = "{" (initializer ("," initializer)*)? "}"
 //             | assign
 static void initializer2(Initializer *init) {
-    initialize_with_zero(init);
-
     if (is_type_of(TY_ARY, init->ty)) {
         if (consume("{", TK_RESERVED)) {
             if (init->is_flexible) {
@@ -593,6 +591,7 @@ static void initializer2(Initializer *init) {
 
 static Initializer *initializer(Type *ty, Type **new_ty) {
     Initializer *init = new_initializer(ty, true);
+    initialize_with_zero(init);
     initializer2(init);
     *new_ty = init->ty;
     return init;
