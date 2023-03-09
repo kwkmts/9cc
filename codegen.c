@@ -322,12 +322,6 @@ static void gen_stmt(Node *node) {
     }
 }
 
-static void assign_lvar_offset(Function *fn) {
-    if (locals != NULL) {
-        fn->stack_size = align_to(locals->offset, 16);
-    }
-}
-
 static void emit_gvar_init(Initializer *cur, Initializer *pre) {
     if (pre) {
         int padding = cur->ty->align - pre->ty->align;
@@ -398,7 +392,9 @@ static void emit_global_variables() {
 
 static void emit_functions() {
     for (Function *fn = prog.next; fn; fn = fn->next) {
-        assign_lvar_offset(fn);
+        if (locals) {
+            fn->stack_size = align_to(locals->offset, 16);
+        }
 
         // アセンブリの前半部分を出力
         printf("    .globl %s\n", fn->name);

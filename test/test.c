@@ -362,6 +362,9 @@ int main() {
     ASSERT(3, ({ int i=2; int j=3; int k=(i, j); k; }));
     ASSERT(2, ({ int i=2; int j=3; int k=(j, i); k; }));
 
+    ASSERT(1, ({ int x; int y; char z; char *a=&y; char *b=&z; a-b; }));
+    ASSERT(15, ({ int x; char y; int z; char *a=&y; char *b=&z; a-b; }));
+
     printf("OK\n");
 
     return 0;

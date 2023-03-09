@@ -249,7 +249,7 @@ static Var *new_var(char *str, int len, Type *ty) {
 static Var *new_lvar(char *str, int len, Type *ty) {
     Var *var = new_var(str, len, ty);
     var->next = locals;
-    var->offset = locals ? locals->offset + ty->size : ty->size;
+    var->offset = align_to(locals ? locals->offset + ty->size : ty->size, ty->align);
     var->is_lvar = true;
     locals = var;
     return var;
