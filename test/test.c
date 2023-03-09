@@ -260,6 +260,23 @@ int main() {
     ASSERT(7, ({ struct t {int a; int b;}; struct t x; x.a=7; struct t y; struct t *p=&x; struct t *q=&y; *q=*p; y.a; }));
     ASSERT(5, ({ struct t {char a; char b;} x; struct t y; x.a=5; y=x; y.a; }));
 
+    ASSERT(1, ({ struct {int a; int b; int c;} x={1,2,3}; x.a; }));
+    ASSERT(2, ({ struct {int a; int b; int c;} x={1,2,3}; x.b; }));
+    ASSERT(3, ({ struct {int a; int b; int c;} x={1,2,3}; x.c; }));
+    ASSERT(1, ({ struct {int a; int b; int c;} x={1}; x.a; }));
+    ASSERT(0, ({ struct {int a; int b; int c;} x={1}; x.b; }));
+    ASSERT(0, ({ struct {int a; int b; int c;} x={1}; x.c; }));
+
+    ASSERT(1, ({ struct {int a; int b;} x[2]={{1,2},{3,4}}; x[0].a; }));
+    ASSERT(2, ({ struct {int a; int b;} x[2]={{1,2},{3,4}}; x[0].b; }));
+    ASSERT(3, ({ struct {int a; int b;} x[2]={{1,2},{3,4}}; x[1].a; }));
+    ASSERT(4, ({ struct {int a; int b;} x[2]={{1,2},{3,4}}; x[1].b; }));
+
+    ASSERT(0, ({ struct {int a; int b;} x[2]={{1,2}}; x[1].b; }));
+
+    ASSERT(0, ({ struct {int a; int b;} x={}; x.a; }));
+    ASSERT(0, ({ struct {int a; int b;} x={}; x.b; }));
+
     ASSERT(42, g4);
     ASSERT(41, g5);
     ASSERT(47, g6);

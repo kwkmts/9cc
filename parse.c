@@ -19,6 +19,7 @@ typedef struct InitDesg InitDesg;
 struct InitDesg {
     InitDesg *next;
     int idx;
+    Member *member;
     Var *var;
 };
 
@@ -175,6 +176,13 @@ static Node *new_node_var(Var *var, Token *tok) {
     return node;
 }
 
+static Node *new_node_member(Node *lhs, Member *member, Token *tok) {
+    Node *node = new_node(ND_MEMBER, tok);
+    node->lhs = lhs;
+    node->member = member;
+    return node;
+}
+
 static Node *new_node_add(Node *lhs, Node *rhs, Token *tok) {
     add_type(lhs);
     add_type(rhs);
@@ -301,6 +309,22 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
         for (int i = 0; i < ty->ary_len; i++) {
             init->children[i] = new_initializer(ty->base, false);
         }
+
+        return init;
+    }
+
+    if (is_type_of(TY_STRUCT, ty)) {
+        int len = 0;
+        for (Member *mem = ty->members; mem; mem = mem->next) {
+            len++;
+        }
+
+        init->children = calloc(len, sizeof(Initializer *));
+        for (Member *mem = ty->members; mem; mem = mem->next) {
+            init->children[mem->idx] = new_initializer(mem->ty, false);
+        }
+
+        return init;
     }
 
     return init;
@@ -326,11 +350,18 @@ static Node *postfix();
 static Node *primary();
 static Node *unary();
 
-// program = (declspec declarator (("(" function-definition) | (("=" initializer)? ";")))*
+// program = global-declaration*
+// global-declaration = declspec declarator (("(" function-definition) | (("=" initializer)? ";"))
+//                    | declspec ";"
 void program() {
     Function *cur = &prog;
     while (!at_eof()) {
         Type *basety = declspec();
+
+        if (consume(";", TK_RESERVED)) {
+            continue;
+        }
+
         Type *ty = declarator(basety);
 
         // 関数定義
@@ -344,8 +375,6 @@ void program() {
         if (consume("=", TK_RESERVED)) {
             gvar_initializer(var);
         }
-
-        expect(";");
     }
 }
 
@@ -370,11 +399,13 @@ static Type *struct_decl() {
     Member *cur = &head;
 
     int offset = 0;
+    int idx = 0;
     while (!consume("}", TK_RESERVED)) {
         Member *mem = calloc(1, sizeof(Member));
         Type *ty2 = declarator(declspec());
         expect(";");
 
+        mem->idx = idx++;
         mem->ty = ty2;
         mem->name = ty2->ident;
         mem->offset = offset = align_to(offset, mem->ty->align);
@@ -469,7 +500,7 @@ static Function *function(Type *ty) {
     return fn;
 }
 
-static void initializer2(Initializer *init, bool set_zero);
+static void initializer2(Initializer *init);
 
 static int count_ary_init_elems(Type *ty) {
     Token *tmp = token;// 要素数を数える直前のトークンのアドレスを退避
@@ -479,7 +510,7 @@ static int count_ary_init_elems(Type *ty) {
         if (consume(",", TK_RESERVED)) {
             continue;
         }
-        initializer2(dummy, false);
+        initializer2(dummy);
         i++;
     }
 
@@ -487,9 +518,29 @@ static int count_ary_init_elems(Type *ty) {
     return i;
 }
 
+static void initialize_with_zero(Initializer *init) {
+    if (is_type_of(TY_ARY, init->ty)) {
+        for (int i = 0; i < init->ty->ary_len; i++) {
+            initialize_with_zero(init->children[i]);
+        }
+        return;
+    }
+
+    if (is_type_of(TY_STRUCT, init->ty)) {
+        for (Member *mem = init->ty->members; mem; mem = mem->next) {
+            initialize_with_zero(init->children[mem->idx]);
+        }
+        return;
+    }
+
+    init->expr = new_node_num(0, NULL);
+}
+
 // initializer = "{" (initializer ("," initializer)*)? "}"
 //             | assign
-static void initializer2(Initializer *init, bool set_zero) {
+static void initializer2(Initializer *init) {
+    initialize_with_zero(init);
+
     if (is_type_of(TY_ARY, init->ty)) {
         if (consume("{", TK_RESERVED)) {
             if (init->is_flexible) {
@@ -503,32 +554,46 @@ static void initializer2(Initializer *init, bool set_zero) {
                     continue;
                 }
 
-                initializer2(init->children[i++], false);
+                initializer2(init->children[i++]);
             }
 
             expect("}");
-
-            while (i < init->ty->ary_len) {
-                initializer2(init->children[i++], true);
-            }
-
             return;
-        }
-
-        // e.g) int a[2][3] = {{1, 2, 3}}; のa[1]のように、"{"が現れない場合
-        for (int i = 0; i < init->ty->ary_len; i++) {
-            initializer2(init->children[i], true);
         }
 
         return;
     }
 
-    init->expr = set_zero ? new_node_num(0, NULL) : assign();
+    if (is_type_of(TY_STRUCT, init->ty)) {
+        if (!consume("{", TK_RESERVED)) {
+            Node *expr = assign();
+            add_type(expr);
+            if (is_type_of(TY_STRUCT, expr->ty)) {
+                init->expr = expr;
+                return;
+            }
+        }
+
+        Member *mem = init->ty->members;
+        while (mem && !equal("}", TK_RESERVED)) {
+            if (consume(",", TK_RESERVED)) {
+                continue;
+            }
+
+            initializer2(init->children[mem->idx]);
+            mem = mem->next;
+        }
+
+        expect("}");
+        return;
+    }
+
+    init->expr = assign();
 }
 
 static Initializer *initializer(Type *ty, Type **new_ty) {
     Initializer *init = new_initializer(ty, true);
-    initializer2(init, false);
+    initializer2(init);
     *new_ty = init->ty;
     return init;
 }
@@ -536,6 +601,11 @@ static Initializer *initializer(Type *ty, Type **new_ty) {
 static Node *init_designator(InitDesg *desg) {
     if (desg->var) {
         return new_node_var(desg->var, NULL);
+    }
+
+    if (desg->member) {
+        Node *node = new_node_member(init_designator(desg->next), desg->member, NULL);
+        return node;
     }
 
     return new_node_unary(ND_DEREF,
@@ -559,6 +629,19 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
         return node;
     }
 
+    if (is_type_of(TY_STRUCT, init->ty) && !init->expr) {
+        Node *node = new_node(ND_NULL_EXPR, NULL);
+        for (Member *mem = init->ty->members; mem; mem = mem->next) {
+            InitDesg desg2 = {desg, 0, mem};
+            node = new_node_binary(ND_COMMA,
+                                   node,
+                                   create_lvar_init(init->children[mem->idx], &desg2),
+                                   NULL);
+        }
+
+        return node;
+    }
+
     return new_node_binary(ND_ASSIGN, init_designator(desg), init->expr, NULL);
 }
 
@@ -566,7 +649,7 @@ static Node *lvar_initializer(Var *var) {
     Initializer *init = initializer(var->ty, &var->ty);
     // 配列の要素数が省略された場合、var->ty->sizeがこの時点で確定するのでvar->offsetを更新
     var->offset = locals->next ? locals->next->offset + var->ty->size : var->ty->size;
-    InitDesg desg = {NULL, 0, var};
+    InitDesg desg = {NULL, 0, NULL, var};
     return create_lvar_init(init, &desg);
 }
 
@@ -950,9 +1033,7 @@ static Node *struct_ref(Node *lhs, Token *tok) {
         error_tok(lhs->tok, "構造体ではありません");
     }
 
-    Node *node = new_node(ND_MEMBER, tok);
-    node->lhs = lhs;
-    node->member = struct_member(lhs->ty);
+    Node *node = new_node_member(lhs, struct_member(lhs->ty), tok);
     return node;
 }
 
