@@ -6,6 +6,7 @@
 
 static int label_count;
 static char *const argreg64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *const argreg32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 static char *const argreg8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
 
 static void gen_expr(Node *node);
@@ -17,24 +18,42 @@ int align_to(int n, int align) {
 }
 
 static void load(Type *ty) {
+    if (is_type_of(TY_ARY, ty) || is_type_of(TY_STRUCT, ty)) {
+        return;
+    }
+
+    printf("    pop rax\n");
+
     switch (ty->size) {
     case 1:
         printf("    movsx rax, BYTE PTR [rax]\n");
-        return;
+        break;
+    case 4:
+        printf("    movsx rax, DWORD PTR [rax]\n");
+        break;
     case 8:
         printf("    mov rax, [rax]\n");
-        return;
+        break;
     default:;
     }
+
+    printf("    push rax\n");
 }
 
 static void store(Type *ty) {
+    printf("    pop rdi\n");
+    printf("    pop rax\n");
+
     if (is_type_of(TY_STRUCT, ty)) {
         for (Member *mem = ty->members; mem; mem = mem->next) {
             switch (mem->ty->size) {
             case 1:
                 printf("    movsx rdx, BYTE PTR [rdi+%d]\n", mem->offset);
                 printf("    mov [rax+%d], dl\n", mem->offset);
+                continue;
+            case 4:
+                printf("    movsx rdx, DWORD PTR [rdi+%d]\n", mem->offset);
+                printf("    mov [rax+%d], edx\n", mem->offset);
                 continue;
             case 8:
                 printf("    mov rdx, [rdi+%d]\n", mem->offset);
@@ -43,18 +62,22 @@ static void store(Type *ty) {
             default:;
             }
         }
-        return;
+    } else {
+        switch (ty->size) {
+        case 1:
+            printf("    mov [rax], dil\n");
+            break;
+        case 4:
+            printf("    mov [rax], edi\n");
+            break;
+        case 8:
+            printf("    mov [rax], rdi\n");
+            break;
+        default:;
+        }
     }
 
-    switch (ty->size) {
-    case 1:
-        printf("    mov [rax], dil\n");
-        return;
-    case 8:
-        printf("    mov [rax], rdi\n");
-        return;
-    default:;
-    }
+    printf("    push rdi\n");
 }
 
 static void gen_lval(Node *node) {
@@ -94,24 +117,14 @@ static void gen_expr(Node *node) {
     case ND_VAR:
     case ND_MEMBER:
         gen_lval(node);
-
-        if (is_type_of(TY_ARY, node->ty) || is_type_of(TY_STRUCT, node->ty)) {
-            return;
-        }
-
-        printf("    pop rax\n");
         load(node->ty);
-        printf("    push rax\n");
         return;
     case ND_ADDR:
         gen_lval(node->lhs);
         return;
     case ND_DEREF:
         gen_expr(node->lhs);
-
-        printf("    pop rax\n");
         load(node->ty);
-        printf("    push rax\n");
         return;
     case ND_FUNCALL: {
         int nargs = 0;
@@ -132,11 +145,7 @@ static void gen_expr(Node *node) {
     case ND_ASSIGN:
         gen_lval(node->lhs);
         gen_expr(node->rhs);
-
-        printf("    pop rdi\n");
-        printf("    pop rax\n");
         store(node->ty);
-        printf("    push rdi\n");
         return;
     case ND_NOT:
         gen_expr(node->lhs);
@@ -336,6 +345,9 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         case 1:
             printf("    .byte %ld\n", val);
             return;
+        case 4:
+            printf("    .long %ld\n", val);
+            return;
         case 8:
             printf("    .quad %ld\n", val);
             return;
@@ -418,6 +430,9 @@ static void emit_functions() {
             switch (var->ty->size) {
             case 1:
                 printf("    mov [rbp-%d], %s\n", var->offset, argreg8[i--]);
+                continue;
+            case 4:
+                printf("    mov [rbp-%d], %s\n", var->offset, argreg32[i--]);
                 continue;
             case 8:
                 printf("    mov [rbp-%d], %s\n", var->offset, argreg64[i--]);
