@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,7 +43,7 @@ typedef enum {
 struct Token {
     TokenKind kind;// トークンの種類
     Token *next;   // 次の入力トークン
-    int val;       // kindがTK_NUMの場合、その数値
+    int64_t val;   // kindがTK_NUMの場合、その数値
     char *str;     // トークン文字列
     int len;       // トークンの長さ
 };
@@ -65,7 +66,7 @@ struct Initializer {
     bool is_flexible;
 };
 
-int calc_const_expr(Node *node);
+int64_t calc_const_expr(Node *node);
 
 // 変数の型
 struct Var {
@@ -137,7 +138,7 @@ struct Node {
     Node *lhs;// 左辺
     Node *rhs;// 右辺
 
-    int val;// kindがND_NUMの場合、その値
+    int64_t val;// kindがND_NUMの場合、その値
 
     Var *var;// kindがND_VARの場合
 
@@ -169,6 +170,7 @@ void program();
 typedef enum {
     TY_CHAR,
     TY_INT,
+    TY_LONG,
     TY_PTR,
     TY_ARY,
     TY_STRUCT,
@@ -197,6 +199,7 @@ struct Member {
 
 extern Type *ty_char;
 extern Type *ty_int;
+extern Type *ty_long;
 
 bool is_type_of(TypeKind kind, Type *ty);
 bool is_integer(Type *ty);

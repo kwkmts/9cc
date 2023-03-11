@@ -95,7 +95,7 @@ static void leave_scope() {
     scope = scope->parent;
 }
 
-int calc_const_expr(Node *node) {
+int64_t calc_const_expr(Node *node) {
     switch (node->kind) {
     case ND_ADD:
         return calc_const_expr(node->lhs) + calc_const_expr(node->rhs);
@@ -163,7 +163,7 @@ static Node *new_node_unary(NodeKind kind, Node *expr, Token *tok) {
     return node;
 }
 
-static Node *new_node_num(int val, Token *tok) {
+static Node *new_node_num(int64_t val, Token *tok) {
     Node *node = new_node(ND_NUM, tok);
     node->val = val;
     return node;
@@ -431,7 +431,7 @@ static Type *struct_decl() {
     return ty;
 }
 
-// declspec = "int" | "char" | "struct"
+// declspec = "int" | "char" | "long" | "struct"
 static Type *declspec() {
     if (consume("int", TK_KEYWORD)) {
         return ty_int;
@@ -439,6 +439,10 @@ static Type *declspec() {
 
     if (consume("char", TK_KEYWORD)) {
         return ty_char;
+    }
+
+    if (consume("long", TK_KEYWORD)) {
+        return ty_long;
     }
 
     if (consume("struct", TK_KEYWORD)) {
@@ -771,7 +775,7 @@ static Node *stmt() {
 }
 
 static bool is_typename() {
-    static char *kw[] = {"int", "char", "struct"};
+    static char *kw[] = {"int", "char", "long", "struct"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD)) {
             return true;

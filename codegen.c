@@ -89,7 +89,7 @@ static void gen_lval(Node *node) {
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
-        printf("    push %d\n", node->val);
+        printf("    push %ld\n", node->val);
         return;
     case ND_VAR:
     case ND_MEMBER:
@@ -331,13 +331,13 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
     }
 
     if (cur->expr) {
-        int val = calc_const_expr(cur->expr);
+        int64_t val = calc_const_expr(cur->expr);
         switch (cur->ty->size) {
         case 1:
-            printf("    .byte %d\n", val);
+            printf("    .byte %ld\n", val);
             return;
         case 8:
-            printf("    .quad %d\n", val);
+            printf("    .quad %ld\n", val);
             return;
         default:;
         }
