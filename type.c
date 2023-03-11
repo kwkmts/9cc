@@ -3,7 +3,8 @@
 bool is_type_of(TypeKind kind, Type *ty) { return ty->kind == kind; }
 
 bool is_integer(Type *ty) {
-    return is_type_of(TY_INT, ty) || is_type_of(TY_CHAR, ty) || is_type_of(TY_LONG, ty);
+    return is_type_of(TY_INT, ty) || is_type_of(TY_CHAR, ty) ||
+           is_type_of(TY_SHORT, ty) || is_type_of(TY_LONG, ty);
 }
 
 Type *pointer_to(Type *base) {
@@ -67,7 +68,7 @@ void add_type(Node *node) {
     case ND_LOGOR:
     case ND_NUM:
     case ND_FUNCALL:
-        node->ty = ty_int;
+        node->ty = ty_long;
         return;
     case ND_VAR:
         node->ty = node->var->ty;

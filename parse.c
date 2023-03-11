@@ -431,7 +431,7 @@ static Type *struct_decl() {
     return ty;
 }
 
-// declspec = "int" | "char" | "long" | "struct"
+// declspec = "int" | "char" | "short" | "long" | "struct"
 static Type *declspec() {
     if (consume("int", TK_KEYWORD)) {
         return ty_int;
@@ -439,6 +439,10 @@ static Type *declspec() {
 
     if (consume("char", TK_KEYWORD)) {
         return ty_char;
+    }
+
+    if (consume("short", TK_KEYWORD)) {
+        return ty_short;
     }
 
     if (consume("long", TK_KEYWORD)) {
@@ -775,7 +779,7 @@ static Node *stmt() {
 }
 
 static bool is_typename() {
-    static char *kw[] = {"int", "char", "long", "struct"};
+    static char *kw[] = {"int", "char", "short", "long", "struct"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD)) {
             return true;

@@ -7,6 +7,7 @@
 static int label_count;
 static char *const argreg64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 static char *const argreg32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static char *const argreg16[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
 static char *const argreg8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
 
 static void gen_expr(Node *node);
@@ -27,6 +28,9 @@ static void load(Type *ty) {
     switch (ty->size) {
     case 1:
         printf("    movsx rax, BYTE PTR [rax]\n");
+        break;
+    case 2:
+        printf("    movsx rax, WORD PTR [rax]\n");
         break;
     case 4:
         printf("    movsx rax, DWORD PTR [rax]\n");
@@ -51,6 +55,10 @@ static void store(Type *ty) {
                 printf("    movsx rdx, BYTE PTR [rdi+%d]\n", mem->offset);
                 printf("    mov [rax+%d], dl\n", mem->offset);
                 continue;
+            case 2:
+                printf("    movsx rdx, WORD PTR [rdi+%d]\n", mem->offset);
+                printf("    mov [rax+%d], dx\n", mem->offset);
+                continue;
             case 4:
                 printf("    movsx rdx, DWORD PTR [rdi+%d]\n", mem->offset);
                 printf("    mov [rax+%d], edx\n", mem->offset);
@@ -66,6 +74,9 @@ static void store(Type *ty) {
         switch (ty->size) {
         case 1:
             printf("    mov [rax], dil\n");
+            break;
+        case 2:
+            printf("    mov [rax], di\n");
             break;
         case 4:
             printf("    mov [rax], edi\n");
@@ -345,6 +356,9 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         case 1:
             printf("    .byte %ld\n", val);
             return;
+        case 2:
+            printf("    .value %ld\n", val);
+            return;
         case 4:
             printf("    .long %ld\n", val);
             return;
@@ -430,6 +444,9 @@ static void emit_functions() {
             switch (var->ty->size) {
             case 1:
                 printf("    mov [rbp-%d], %s\n", var->offset, argreg8[i--]);
+                continue;
+            case 2:
+                printf("    mov [rbp-%d], %s\n", var->offset, argreg16[i--]);
                 continue;
             case 4:
                 printf("    mov [rbp-%d], %s\n", var->offset, argreg32[i--]);

@@ -33,6 +33,7 @@ int add(int x, int y) { return x + y; }
 int sub(int x, int y) { return x - y; }
 int add6(int a, int b, int c, int d, int e, int f) { return a + b + c + d + e + f; }
 int sub_char(char a, char b, char c) { return a - b - c; }
+int sub_short(short a, short b, short c) { return a - b - c; }
 int sub_long(long a, long b, long c) { return a - b - c; }
 int fib(int x) {
     if (x <= 1) return 1;
@@ -168,6 +169,7 @@ int main() {
     ASSERT(1, ({ int x=1; sizeof(x=2); x; }));
     ASSERT(1, ({ char i; sizeof(++i); }));
     ASSERT(1, ({ char i; sizeof(i++); }));
+    ASSERT(2, ({ short x; sizeof(x); }));
     ASSERT(8, ({ long x; sizeof(x); }));
 
     ASSERT(3, ({ int x[2]; int *y; y=&x; *y=3; *x; }));
@@ -250,6 +252,7 @@ int main() {
     ASSERT(0, ({ struct {} x; sizeof(x); }));
     ASSERT(8, ({ struct {char a; int b;} x; sizeof(x); }));
     ASSERT(8, ({ struct {int a; char b;} x; sizeof(x); }));
+    ASSERT(4, ({ struct {char a; short b;} x; sizeof(x); }));
     ASSERT(16, ({ struct {char a; long b;} x; sizeof(x); }));
 
     ASSERT(8, ({ struct t {int a; int b;} x; struct t y; sizeof(y); }));
@@ -326,6 +329,7 @@ int main() {
     ASSERT(1, ({ char x; sizeof(x); }));
     ASSERT(10, ({ char x[10]; sizeof(x); }));
     ASSERT(1, ({ sub_char(7, 3, 3); }));
+    ASSERT(1, sub_short(7, 3, 3));
     ASSERT(1, sub_long(7, 3, 3));
 
     ASSERT(0, ""[0]);
