@@ -431,8 +431,12 @@ static Type *struct_decl() {
     return ty;
 }
 
-// declspec = "int" | "char" | "short" | "long" | "struct"
+// declspec = "void" | "int" | "char" | "short" | "long" | "struct"
 static Type *declspec() {
+    if (consume("void", TK_KEYWORD)) {
+        return ty_void;
+    }
+
     if (consume("int", TK_KEYWORD)) {
         return ty_int;
     }
@@ -473,6 +477,10 @@ static Type *declarator(Type *ty) {
     }
 
     Token *tok = expect_ident();
+    if (is_type_of(TY_VOID, ty)) {
+        error_tok(tok, "void型の変数を宣言することはできません");
+    }
+
     ty = ary_suffix(ty);
     ty->ident = tok;
     return ty;
@@ -779,7 +787,7 @@ static Node *stmt() {
 }
 
 static bool is_typename() {
-    static char *kw[] = {"int", "char", "short", "long", "struct"};
+    static char *kw[] = {"void", "int", "char", "short", "long", "struct"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD)) {
             return true;

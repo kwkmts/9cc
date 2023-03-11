@@ -84,6 +84,11 @@ void add_type(Node *node) {
         if (!node->lhs->ty->base) {
             error_tok(node->tok, "参照外しできません");
         }
+
+        if (is_type_of(TY_VOID, node->lhs->ty->base)) {
+            error_tok(node->tok, "'void *'型の参照外しはできません");
+        }
+
         node->ty = node->lhs->ty->base;
         return;
     case ND_COMMA:
