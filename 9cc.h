@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -81,8 +82,9 @@ struct Var {
     bool is_lvar;
 };
 
-extern Var *locals; // ローカル変数の連結リスト
-extern Var *globals;// グローバル変数の連結リスト
+extern Var *locals;        // ローカル変数の連結リスト
+extern Var *globals;       // グローバル変数の連結リスト
+extern Function *functions;// 関数の連結リスト
 
 // 現在着目しているトークン
 extern Token *token;
@@ -91,10 +93,13 @@ extern Token *token;
 struct Function {
     Function *next;// 次の関数
     char *name;    // 関数名
+    Type *ty;      // 型
+    int len;       // 名前の長さ
     Node *body;    // {}内
     Var *params;   // パラメータ
     Var *locals;   // ローカル変数
     int stack_size;
+    bool has_definition;
 };
 
 // 抽象構文木のノードの種類

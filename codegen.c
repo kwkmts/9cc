@@ -15,6 +15,7 @@ static void gen_stmt(Node *node);
 
 // nをalignの直近の倍数に切り上げる
 int align_to(int n, int align) {
+    assert(align != 0);
     return (n + align - 1) / align * align;
 }
 
@@ -417,7 +418,11 @@ static void emit_global_variables() {
 }
 
 static void emit_functions() {
-    for (Function *fn = prog.next; fn; fn = fn->next) {
+    for (Function *fn = functions; fn; fn = fn->next) {
+        if (!fn->has_definition) {
+            continue;
+        }
+
         if (locals) {
             fn->stack_size = align_to(locals->offset, 16);
         }

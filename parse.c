@@ -132,6 +132,15 @@ static Var *find_var(Token *tok) {
     return NULL;
 }
 
+static Function *find_func(Token *tok) {
+    for (Function *fn = functions; fn; fn = fn->next) {
+        if (fn->len == tok->len && !memcmp(tok->str, fn->name, fn->len)) {
+            return fn;
+        }
+    }
+    return NULL;
+}
+
 static Type *find_tag(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->parent) {
         for (Type *tag = sc->tags; tag; tag = tag->scope_next) {
@@ -263,6 +272,17 @@ static Var *new_gvar(char *str, int len, Type *ty) {
     return var;
 }
 
+static Function *new_func(char *str, int len, Type *ty) {
+    Function *fn = calloc(1, sizeof(Function));
+    fn->next = functions;
+    fn->name = strndup(str, len);
+    fn->len = len;
+    fn->ty = ty;
+    fn->has_definition = false;
+    functions = fn;
+    return fn;
+}
+
 static Var *new_str_literal(Token *tok, char *str) {
     static int str_count = 0;
     char *bf = calloc(1, 16);
@@ -332,7 +352,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
 
 static Type *declspec();
 static Type *declarator(Type *ty);
-static Function *function(Type *ty);
+static void function(Type *ty);
 static Node *lvar_initializer(Var *var);
 static void gvar_initializer(Var *var);
 static Node *declaration();
@@ -351,10 +371,9 @@ static Node *primary();
 static Node *unary();
 
 // program = global-declaration*
-// global-declaration = declspec declarator (("{" function-definition) | (("=" initializer)? ";"))
+// global-declaration = declspec declarator (function-decl | (("=" initializer)? ";"))
 //                    | declspec ";"
 void program() {
-    Function *cur = &prog;
     while (!at_eof()) {
         Type *basety = declspec();
 
@@ -365,8 +384,8 @@ void program() {
         Type *ty = declarator(basety);
 
         // 関数定義
-        if (consume("{", TK_RESERVED)) {
-            cur = cur->next = function(ty);
+        if (is_type_of(TY_FUNC, ty)) {
+            function(ty);
             continue;
         }
 
@@ -375,6 +394,7 @@ void program() {
         if (consume("=", TK_RESERVED)) {
             gvar_initializer(var);
         }
+        expect(";");
     }
 }
 
@@ -493,19 +513,26 @@ static Type *declarator(Type *ty) {
     }
 
     Token *tok = expect_ident();
-    if (is_type_of(TY_VOID, ty)) {
+    ty = type_suffix(ty);
+
+    if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
         error_tok(tok, "void型の変数を宣言することはできません");
     }
 
-    ty = type_suffix(ty);
     ty->ident = tok;
     return ty;
 }
 
-// function-definition = compound-stmt
-static Function *function(Type *ty) {
-    Function *fn = calloc(1, sizeof(Function));
-    fn->name = strndup(ty->ident->str, ty->ident->len);
+// function-decl = ("{" compound-stmt) | ";"
+static void function(Type *ty) {
+    Function *fn = find_func(ty->ident);
+    if (!fn) {
+        fn = new_func(ty->ident->str, ty->ident->len, ty);
+    }
+
+    if (consume(";", TK_RESERVED)) {
+        return;
+    }
 
     locals = NULL;
     enter_scope();
@@ -514,10 +541,11 @@ static Function *function(Type *ty) {
     }
 
     fn->params = locals;
+    expect("{");
     fn->body = compound_stmt();
     fn->locals = locals;
+    fn->has_definition = true;
     leave_scope();
-    return fn;
 }
 
 static void initializer2(Initializer *init);
@@ -1116,6 +1144,10 @@ static Node *primary() {
     if (tok) {
         // 関数呼び出し
         if (consume("(", TK_RESERVED)) {
+            if (!find_func(tok)) {
+                error_tok(tok, "宣言されていない関数です");
+            }
+
             Token *start = tok;
 
             Node head = {};
