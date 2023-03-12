@@ -351,7 +351,7 @@ static Node *primary();
 static Node *unary();
 
 // program = global-declaration*
-// global-declaration = declspec declarator (("(" function-definition) | (("=" initializer)? ";"))
+// global-declaration = declspec declarator (("{" function-definition) | (("=" initializer)? ";"))
 //                    | declspec ";"
 void program() {
     Function *cur = &prog;
@@ -365,7 +365,7 @@ void program() {
         Type *ty = declarator(basety);
 
         // 関数定義
-        if (consume("(", TK_RESERVED)) {
+        if (consume("{", TK_RESERVED)) {
             cur = cur->next = function(ty);
             continue;
         }
@@ -458,19 +458,35 @@ static Type *declspec() {
     }
 }
 
-// ary-suffix = "[" num "]" ary-suffix? | ε
-static Type *ary_suffix(Type *ty) {
+// type-suffix = "[" num "]" type-suffix? | "(" func-params? ")" | ε
+// func-params = declspec declarator ("," declspec declarator)*
+static Type *type_suffix(Type *ty) {
     if (consume("[", TK_RESERVED)) {
         int size = token->kind == TK_NUM ? expect_number()->val : -1;
         expect("]");
-        ty = ary_suffix(ty);
+        ty = type_suffix(ty);
         return array_of(ty, size);
+    }
+
+    if (consume("(", TK_RESERVED)) {
+        Type head = {};
+        Type *cur = &head;
+
+        while (!consume(")", TK_RESERVED)) {
+            if (consume(",", TK_RESERVED)) {
+                continue;
+            }
+
+            cur = cur->next = copy_type(declarator(declspec()));
+        }
+
+        return func_type(ty, head.next);
     }
 
     return ty;
 }
 
-// declarator = "*"* ident ary-suffix
+// declarator = "*"* ident type-suffix
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
@@ -481,38 +497,26 @@ static Type *declarator(Type *ty) {
         error_tok(tok, "void型の変数を宣言することはできません");
     }
 
-    ty = ary_suffix(ty);
+    ty = type_suffix(ty);
     ty->ident = tok;
     return ty;
 }
 
-// function-definition = func-params? ")" "{" compound-stmt
-// func-params = declspec declarator ("," declspec declarator)*
+// function-definition = compound-stmt
 static Function *function(Type *ty) {
-    locals = NULL;
-
     Function *fn = calloc(1, sizeof(Function));
     fn->name = strndup(ty->ident->str, ty->ident->len);
 
-    while (!consume(")", TK_RESERVED)) {
-        if (consume(",", TK_RESERVED)) {
-            continue;
-        }
-
-        Type *basety = declspec();
-        Type *ty = declarator(basety);
-
-        new_lvar(ty->ident->str, ty->ident->len, ty);
+    locals = NULL;
+    enter_scope();
+    for (Type *param = ty->params; param; param = param->next) {
+        new_lvar(param->ident->str, param->ident->len, param);
     }
 
     fn->params = locals;
-
-    if (consume("{", TK_RESERVED)) {
-        fn->body = compound_stmt();
-    }
-
+    fn->body = compound_stmt();
     fn->locals = locals;
-
+    leave_scope();
     return fn;
 }
 

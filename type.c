@@ -7,6 +7,12 @@ bool is_integer(Type *ty) {
            is_type_of(TY_SHORT, ty) || is_type_of(TY_LONG, ty);
 }
 
+Type *copy_type(Type *ty) {
+    Type *ret = calloc(1, sizeof(Type));
+    *ret = *ty;
+    return ret;
+}
+
 Type *pointer_to(Type *base) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_PTR;
@@ -22,6 +28,14 @@ Type *array_of(Type *base, size_t len) {
     ty->size = base->size * len;
     ty->align = base->align;
     ty->ary_len = len;
+    return ty;
+}
+
+Type *func_type(Type *ret, Type *params) {
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_FUNC;
+    ty->ret = ret;
+    ty->params = params;
     return ty;
 }
 

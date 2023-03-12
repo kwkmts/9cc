@@ -176,19 +176,26 @@ typedef enum {
     TY_PTR,
     TY_ARY,
     TY_STRUCT,
+    TY_FUNC,
 } TypeKind;
 
 // データ型の型
 struct Type {
-    TypeKind kind;   // データ型の種類
-    int size;        // サイズ
-    int align;       // アライメント
+    TypeKind kind;// データ型の種類
+    int size;     // サイズ
+    int align;    // アライメント
+    Token *ident; // 識別子名
+
     Type *scope_next;// スコープ内での次のタグ
     Token *name;     // タグ名
-    int ary_len;     // 配列の要素数
-    Type *base;      // データ型がポインタや配列の場合使われる
-    Token *ident;    // 識別子名
     Member *members; // 構造体のメンバリスト
+
+    int ary_len;// 配列の要素数
+    Type *base; // データ型がポインタや配列の場合使われる
+
+    Type *ret;   // 関数型の戻り値のデータ型
+    Type *params;// 関数型のパラメータのデータ型リスト
+    Type *next;  // 次のパラメータのデータ型
 };
 
 struct Member {
@@ -207,8 +214,10 @@ extern Type *ty_long;
 
 bool is_type_of(TypeKind kind, Type *ty);
 bool is_integer(Type *ty);
+Type *copy_type(Type *ty);
 Type *pointer_to(Type *base);
 Type *array_of(Type *base, size_t len);
+Type *func_type(Type *ret, Type *params);
 void add_type(Node *node);
 
 //
