@@ -143,6 +143,10 @@ int main() {
 
     ASSERT(10, ({ int i=0; while(i<10) { i=i+1; } i; }));
 
+    ASSERT(3, ({ int i=0; goto a; a: i++; b: i++; c: i++; i; }));
+    ASSERT(2, ({ int i=0; goto e; d: i++; e: i++; f: i++; i; }));
+    ASSERT(1, ({ int i=0; goto i; g: i++; h: i++; i: i++; i; }));
+
     ASSERT(3, ret3());
     ASSERT(5, ret5());
     ASSERT(8, add(3, 5));

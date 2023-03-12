@@ -4,6 +4,9 @@
 // パーサー
 //
 
+static Node *gotos; // 現在の関数内におけるgoto文のリスト
+static Node *labels;// 現在の関数内におけるラベルのリスト
+
 // ブロックスコープの型
 typedef struct Scope Scope;
 struct Scope {
@@ -523,6 +526,21 @@ static Type *declarator(Type *ty) {
     return ty;
 }
 
+static void resolve_goto_labels() {
+    for (Node *x = gotos; x; x = x->goto_next) {
+        for (Node *y = labels; y; y = y->label_next) {
+            if (strcmp(x->label, y->label) == 0) {
+                x->id = y->id;
+                break;
+            }
+        }
+
+        if (!x->id) {
+            error_tok(x->tok->next, "そのようなラベルはありません");
+        }
+    }
+}
+
 // function-decl = ("{" compound-stmt) | ";"
 static void function(Type *ty) {
     Function *fn = find_func(ty->ident);
@@ -546,6 +564,7 @@ static void function(Type *ty) {
     fn->locals = locals;
     fn->has_definition = true;
     leave_scope();
+    resolve_goto_labels();
 }
 
 static void initializer2(Initializer *init);
@@ -740,6 +759,8 @@ static Node *declaration() {
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "while" "(" expr ")" stmt
 //      | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+//      | "goto" ident ";"
+//      | ident ":" stmt
 //      | "return" expr ";"
 static Node *stmt() {
     Node *node;
@@ -797,6 +818,14 @@ static Node *stmt() {
 
         node->then = stmt();
 
+    } else if (equal("goto", TK_KEYWORD)) {
+        node = new_node(ND_GOTO, consume("goto", TK_KEYWORD));
+        Token *tok = expect_ident();
+        node->label = strndup(tok->str, tok->len);
+        node->goto_next = gotos;
+        gotos = node;
+        expect(";");
+
     } else if (equal("return", TK_KEYWORD)) {
         node = new_node(ND_RETURN, consume("return", TK_KEYWORD));
         node->lhs = expr();
@@ -806,9 +835,22 @@ static Node *stmt() {
         node = new_node(ND_NULL_STMT, consume(";", TK_RESERVED));
 
     } else {
-        Node *n = expr();
-        node = new_node(ND_EXPR_STMT, expect(";"));
-        node->lhs = n;
+        Token *tmp = token;
+        Token *tok = consume_ident();
+        if (tok && consume(":", TK_RESERVED)) {
+            node = new_node(ND_LABEL, tok);
+            node->label = strndup(tok->str, tok->len);
+            node->id = count();
+            node->lhs = stmt();
+            node->label_next = labels;
+            labels = node;
+
+        } else {
+            token = tmp;
+            Node *n = expr();
+            node = new_node(ND_EXPR_STMT, expect(";"));
+            node->lhs = n;
+        }
     }
 
 #ifdef ___DEBUG

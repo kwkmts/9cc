@@ -13,6 +13,11 @@ static char *const argreg8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
 static void gen_expr(Node *node);
 static void gen_stmt(Node *node);
 
+int count() {
+    static int i = 1;
+    return i++;
+}
+
 // nをalignの直近の倍数に切り上げる
 int align_to(int n, int align) {
     assert(align != 0);
@@ -226,7 +231,7 @@ static void gen_expr(Node *node) {
         printf("    movzb rax, al\n");
         break;
     case ND_LOGAND: {
-        int c = label_count++;
+        int c = count();
         gen_expr(node->lhs);
         printf("    pop rax\n");
         printf("    cmp rax, 0\n");
@@ -243,7 +248,7 @@ static void gen_expr(Node *node) {
         break;
     }
     case ND_LOGOR: {
-        int c = label_count++;
+        int c = count();
         gen_expr(node->lhs);
         printf("    pop rax\n");
         printf("    cmp rax, 0\n");
@@ -274,6 +279,13 @@ static void gen_stmt(Node *node) {
 
         return;
     }
+    case ND_GOTO:
+        printf("    jmp .L%d\n", node->id);
+        return;
+    case ND_LABEL:
+        printf(".L%d:\n", node->id);
+        gen_stmt(node->lhs);
+        return;
     case ND_RETURN:
         gen_expr(node->lhs);
 
@@ -283,7 +295,7 @@ static void gen_stmt(Node *node) {
         printf("    ret\n");
         return;
     case ND_IF: {
-        int c = label_count++;
+        int c = count();
         gen_expr(node->cond);
 
         printf("    pop rax\n");
@@ -304,7 +316,7 @@ static void gen_stmt(Node *node) {
         return;
     }
     case ND_LOOP: {
-        int c = label_count++;
+        int c = count();
 
         if (node->init) {
             gen_expr(node->init);

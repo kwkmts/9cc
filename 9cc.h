@@ -124,6 +124,8 @@ typedef enum {
     ND_NUM,      // 整数
     ND_FUNCALL,  // 関数呼出
     ND_BLOCK,    // { ... }
+    ND_GOTO,     // goto
+    ND_LABEL,    // ラベル
     ND_RETURN,   // return
     ND_IF,       // if
     ND_LOOP,     // while, for
@@ -158,8 +160,13 @@ struct Node {
     Node *init; // 初期化式(kindがND_LOOP(for文))
     Node *after;// 更新式(kindがND_LOOP(for文))
 
+    char *label;     // goto文のラベル名
+    int id;          // ラベルにつけるユニークな番号
+    Node *goto_next; // 次のgoto文
+    Node *label_next;// 次のラベル
+
     Node *body;// kindがND_BLOCKかND_STMT_EXPRの場合、{ ... }の中身
-    Node *next;// { ... }の中において、次の式を表す
+    Node *next;// { ... }の中において、次の文を表す
 };
 
 // 関数の連結リスト
@@ -229,5 +236,6 @@ void add_type(Node *node);
 // codegen.c
 //
 
+int count();
 int align_to(int n, int align);
 void codegen();
