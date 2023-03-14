@@ -124,7 +124,7 @@ typedef enum {
     ND_NUM,      // 整数
     ND_FUNCALL,  // 関数呼出
     ND_BLOCK,    // { ... }
-    ND_GOTO,     // goto, break
+    ND_GOTO,     // goto, break, continue
     ND_LABEL,    // ラベル
     ND_RETURN,   // return
     ND_IF,       // if
@@ -154,12 +154,13 @@ struct Node {
     char *funcname;// kindがND_FUNCALLの場合、関数名
     Node *args;    // kindがND_FUNCALLの場合、その引数リスト
 
-    Node *cond;      // 条件式(kindがND_IFかND_LOOP)
-    Node *then;      // then節(kindがND_IFかND_LOOP)
-    Node *els;       // else節(kindがND_IF)
-    Node *init;      // 初期化式(kindがND_LOOP(for文))
-    Node *after;     // 更新式(kindがND_LOOP(for文))
-    int brk_label_id;// break文のジャンプ先ラベルのユニークな番号
+    Node *cond;       // 条件式(kindがND_IFかND_LOOP)
+    Node *then;       // then節(kindがND_IFかND_LOOP)
+    Node *els;        // else節(kindがND_IF)
+    Node *init;       // 初期化式(kindがND_LOOP(for文))
+    Node *after;      // 更新式(kindがND_LOOP(for文))
+    int brk_label_id; // break文のジャンプ先ラベルのユニークな番号
+    int cont_label_id;// continue文のジャンプ先ラベルのユニークな番号
 
     char *label;     // ラベル名
     int label_id;    // ラベルにつけるユニークな番号

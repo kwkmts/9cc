@@ -4,9 +4,10 @@
 // パーサー
 //
 
-static Node *gotos;         // 現在の関数内におけるgoto文のリスト
-static Node *labels;        // 現在の関数内におけるラベルのリスト
-static int cur_brk_label_id;// 現在のbreak文のジャンプ先ラベルID
+static Node *gotos;          // 現在の関数内におけるgoto文のリスト
+static Node *labels;         // 現在の関数内におけるラベルのリスト
+static int cur_brk_label_id; // 現在のbreak文のジャンプ先ラベルID
+static int cur_cont_label_id;// 現在のcontinue文のジャンプ先ラベルID
 
 // ブロックスコープの型
 typedef struct Scope Scope;
@@ -763,6 +764,7 @@ static Node *declaration() {
 //      | "goto" ident ";"
 //      | ident ":" stmt
 //      | "break" ";"
+//      | "continue" ";"
 //      | "return" expr ";"
 static Node *stmt() {
     Node *node;
@@ -797,9 +799,12 @@ static Node *stmt() {
         }
 
         int brk_label_id = cur_brk_label_id;
+        int cont_label_id = cur_cont_label_id;
         node->brk_label_id = cur_brk_label_id = count();
+        node->cont_label_id = cur_cont_label_id = count();
         node->then = stmt();
         cur_brk_label_id = brk_label_id;
+        cur_cont_label_id = cont_label_id;
 
     } else if (equal("for", TK_KEYWORD)) {
         node = new_node(ND_LOOP, consume("for", TK_KEYWORD));
@@ -822,9 +827,12 @@ static Node *stmt() {
         }
 
         int brk_label_id = cur_brk_label_id;
+        int cont_label_id = cur_cont_label_id;
         node->brk_label_id = cur_brk_label_id = count();
+        node->cont_label_id = cur_cont_label_id = count();
         node->then = stmt();
         cur_brk_label_id = brk_label_id;
+        cur_cont_label_id = cont_label_id;
 
     } else if (equal("goto", TK_KEYWORD)) {
         node = new_node(ND_GOTO, consume("goto", TK_KEYWORD));
@@ -841,6 +849,15 @@ static Node *stmt() {
         }
         node = new_node(ND_GOTO, tok);
         node->label_id = cur_brk_label_id;
+        expect(";");
+
+    } else if (equal("continue", TK_KEYWORD)) {
+        Token *tok = consume("continue", TK_KEYWORD);
+        if (!cur_cont_label_id) {
+            error_tok(tok, "ここでcontinue文を使用することはできません");
+        }
+        node = new_node(ND_GOTO, tok);
+        node->label_id = cur_cont_label_id;
         expect(";");
 
     } else if (equal("return", TK_KEYWORD)) {

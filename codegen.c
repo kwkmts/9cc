@@ -333,6 +333,7 @@ static void gen_stmt(Node *node) {
         }
 
         gen_stmt(node->then);
+        printf(".L%d:\n", node->cont_label_id);
         if (node->after) {
             gen_expr(node->after);
             printf("    pop rax\n");
