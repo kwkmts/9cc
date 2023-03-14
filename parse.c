@@ -756,7 +756,25 @@ static Node *declaration() {
     return node;
 }
 
-// stmt = expr? ";"
+static bool is_typename() {
+    static char *kw[] = {"void", "int", "char", "short", "long", "struct"};
+    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+        if (equal(kw[i], TK_KEYWORD)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static Node *expr_stmt() {
+    Node *lhs = expr();
+    Node *node = new_node(ND_EXPR_STMT, expect(";"));
+    node->lhs = lhs;
+    return node;
+}
+
+// stmt = expr-stmt
+//      | ";"
 //      | "{" compound-stmt
 //      | "if" "(" expr ")" stmt ("else" stmt)?
 //      | "while" "(" expr ")" stmt
@@ -808,22 +826,22 @@ static Node *stmt() {
 
     } else if (equal("for", TK_KEYWORD)) {
         node = new_node(ND_LOOP, consume("for", TK_KEYWORD));
+        expect("(");
 
-        if (consume("(", TK_RESERVED)) {
-            if (!consume(";", TK_RESERVED)) {
-                node->init = expr();
-                expect(";");
-            }
+        enter_scope();
 
-            if (!consume(";", TK_RESERVED)) {
-                node->cond = expr();
-                expect(";");
-            }
+        if (!consume(";", TK_RESERVED)) {
+            node->init = is_typename() ? declaration() : expr_stmt();
+        }
 
-            if (!consume(")", TK_RESERVED)) {
-                node->after = expr();
-                expect(")");
-            }
+        if (!consume(";", TK_RESERVED)) {
+            node->cond = expr();
+            expect(";");
+        }
+
+        if (!consume(")", TK_RESERVED)) {
+            node->after = expr();
+            expect(")");
         }
 
         int brk_label_id = cur_brk_label_id;
@@ -831,6 +849,9 @@ static Node *stmt() {
         node->brk_label_id = cur_brk_label_id = count();
         node->cont_label_id = cur_cont_label_id = count();
         node->then = stmt();
+
+        leave_scope();
+
         cur_brk_label_id = brk_label_id;
         cur_cont_label_id = cont_label_id;
 
@@ -881,9 +902,7 @@ static Node *stmt() {
 
         } else {
             token = tmp;
-            Node *n = expr();
-            node = new_node(ND_EXPR_STMT, expect(";"));
-            node->lhs = n;
+            node = expr_stmt();
         }
     }
 
@@ -892,16 +911,6 @@ static Node *stmt() {
 #endif
 
     return node;
-}
-
-static bool is_typename() {
-    static char *kw[] = {"void", "int", "char", "short", "long", "struct"};
-    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-        if (equal(kw[i], TK_KEYWORD)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 // compound-stmt = (stmt | (declspec declarator ("=" (expr | "{" (expr ("," expr)*)? "}"))? ";"))* "}"

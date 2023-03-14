@@ -319,8 +319,7 @@ static void gen_stmt(Node *node) {
         int c = count();
 
         if (node->init) {
-            gen_expr(node->init);
-            printf("    pop rax\n");
+            gen_stmt(node->init);
         }
 
         printf(".Lbegin%d:\n", c);
