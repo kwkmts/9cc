@@ -75,7 +75,7 @@ static bool is_alnum(char c) {
 }
 
 static int read_keyword(char *c) {
-    static char *kw[] = {"if", "else", "while", "for", "goto", "return",
+    static char *kw[] = {"if", "else", "while", "for", "goto", "break", "return",
                          "void", "int", "char", "short", "long", "struct", "sizeof"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = strlen(kw[i]);

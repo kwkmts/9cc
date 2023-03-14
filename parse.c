@@ -4,8 +4,9 @@
 // パーサー
 //
 
-static Node *gotos; // 現在の関数内におけるgoto文のリスト
-static Node *labels;// 現在の関数内におけるラベルのリスト
+static Node *gotos;         // 現在の関数内におけるgoto文のリスト
+static Node *labels;        // 現在の関数内におけるラベルのリスト
+static int cur_brk_label_id;// 現在のbreak文のジャンプ先ラベルID
 
 // ブロックスコープの型
 typedef struct Scope Scope;
@@ -530,12 +531,12 @@ static void resolve_goto_labels() {
     for (Node *x = gotos; x; x = x->goto_next) {
         for (Node *y = labels; y; y = y->label_next) {
             if (strcmp(x->label, y->label) == 0) {
-                x->id = y->id;
+                x->label_id = y->label_id;
                 break;
             }
         }
 
-        if (!x->id) {
+        if (!x->label_id) {
             error_tok(x->tok->next, "そのようなラベルはありません");
         }
     }
@@ -761,6 +762,7 @@ static Node *declaration() {
 //      | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 //      | "goto" ident ";"
 //      | ident ":" stmt
+//      | "break" ";"
 //      | "return" expr ";"
 static Node *stmt() {
     Node *node;
@@ -794,7 +796,10 @@ static Node *stmt() {
             expect(")");
         }
 
+        int brk_label_id = cur_brk_label_id;
+        node->brk_label_id = cur_brk_label_id = count();
         node->then = stmt();
+        cur_brk_label_id = brk_label_id;
 
     } else if (equal("for", TK_KEYWORD)) {
         node = new_node(ND_LOOP, consume("for", TK_KEYWORD));
@@ -816,7 +821,10 @@ static Node *stmt() {
             }
         }
 
+        int brk_label_id = cur_brk_label_id;
+        node->brk_label_id = cur_brk_label_id = count();
         node->then = stmt();
+        cur_brk_label_id = brk_label_id;
 
     } else if (equal("goto", TK_KEYWORD)) {
         node = new_node(ND_GOTO, consume("goto", TK_KEYWORD));
@@ -824,6 +832,15 @@ static Node *stmt() {
         node->label = strndup(tok->str, tok->len);
         node->goto_next = gotos;
         gotos = node;
+        expect(";");
+
+    } else if (equal("break", TK_KEYWORD)) {
+        Token *tok = consume("break", TK_KEYWORD);
+        if (!cur_brk_label_id) {
+            error_tok(tok, "ここでbreak文を使用することはできません");
+        }
+        node = new_node(ND_GOTO, tok);
+        node->label_id = cur_brk_label_id;
         expect(";");
 
     } else if (equal("return", TK_KEYWORD)) {
@@ -840,7 +857,7 @@ static Node *stmt() {
         if (tok && consume(":", TK_RESERVED)) {
             node = new_node(ND_LABEL, tok);
             node->label = strndup(tok->str, tok->len);
-            node->id = count();
+            node->label_id = count();
             node->lhs = stmt();
             node->label_next = labels;
             labels = node;

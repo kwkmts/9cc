@@ -280,10 +280,10 @@ static void gen_stmt(Node *node) {
         return;
     }
     case ND_GOTO:
-        printf("    jmp .L%d\n", node->id);
+        printf("    jmp .L%d\n", node->label_id);
         return;
     case ND_LABEL:
-        printf(".L%d:\n", node->id);
+        printf(".L%d:\n", node->label_id);
         gen_stmt(node->lhs);
         return;
     case ND_RETURN:
@@ -327,11 +327,10 @@ static void gen_stmt(Node *node) {
 
         if (node->cond) {
             gen_expr(node->cond);
+            printf("    pop rax\n");
+            printf("    cmp rax, 0\n");
+            printf("    je .L%d\n", node->brk_label_id);
         }
-
-        printf("    pop rax\n");
-        printf("    cmp rax, 0\n");
-        printf("    je .Lend%d\n", c);
 
         gen_stmt(node->then);
         if (node->after) {
@@ -340,7 +339,7 @@ static void gen_stmt(Node *node) {
         }
 
         printf("    jmp .Lbegin%d\n", c);
-        printf(".Lend%d:\n", c);
+        printf(".L%d:\n", node->brk_label_id);
         return;
     }
     case ND_INIT:
