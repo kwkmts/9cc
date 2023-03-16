@@ -8,6 +8,7 @@ static Node *gotos;          // 現在の関数内におけるgoto文のリス�
 static Node *labels;         // 現在の関数内におけるラベルのリスト
 static int cur_brk_label_id; // 現在のbreak文のジャンプ先ラベルID
 static int cur_cont_label_id;// 現在のcontinue文のジャンプ先ラベルID
+static Node *cur_switch;     // 現在パース中のswitch文ノード
 
 // ブロックスコープの型
 typedef struct Scope Scope;
@@ -777,6 +778,9 @@ static Node *expr_stmt() {
 //      | ";"
 //      | "{" compound-stmt
 //      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "switch" "(" expr ")" stmt
+//      | "case" num ":" stmt
+//      | "default" ":" stmt
 //      | "while" "(" expr ")" stmt
 //      | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 //      | "goto" ident ";"
@@ -807,6 +811,61 @@ static Node *stmt() {
         if (consume("else", TK_KEYWORD)) {
             node->els = stmt();
         }
+
+    } else if (equal("switch", TK_KEYWORD)) {
+        node = new_node(ND_SWITCH, consume("switch", TK_KEYWORD));
+        expect("(");
+        node->cond = expr();
+        expect(")");
+
+        Node *sw = cur_switch;
+        cur_switch = node;
+
+        int brk_label_id = cur_brk_label_id;
+        node->brk_label_id = cur_brk_label_id = count();
+        node->then = stmt();
+
+        cur_switch = sw;
+        cur_brk_label_id = brk_label_id;
+
+    } else if (equal("case", TK_KEYWORD)) {
+        Token *tok = consume("case", TK_KEYWORD);
+        int64_t val = expect_number()->val;
+
+        if (!cur_switch) {
+            error_tok(tok, "ここでcase文を使用することはできません");
+        }
+
+        for (Node *n = cur_switch->case_next; n; n = n->case_next) {
+            if (val == n->case_val) {
+                error_tok(tok, "重複したcase文");
+            }
+        }
+
+        expect(":");
+
+        node = new_node(ND_CASE, tok);
+        node->case_val = val;
+        node->label_id = count();
+        node->lhs = stmt();
+        node->case_next = cur_switch->cases;
+        cur_switch->cases = node;
+
+    } else if (equal("default", TK_KEYWORD)) {
+        Token *tok = consume("default", TK_KEYWORD);
+        if (!cur_switch) {
+            error_tok(tok, "ここでdefault文を使用することはできません");
+        }
+        if (cur_switch->default_case) {
+            error_tok(tok, "重複したdefault文");
+        }
+
+        expect(":");
+
+        node = new_node(ND_CASE, tok);
+        node->label_id = count();
+        node->lhs = stmt();
+        cur_switch->default_case = node;
 
     } else if (equal("while", TK_KEYWORD)) {
         node = new_node(ND_LOOP, consume("while", TK_KEYWORD));

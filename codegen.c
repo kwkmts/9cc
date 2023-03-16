@@ -315,6 +315,27 @@ static void gen_stmt(Node *node) {
 
         return;
     }
+    case ND_SWITCH:
+        gen_expr(node->cond);
+        printf("    pop rax\n");
+
+        for (Node *n = node->cases; n; n = n->case_next) {
+            printf("    cmp rax, %ld\n", n->case_val);
+            printf("    je .L%d\n", n->label_id);
+        }
+
+        if (node->default_case) {
+            printf("    jmp .L%d\n", node->default_case->label_id);
+        }
+
+        printf("    jmp .L%d\n", node->brk_label_id);
+        gen_stmt(node->then);
+        printf(".L%d:\n", node->brk_label_id);
+        return;
+    case ND_CASE:
+        printf(".L%d:\n", node->label_id);
+        gen_stmt(node->lhs);
+        return;
     case ND_LOOP: {
         int c = count();
 

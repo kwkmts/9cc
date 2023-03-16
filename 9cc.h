@@ -128,6 +128,8 @@ typedef enum {
     ND_LABEL,    // ラベル
     ND_RETURN,   // return
     ND_IF,       // if
+    ND_SWITCH,   // switch
+    ND_CASE,     // case
     ND_LOOP,     // while, for
     ND_INIT,     // 初期化
     ND_EXPR_STMT,// 式文
@@ -154,13 +156,17 @@ struct Node {
     char *funcname;// kindがND_FUNCALLの場合、関数名
     Node *args;    // kindがND_FUNCALLの場合、その引数リスト
 
-    Node *cond;       // 条件式(kindがND_IFかND_LOOP)
-    Node *then;       // then節(kindがND_IFかND_LOOP)
-    Node *els;        // else節(kindがND_IF)
-    Node *init;       // 初期化式(kindがND_LOOP(for文))
-    Node *after;      // 更新式(kindがND_LOOP(for文))
-    int brk_label_id; // break文のジャンプ先ラベルのユニークな番号
-    int cont_label_id;// continue文のジャンプ先ラベルのユニークな番号
+    Node *cond;        // 条件式(ND_IF, ND_LOOP, ND_SWITCH)
+    Node *then;        // then節(ND_IF, ND_LOOP)
+    Node *els;         // else節(ND_IF)
+    Node *init;        // 初期化式(for文)
+    Node *after;       // 更新式(for文)
+    int brk_label_id;  // break文のジャンプ先ラベルのユニークな番号(ND_LOOP, ND_SWITCH)
+    int cont_label_id; // continue文のジャンプ先ラベルのユニークな番号(ND_LOOP)
+    Node *cases;       // case文リスト(ND_SWITCH)
+    Node *default_case;// default文(ND_SWITCH)
+    int64_t case_val;  // `case n:`の`n`の値
+    Node *case_next;   // 次のcase文
 
     char *label;     // ラベル名
     int label_id;    // ラベルにつけるユニークな番号
@@ -170,9 +176,6 @@ struct Node {
     Node *body;// kindがND_BLOCKかND_STMT_EXPRの場合、{ ... }の中身
     Node *next;// { ... }の中において、次の文を表す
 };
-
-// 関数の連結リスト
-extern Function prog;
 
 void program();
 
