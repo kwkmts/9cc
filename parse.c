@@ -512,19 +512,29 @@ static Type *type_suffix(Type *ty) {
     return ty;
 }
 
-// declarator = "*"* ident type-suffix
+// declarator = "*"* (ident | "(" declarator ")") type-suffix
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
     }
 
-    Token *tok = expect_ident();
-    ty = type_suffix(ty);
+    if (consume("(", TK_RESERVED)) {
+        Token *start = token;
 
-    if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
-        error_tok(tok, "void型の変数を宣言することはできません");
+        Type dummy = {};
+        declarator(&dummy);
+        expect(")");
+        ty = type_suffix(ty);
+
+        token = start;
+        ty = declarator(ty);
+        expect(")");
+        type_suffix(&dummy);
+        return ty;
     }
 
+    Token *tok = expect_ident();
+    ty = type_suffix(ty);
     ty->ident = tok;
     return ty;
 }
@@ -736,6 +746,9 @@ static Node *declaration() {
 
     if (!equal(";", TK_RESERVED)) {
         Type *ty = declarator(basety);
+        if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
+            error_tok(ty->ident, "void型の変数を宣言することはできません");
+        }
         Var *var = new_lvar(ty->ident->str, ty->ident->len, ty);
 
         // 初期化
