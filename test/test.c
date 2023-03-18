@@ -201,6 +201,20 @@ int main() {
     ASSERT(2, ({ short x; sizeof(x); }));
     ASSERT(8, ({ long x; sizeof(x); }));
 
+    ASSERT(1, sizeof(char));
+    ASSERT(2, sizeof(short));
+    ASSERT(4, sizeof(int));
+    ASSERT(8, sizeof(long));
+    ASSERT(8, sizeof(char *));
+    ASSERT(8, sizeof(int *));
+    ASSERT(8, sizeof(long *));
+    ASSERT(8, sizeof(int **));
+    ASSERT(8, sizeof(int(*)[4]));
+    ASSERT(32, sizeof(int*[4]));
+    ASSERT(16, sizeof(int[4]));
+    ASSERT(48, sizeof(int[3][4]));
+    ASSERT(8, sizeof(struct {int a; int b;}));
+
     ASSERT(3, ({ int x[2]; int *y; y=&x; *y=3; *x; }));
 
     ASSERT(3, ({ int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *x; }));

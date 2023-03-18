@@ -539,6 +539,30 @@ static Type *declarator(Type *ty) {
     return ty;
 }
 
+// abstract-declarator = "*"* ("(" abstract-declarator ")")? type-suffix
+static Type *abstract_declarator(Type *ty) {
+    while (consume("*", TK_RESERVED)) {
+        ty = pointer_to(ty);
+    }
+
+    if (consume("(", TK_RESERVED)) {
+        Token *start = token;
+
+        Type dummy = {};
+        abstract_declarator(&dummy);
+        expect(")");
+        ty = type_suffix(ty);
+
+        token = start;
+        ty = abstract_declarator(ty);
+        expect(")");
+        type_suffix(&dummy);
+        return ty;
+    }
+
+    return type_suffix(ty);
+}
+
 static void resolve_goto_labels() {
     for (Node *x = gotos; x; x = x->goto_next) {
         for (Node *y = labels; y; y = y->label_next) {
@@ -1167,12 +1191,28 @@ static Node *mul() {
 }
 
 // unary = "sizeof" unary
+//       | "sizeof" "(" (declspec abstract-declarator) | expr ")"
 //       | ("+" | "-" | "*" | "&" | "++" | "--" | "!") unary
 //       | postfix
 static Node *unary() {
     Token *tok;
 
     if ((tok = consume("sizeof", TK_KEYWORD))) {
+        if (consume("(", TK_RESERVED)) {
+            int sz;
+            if (is_typename()) {
+                Type *ty = abstract_declarator(declspec());
+                sz = ty->size;
+            } else {
+                Node *node = expr();
+                add_type(node);
+                sz = node->ty->size;
+            }
+
+            expect(")");
+            return new_node_num(sz, tok);
+        }
+
         Node *node = unary();
         add_type(node);
         return new_node_num(node->ty->size, tok);
