@@ -33,13 +33,13 @@ static void load(Type *ty) {
 
     switch (ty->size) {
     case 1:
-        printf("    movsx rax, BYTE PTR [rax]\n");
+        printf("    movsx eax, BYTE PTR [rax]\n");
         break;
     case 2:
-        printf("    movsx rax, WORD PTR [rax]\n");
+        printf("    movsx eax, WORD PTR [rax]\n");
         break;
     case 4:
-        printf("    movsx rax, DWORD PTR [rax]\n");
+        printf("    mov eax, DWORD PTR [rax]\n");
         break;
     case 8:
         printf("    mov rax, [rax]\n");
@@ -58,15 +58,15 @@ static void store(Type *ty) {
         for (Member *mem = ty->members; mem; mem = mem->next) {
             switch (mem->ty->size) {
             case 1:
-                printf("    movsx rdx, BYTE PTR [rdi+%d]\n", mem->offset);
+                printf("    movsx edx, BYTE PTR [rdi+%d]\n", mem->offset);
                 printf("    mov [rax+%d], dl\n", mem->offset);
                 continue;
             case 2:
-                printf("    movsx rdx, WORD PTR [rdi+%d]\n", mem->offset);
+                printf("    movsx edx, WORD PTR [rdi+%d]\n", mem->offset);
                 printf("    mov [rax+%d], dx\n", mem->offset);
                 continue;
             case 4:
-                printf("    movsx rdx, DWORD PTR [rdi+%d]\n", mem->offset);
+                printf("    mov edx, DWORD PTR [rdi+%d]\n", mem->offset);
                 printf("    mov [rax+%d], edx\n", mem->offset);
                 continue;
             case 8:
@@ -196,37 +196,44 @@ static void gen_expr(Node *node) {
     printf("    pop rdi\n");
     printf("    pop rax\n");
 
+    char *ax = node->lhs->ty->kind == TY_LONG || node->lhs->ty->base ? "rax" : "eax";
+    char *di = node->lhs->ty->kind == TY_LONG || node->lhs->ty->base ? "rdi" : "edi";
+
     switch (node->kind) {
     case ND_ADD:
-        printf("    add rax, rdi\n");
+        printf("    add %s, %s\n", ax, di);
         break;
     case ND_SUB:
-        printf("    sub rax, rdi\n");
+        printf("    sub %s, %s\n", ax, di);
         break;
     case ND_MUL:
-        printf("    imul rax, rdi\n");
+        printf("    imul %s, %s\n", ax, di);
         break;
     case ND_DIV:
-        printf("    cqo\n");
-        printf("    idiv rdi\n");
+        if (node->lhs->ty->size == 8) {
+            printf("    cqo\n");
+        } else {
+            printf("    cdq\n");
+        }
+        printf("    idiv %s\n", di);
         break;
     case ND_EQ:
-        printf("    cmp rax, rdi\n");
+        printf("    cmp %s, %s\n", ax, di);
         printf("    sete al\n");
         printf("    movzb rax, al\n");
         break;
     case ND_NE:
-        printf("    cmp rax, rdi\n");
+        printf("    cmp %s, %s\n", ax, di);
         printf("    setne al\n");
         printf("    movzb rax, al\n");
         break;
     case ND_LT:
-        printf("    cmp rax, rdi\n");
+        printf("    cmp %s, %s\n", ax, di);
         printf("    setl al\n");
         printf("    movzb rax, al\n");
         break;
     case ND_LE:
-        printf("    cmp rax, rdi\n");
+        printf("    cmp %s, %s\n", ax, di);
         printf("    setle al\n");
         printf("    movzb rax, al\n");
         break;
