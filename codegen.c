@@ -4,7 +4,6 @@
 // コード生成部
 //
 
-static int label_count;
 static char *const argreg64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 static char *const argreg32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 static char *const argreg16[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
@@ -24,12 +23,19 @@ int align_to(int n, int align) {
     return (n + align - 1) / align * align;
 }
 
+static void push_imm(int64_t val) {
+    if (val < INT32_MIN || INT32_MAX < val) {
+        printf("    mov rax, %ld\n", val);
+        printf("    push rax\n");
+    } else {
+        printf("    push %ld\n", val);
+    }
+}
+
 static void load(Type *ty) {
     if (is_type_of(TY_ARY, ty) || is_type_of(TY_STRUCT, ty)) {
         return;
     }
-
-    printf("    pop rax\n");
 
     switch (ty->size) {
     case 1:
@@ -46,14 +52,9 @@ static void load(Type *ty) {
         break;
     default:;
     }
-
-    printf("    push rax\n");
 }
 
 static void store(Type *ty) {
-    printf("    pop rdi\n");
-    printf("    pop rax\n");
-
     if (is_type_of(TY_STRUCT, ty)) {
         for (Member *mem = ty->members; mem; mem = mem->next) {
             switch (mem->ty->size) {
@@ -93,8 +94,25 @@ static void store(Type *ty) {
         default:;
         }
     }
+}
 
-    printf("    push rdi\n");
+static void cast(Type *from, Type *to) {
+    if (is_type_of(TY_VOID, to) || from->size == to->size) {
+        return;
+    }
+
+    switch (to->size) {
+    case 1:
+        printf("    movsx eax, al\n");
+        break;
+    case 2:
+        printf("    movsx eax, ax\n");
+        break;
+    case 8:
+        printf("    movsxd rax, eax\n");
+        break;
+    default:;
+    }
 }
 
 static void gen_lval(Node *node) {
@@ -129,19 +147,29 @@ static void gen_lval(Node *node) {
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
-        printf("    push %ld\n", node->val);
+        push_imm(node->val);
+        return;
+    case ND_CAST:
+        gen_expr(node->lhs);
+        printf("    pop rax\n");
+        cast(node->lhs->ty, node->ty);
+        printf("    push rax\n");
         return;
     case ND_VAR:
     case ND_MEMBER:
         gen_lval(node);
+        printf("    pop rax\n");
         load(node->ty);
+        printf("    push rax\n");
         return;
     case ND_ADDR:
         gen_lval(node->lhs);
         return;
     case ND_DEREF:
         gen_expr(node->lhs);
+        printf("    pop rax\n");
         load(node->ty);
+        printf("    push rax\n");
         return;
     case ND_FUNCALL: {
         int nargs = 0;
@@ -162,7 +190,10 @@ static void gen_expr(Node *node) {
     case ND_ASSIGN:
         gen_lval(node->lhs);
         gen_expr(node->rhs);
+        printf("    pop rdi\n");
+        printf("    pop rax\n");
         store(node->ty);
+        printf("    push rdi\n");
         return;
     case ND_NOT:
         gen_expr(node->lhs);

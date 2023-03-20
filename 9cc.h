@@ -120,6 +120,7 @@ typedef enum {
     ND_LOGOR,    // ||
     ND_COMMA,    // ,
     ND_MEMBER,   // .
+    ND_CAST,     // キャスト
     ND_VAR,      // ローカル変数
     ND_NUM,      // 整数
     ND_FUNCALL,  // 関数呼出

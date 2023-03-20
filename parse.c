@@ -184,6 +184,15 @@ static Node *new_node_num(int64_t val, Token *tok) {
     return node;
 }
 
+static Node *new_node_cast(Node *expr, Type *ty) {
+    add_type(expr);
+
+    Node *node = new_node(ND_CAST, ty->ident);
+    node->lhs = expr;
+    node->ty = copy_type(ty);
+    return node;
+}
+
 static Node *new_node_var(Var *var, Token *tok) {
     Node *node = new_node(ND_VAR, tok);
     node->ty = var->ty;
@@ -372,9 +381,10 @@ static Node *equality();
 static Node *relational();
 static Node *add();
 static Node *mul();
+static Node *cast();
+static Node *unary();
 static Node *postfix();
 static Node *primary();
-static Node *unary();
 
 // program = global-declaration*
 // global-declaration = declspec declarator (function-decl | (("=" initializer)? ";"))
@@ -1172,17 +1182,17 @@ static Node *add() {
     }
 }
 
-// mul = unary ("*" unary | "/" unary)*
+// mul = cast ("*" cast | "/" cast)*
 static Node *mul() {
-    Node *node = unary();
+    Node *node = cast();
     Token *tok;
 
     for (;;) {
         if ((tok = consume("*", TK_RESERVED))) {
-            node = new_node_binary(ND_MUL, node, unary(), tok);
+            node = new_node_binary(ND_MUL, node, cast(), tok);
 
         } else if ((tok = consume("/", TK_RESERVED))) {
-            node = new_node_binary(ND_DIV, node, unary(), tok);
+            node = new_node_binary(ND_DIV, node, cast(), tok);
 
         } else {
             return node;
@@ -1190,9 +1200,26 @@ static Node *mul() {
     }
 }
 
+// cast = "(" declspec abstract-declarator ")" cast
+//      | unary
+static Node *cast() {
+    Token *tmp = token;
+    if (consume("(", TK_RESERVED)) {
+        if (is_typename()) {
+            Type *ty = abstract_declarator(declspec());
+            expect(")");
+            return new_node_cast(cast(), ty);
+        }
+    }
+
+    token = tmp;
+    return unary();
+}
+
 // unary = "sizeof" unary
 //       | "sizeof" "(" (declspec abstract-declarator) | expr ")"
-//       | ("+" | "-" | "*" | "&" | "++" | "--" | "!") unary
+//       | ("+" | "-" | "*" | "&" | "!") cast
+//       | ("++" | "--") unary
 //       | postfix
 static Node *unary() {
     Token *tok;
@@ -1219,19 +1246,19 @@ static Node *unary() {
     }
 
     if ((tok = consume("+", TK_RESERVED))) {
-        return unary();
+        return new_node_binary(ND_ADD, new_node_num(0, NULL), cast(), tok);
     }
 
     if ((tok = consume("-", TK_RESERVED))) {
-        return new_node_binary(ND_SUB, new_node_num(0, NULL), unary(), tok);
+        return new_node_binary(ND_SUB, new_node_num(0, NULL), cast(), tok);
     }
 
     if ((tok = consume("*", TK_RESERVED))) {
-        return new_node_unary(ND_DEREF, unary(), tok);
+        return new_node_unary(ND_DEREF, cast(), tok);
     }
 
     if ((tok = consume("&", TK_RESERVED))) {
-        return new_node_unary(ND_ADDR, unary(), tok);
+        return new_node_unary(ND_ADDR, cast(), tok);
     }
 
     if ((tok = consume("++", TK_RESERVED))) {
@@ -1251,7 +1278,7 @@ static Node *unary() {
     }
 
     if ((tok = consume("!", TK_RESERVED))) {
-        return new_node_unary(ND_NOT, unary(), tok);
+        return new_node_unary(ND_NOT, cast(), tok);
     }
 
     return postfix();
