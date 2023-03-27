@@ -257,12 +257,17 @@ static void gen_expr(Node *node) {
         printf("    imul %s, %s\n", ax, di);
         break;
     case ND_DIV:
+    case ND_MOD:
         if (node->lhs->ty->size == 8) {
             printf("    cqo\n");
         } else {
             printf("    cdq\n");
         }
         printf("    idiv %s\n", di);
+
+        if (node->kind == ND_MOD) {
+            printf("    mov rax, rdx\n");
+        }
         break;
     case ND_EQ:
         printf("    cmp %s, %s\n", ax, di);
