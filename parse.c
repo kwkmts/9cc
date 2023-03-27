@@ -375,6 +375,7 @@ static Node *stmt();
 static Node *compound_stmt();
 static Node *expr();
 static Node *assign();
+static Node *conditional();
 static Node *logor();
 static Node *logand();
 static Node *equality();
@@ -1054,9 +1055,9 @@ static Node *expr() {
     return node;
 }
 
-// assign = logor (("=" | "+=" | "-=" | "*=" | "/=") assign)?
+// assign = conditional (("=" | "+=" | "-=" | "*=" | "/=") assign)?
 static Node *assign() {
-    Node *node = logor();
+    Node *node = conditional();
     Token *tok;
 
     if ((tok = consume("=", TK_RESERVED))) {
@@ -1091,6 +1092,23 @@ static Node *assign() {
                                tok);
     }
 
+    return node;
+}
+
+// conditional = logor ("?" expr ":" conditional)?
+static Node *conditional() {
+    Node *cond = logor();
+    Token *tok;
+
+    if (!(tok = consume("?", TK_RESERVED))) {
+        return cond;
+    }
+
+    Node *node = new_node(ND_COND, tok);
+    node->cond = cond;
+    node->then = expr();
+    expect(":");
+    node->els = conditional();
     return node;
 }
 

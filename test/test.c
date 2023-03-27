@@ -84,6 +84,12 @@ int main() {
     ASSERT(0, (2-2)&&5);
     ASSERT(1, 1&&5);
 
+    ASSERT(2, 0?1:2);
+    ASSERT(1, 1?1:2);
+    ASSERT(2, 0?1:1?2:3);
+
+    1 ? 2 : (void)1;
+
     ASSERT(0, l1);
     ASSERT(42, l2);
     ASSERT(0, l3[0]);

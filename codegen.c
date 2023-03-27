@@ -209,6 +209,22 @@ static void gen_expr(Node *node) {
         printf("    pop rax\n");
         gen_expr(node->rhs);
         return;
+    case ND_COND: {
+        int c = count();
+        gen_expr(node->cond);
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    je .Lelse%d\n", c);
+        gen_expr(node->then);
+        printf("    pop rax\n");
+        printf("    jmp .Lend%d\n", c);
+        printf(".Lelse%d:\n", c);
+        gen_expr(node->els);
+        printf("    pop rax\n");
+        printf(".Lend%d:\n", c);
+        printf("    push rax\n");
+        return;
+    }
     case ND_STMT_EXPR:
         for (Node *n = node->body; n; n = n->next) {
             gen_stmt(n);

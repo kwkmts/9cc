@@ -108,6 +108,13 @@ void add_type(Node *node) {
     case ND_COMMA:
         node->ty = node->rhs->ty;
         return;
+    case ND_COND:
+        if (is_type_of(TY_VOID, node->then->ty) || is_type_of(TY_VOID, node->then->ty)) {
+            node->ty = ty_void;
+        } else {
+            node->ty = node->then->ty;
+        }
+        return;
     case ND_MEMBER:
         node->ty = node->member->ty;
         return;
