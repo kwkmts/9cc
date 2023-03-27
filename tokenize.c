@@ -88,7 +88,8 @@ static int read_keyword(char *c) {
 }
 
 static bool is_punct_with_2char(char *p) {
-    static char *kw[] = {"==", "!=", "<=", ">=", "+=", "-=", "*=", "/=", "%=",
+    static char *kw[] = {"==", "!=", "<=", ">=",
+                         "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
                          "++", "--", "&&", "||", "->"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (startswith(p, kw[i])) {
@@ -185,7 +186,7 @@ Token *tokenize() {
         }
 
         // 1文字の区切り文字
-        if (strchr("+-*/%&()<>{}[]=~!?:;,.", *p)) {
+        if (strchr("+-*/%&|()<>{}[]=~^!?:;,.", *p)) {
             cur = cur->next = new_token(TK_RESERVED, p++, 1);
             continue;
         }

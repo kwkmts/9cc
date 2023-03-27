@@ -88,6 +88,17 @@ int main() {
     ASSERT(-1, ~0);
     ASSERT(0, ~-1);
 
+    ASSERT(0, 0&1);
+    ASSERT(1, 3&1);
+    ASSERT(3, 7&3);
+    ASSERT(10, -1&10);
+
+    ASSERT(1, 0|1);
+    ASSERT(3, 2|1);
+
+    ASSERT(0, 0^0);
+    ASSERT(2, 3^1);
+
     ASSERT(2, 0?1:2);
     ASSERT(1, 1?1:2);
     ASSERT(2, 0?1:1?2:3);
@@ -118,6 +129,9 @@ int main() {
     ASSERT(3, ({ int i=6; i/=2; }));
     ASSERT(2, ({ int i=10; i%=4; i; }));
     ASSERT(2, ({ long i=10; i%=4; i; }));
+    ASSERT(2, ({ int i=6; i&=3; i; }));
+    ASSERT(7, ({ int i=6; i|=3; i; }));
+    ASSERT(10, ({ int i=15; i^=5; i; }));
 
     ASSERT(3, ({ int i=2; ++i; }));
     ASSERT(2, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; ++*p; }));

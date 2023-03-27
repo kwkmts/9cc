@@ -120,6 +120,9 @@ typedef enum {
     ND_LOGAND,   // &&
     ND_LOGOR,    // ||
     ND_BITNOT,   // ~
+    ND_BITAND,   // &
+    ND_BITOR,    // |
+    ND_BITXOR,   // ^
     ND_COMMA,    // ,
     ND_MEMBER,   // .
     ND_CAST,     // キャスト

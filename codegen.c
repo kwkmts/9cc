@@ -204,6 +204,42 @@ static void gen_expr(Node *node) {
         printf("    movzb rax, al\n");
         printf("    push rax\n");
         return;
+    case ND_LOGAND: {
+        int c = count();
+        gen_expr(node->lhs);
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    je .Lfalse%d\n", c);
+        gen_expr(node->rhs);
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    je .Lfalse%d\n", c);
+        printf("    mov rax, 1\n");
+        printf("    jmp .Lend%d\n", c);
+        printf(".Lfalse%d:\n", c);
+        printf("    mov rax, 0\n");
+        printf(".Lend%d:\n", c);
+        printf("    push rax\n");
+        return;
+    }
+    case ND_LOGOR: {
+        int c = count();
+        gen_expr(node->lhs);
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    jne .Ltrue%d\n", c);
+        gen_expr(node->rhs);
+        printf("    pop rax\n");
+        printf("    cmp rax, 0\n");
+        printf("    jne .Ltrue%d\n", c);
+        printf("    mov rax, 0\n");
+        printf("    jmp .Lend%d\n", c);
+        printf(".Ltrue%d:\n", c);
+        printf("    mov rax, 1\n");
+        printf(".Lend%d:\n", c);
+        printf("    push rax\n");
+        return;
+    }
     case ND_BITNOT:
         gen_expr(node->lhs);
         printf("    pop rax\n");
@@ -295,40 +331,15 @@ static void gen_expr(Node *node) {
         printf("    setle al\n");
         printf("    movzb rax, al\n");
         break;
-    case ND_LOGAND: {
-        int c = count();
-        gen_expr(node->lhs);
-        printf("    pop rax\n");
-        printf("    cmp rax, 0\n");
-        printf("    je .Lfalse%d\n", c);
-        gen_expr(node->rhs);
-        printf("    pop rax\n");
-        printf("    cmp rax, 0\n");
-        printf("    je .Lfalse%d\n", c);
-        printf("    mov rax, 1\n");
-        printf("    jmp .Lend%d\n", c);
-        printf(".Lfalse%d:\n", c);
-        printf("    mov rax, 0\n");
-        printf(".Lend%d:\n", c);
+    case ND_BITAND:
+        printf("    and %s, %s\n", ax, di);
         break;
-    }
-    case ND_LOGOR: {
-        int c = count();
-        gen_expr(node->lhs);
-        printf("    pop rax\n");
-        printf("    cmp rax, 0\n");
-        printf("    jne .Ltrue%d\n", c);
-        gen_expr(node->rhs);
-        printf("    pop rax\n");
-        printf("    cmp rax, 0\n");
-        printf("    jne .Ltrue%d\n", c);
-        printf("    mov rax, 0\n");
-        printf("    jmp .Lend%d\n", c);
-        printf(".Ltrue%d:\n", c);
-        printf("    mov rax, 1\n");
-        printf(".Lend%d:\n", c);
+    case ND_BITOR:
+        printf("    or %s, %s\n", ax, di);
         break;
-    }
+    case ND_BITXOR:
+        printf("    xor %s, %s\n", ax, di);
+        break;
     default:;
     }
 

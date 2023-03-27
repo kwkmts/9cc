@@ -66,6 +66,9 @@ void add_type(Node *node) {
     case ND_MUL:
     case ND_DIV:
     case ND_MOD:
+    case ND_BITAND:
+    case ND_BITOR:
+    case ND_BITXOR:
         node->ty = node->lhs->ty;
         return;
     case ND_ASSIGN:

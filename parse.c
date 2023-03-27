@@ -378,6 +378,9 @@ static Node *assign();
 static Node *conditional();
 static Node *logor();
 static Node *logand();
+static Node *bitor();
+static Node *bitxor();
+static Node *bitand();
 static Node *equality();
 static Node *relational();
 static Node *add();
@@ -1055,7 +1058,7 @@ static Node *expr() {
     return node;
 }
 
-// assign = conditional (("=" | "+=" | "-=" | "*=" | "/=" | "%=") assign)?
+// assign = conditional (("=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=") assign)?
 static Node *assign() {
     Node *node = conditional();
     Token *tok;
@@ -1099,6 +1102,27 @@ static Node *assign() {
                                tok);
     }
 
+    if ((tok = consume("&=", TK_RESERVED))) {
+        node = new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_binary(ND_BITAND, node, assign(), NULL),
+                               tok);
+    }
+
+    if ((tok = consume("|=", TK_RESERVED))) {
+        node = new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_binary(ND_BITOR, node, assign(), NULL),
+                               tok);
+    }
+
+    if ((tok = consume("^=", TK_RESERVED))) {
+        node = new_node_binary(ND_ASSIGN,
+                               node,
+                               new_node_binary(ND_BITXOR, node, assign(), NULL),
+                               tok);
+    }
+
     return node;
 }
 
@@ -1133,14 +1157,56 @@ static Node *logor() {
     }
 }
 
-// logand = equality ("&&" equality)*
+// logand = bitor ("&&" bitor)*
 static Node *logand() {
-    Node *node = equality();
+    Node *node = bitor();
     Token *tok;
 
     for (;;) {
         if ((tok = consume("&&", TK_RESERVED))) {
-            node = new_node_binary(ND_LOGAND, node, equality(), tok);
+            node = new_node_binary(ND_LOGAND, node, bitor(), tok);
+        } else {
+            return node;
+        }
+    }
+}
+
+// bitor = bitxor ("|" bitxor)*
+static Node *bitor() {
+    Node *node = bitxor();
+    Token *tok;
+
+    for (;;) {
+        if ((tok = consume("|", TK_RESERVED))) {
+            node = new_node_binary(ND_BITOR, node, bitxor(), tok);
+        } else {
+            return node;
+        }
+    }
+}
+
+// bitxor = bitand ("^" bitand)*
+static Node *bitxor() {
+    Node *node = bitand();
+    Token *tok;
+
+    for (;;) {
+        if ((tok = consume("^", TK_RESERVED))) {
+            node = new_node_binary(ND_BITXOR, node, bitand(), tok);
+        } else {
+            return node;
+        }
+    }
+}
+
+// bitand = equality ("&" equality)*
+static Node *bitand() {
+    Node *node = equality();
+    Token *tok;
+
+    for (;;) {
+        if ((tok = consume("&", TK_RESERVED))) {
+            node = new_node_binary(ND_BITAND, node, equality(), tok);
         } else {
             return node;
         }
