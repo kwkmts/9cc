@@ -340,6 +340,14 @@ static void gen_expr(Node *node) {
     case ND_BITXOR:
         printf("    xor %s, %s\n", ax, di);
         break;
+    case ND_SHL:
+        printf("    mov ecx, edi\n");
+        printf("    sal %s, cl\n", ax);
+        break;
+    case ND_SHR:
+        printf("    mov ecx, edi\n");
+        printf("    sar %s, cl\n", ax);
+        break;
     default:;
     }
 

@@ -123,6 +123,8 @@ typedef enum {
     ND_BITAND,   // &
     ND_BITOR,    // |
     ND_BITXOR,   // ^
+    ND_SHL,      // <<
+    ND_SHR,      // >>
     ND_COMMA,    // ,
     ND_MEMBER,   // .
     ND_CAST,     // キャスト

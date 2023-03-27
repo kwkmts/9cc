@@ -87,16 +87,17 @@ static int read_keyword(char *c) {
     return 0;
 }
 
-static bool is_punct_with_2char(char *p) {
-    static char *kw[] = {"==", "!=", "<=", ">=",
+static int read_punct(char *p) {
+    static char *kw[] = {"<<=", ">>=",
+                         "==", "!=", "<=", ">=", "<<", ">>",
                          "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
                          "++", "--", "&&", "||", "->"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (startswith(p, kw[i])) {
-            return true;
+            return strlen(kw[i]);
         }
     }
-    return false;
+    return strchr("+-*/%&|()<>{}[]=~^!?:;,.", *p) ? 1 : 0;
 }
 
 static char *str_literal_end(char *p) {
@@ -178,16 +179,11 @@ Token *tokenize() {
             continue;
         }
 
-        // 2文字の区切り文字
-        if (is_punct_with_2char(p)) {
-            cur = cur->next = new_token(TK_RESERVED, p, 2);
-            p += 2;
-            continue;
-        }
-
-        // 1文字の区切り文字
-        if (strchr("+-*/%&|()<>{}[]=~^!?:;,.", *p)) {
-            cur = cur->next = new_token(TK_RESERVED, p++, 1);
+        // 区切り文字
+        length = read_punct(p);
+        if (length) {
+            cur = cur->next = new_token(TK_RESERVED, p, length);
+            p += length;
             continue;
         }
 
