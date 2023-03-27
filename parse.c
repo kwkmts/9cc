@@ -1245,7 +1245,7 @@ static Node *cast() {
 
 // unary = "sizeof" unary
 //       | "sizeof" "(" (declspec abstract-declarator) | expr ")"
-//       | ("+" | "-" | "*" | "&" | "!") cast
+//       | ("+" | "-" | "*" | "&" | "!" | "~") cast
 //       | ("++" | "--") unary
 //       | postfix
 static Node *unary() {
@@ -1286,6 +1286,10 @@ static Node *unary() {
 
     if ((tok = consume("&", TK_RESERVED))) {
         return new_node_unary(ND_ADDR, cast(), tok);
+    }
+
+    if ((tok = consume("~", TK_RESERVED))) {
+        return new_node_unary(ND_BITNOT, cast(), tok);
     }
 
     if ((tok = consume("++", TK_RESERVED))) {

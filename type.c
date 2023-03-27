@@ -88,6 +88,9 @@ void add_type(Node *node) {
     case ND_VAR:
         node->ty = node->var->ty;
         return;
+    case ND_BITNOT:
+        node->ty = node->lhs->ty;
+        return;
     case ND_ADDR:
         if (is_type_of(TY_ARY, node->lhs->ty)) {
             node->ty = pointer_to(node->lhs->ty->base);

@@ -85,6 +85,9 @@ int main() {
     ASSERT(0, (2-2)&&5);
     ASSERT(1, 1&&5);
 
+    ASSERT(-1, ~0);
+    ASSERT(0, ~-1);
+
     ASSERT(2, 0?1:2);
     ASSERT(1, 1?1:2);
     ASSERT(2, 0?1:1?2:3);

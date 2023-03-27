@@ -119,6 +119,7 @@ typedef enum {
     ND_NOT,      // !
     ND_LOGAND,   // &&
     ND_LOGOR,    // ||
+    ND_BITNOT,   // ~
     ND_COMMA,    // ,
     ND_MEMBER,   // .
     ND_CAST,     // キャスト

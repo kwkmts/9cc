@@ -185,7 +185,7 @@ Token *tokenize() {
         }
 
         // 1文字の区切り文字
-        if (strchr("+-*/%&()<>{}[]=!?:;,.", *p)) {
+        if (strchr("+-*/%&()<>{}[]=~!?:;,.", *p)) {
             cur = cur->next = new_token(TK_RESERVED, p++, 1);
             continue;
         }
