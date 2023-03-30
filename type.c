@@ -118,7 +118,8 @@ void add_type(Node *node) {
         node->ty = node->rhs->ty;
         return;
     case ND_COND:
-        if (is_type_of(TY_VOID, node->then->ty) || is_type_of(TY_VOID, node->then->ty)) {
+        if (is_type_of(TY_VOID, node->then->ty) ||
+            is_type_of(TY_VOID, node->then->ty)) {
             node->ty = ty_void;
         } else {
             node->ty = node->then->ty;
@@ -130,7 +131,9 @@ void add_type(Node *node) {
     case ND_STMT_EXPR:
         if (node->body) {
             Node *stmt = node->body;
-            for (; stmt->next; stmt = stmt->next) {}
+            for (; stmt->next; stmt = stmt->next) {
+            }
+
             if (stmt->kind == ND_EXPR_STMT) {
                 node->ty = stmt->lhs->ty;
                 return;

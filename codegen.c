@@ -285,8 +285,10 @@ static void gen_expr(Node *node) {
     printf("    pop rdi\n");
     printf("    pop rax\n");
 
-    char *ax = node->lhs->ty->kind == TY_LONG || node->lhs->ty->base ? "rax" : "eax";
-    char *di = node->lhs->ty->kind == TY_LONG || node->lhs->ty->base ? "rdi" : "edi";
+    char *ax =
+        node->lhs->ty->kind == TY_LONG || node->lhs->ty->base ? "rax" : "eax";
+    char *di =
+        node->lhs->ty->kind == TY_LONG || node->lhs->ty->base ? "rdi" : "edi";
 
     switch (node->kind) {
     case ND_ADD:
@@ -497,7 +499,8 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         Member *mem = cur->ty->members;
         emit_gvar_init(cur->children[mem->idx], NULL);
         for (; mem->next; mem = mem->next) {
-            emit_gvar_init(cur->children[mem->next->idx], cur->children[mem->idx]);
+            emit_gvar_init(cur->children[mem->next->idx],
+                           cur->children[mem->idx]);
         }
 
         int padding = cur->ty->align - mem->ty->align;

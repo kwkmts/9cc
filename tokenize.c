@@ -43,9 +43,7 @@ void error_at(char *loc, char *fmt, ...) {
     exit(1);
 }
 
-void error_tok(Token *tok, char *fmt, ...) {
-    error_at(tok->str, fmt);
-}
+void error_tok(Token *tok, char *fmt, ...) { error_at(tok->str, fmt); }
 
 //
 // トークナイザー
@@ -75,9 +73,10 @@ static bool is_alnum(char c) {
 }
 
 static int read_keyword(char *c) {
-    static char *kw[] = {"if", "else", "switch", "case", "default", "while", "for",
-                         "goto", "break", "continue", "return",
-                         "void", "int", "char", "short", "long", "struct", "sizeof"};
+    static char *kw[] = {"if",     "else",   "switch", "case",  "default",
+                         "while",  "for",    "goto",   "break", "continue",
+                         "return", "void",   "int",    "char",  "short",
+                         "long",   "struct", "sizeof"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {
@@ -88,10 +87,9 @@ static int read_keyword(char *c) {
 }
 
 static int read_punct(char *p) {
-    static char *kw[] = {"<<=", ">>=",
-                         "==", "!=", "<=", ">=", "<<", ">>",
-                         "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
-                         "++", "--", "&&", "||", "->"};
+    static char *kw[] = {"<<=", ">>=", "==", "!=", "<=", ">=", "<<",
+                         ">>",  "+=",  "-=", "*=", "/=", "%=", "&=",
+                         "|=",  "^=",  "++", "--", "&&", "||", "->"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (startswith(p, kw[i])) {
             return strlen(kw[i]);
@@ -127,7 +125,7 @@ static char *read_escaped_char(const char *p) {
     case 'r':
         return "\\r";
     case 'e':
-        return "\\033";// GNU拡張(ASCII ESC)
+        return "\\033"; // GNU拡張(ASCII ESC)
     case '"':
         return "\\\"";
     case '\\':
@@ -216,7 +214,7 @@ Token *tokenize() {
             cur = cur->next = new_token(TK_STR, start, len);
             cur->str = buf;
 
-            p++;//結びの`"`を読み飛ばす
+            p++; // 結びの`"`を読み飛ばす
             continue;
         }
 

@@ -19,7 +19,8 @@ static char *read_file(char *path) {
     } else {
         fp = fopen(path, "r");
         if (fp == NULL) {
-            error("ファイルを開くことができません(\"%s\"): %s", path, strerror(errno));
+            error("ファイルを開くことができません(\"%s\"): %s", path,
+                  strerror(errno));
         }
     }
 
