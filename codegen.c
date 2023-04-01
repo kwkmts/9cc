@@ -54,45 +54,67 @@ static void load(Type *ty) {
     }
 }
 
+static void store2(int size, int offset) {
+    switch (size) {
+    case 1:
+        printf("    movsx edx, BYTE PTR [rdi+%d]\n", offset);
+        printf("    mov [rax+%d], dl\n", offset);
+        return;
+    case 2:
+        printf("    movsx edx, WORD PTR [rdi+%d]\n", offset);
+        printf("    mov [rax+%d], dx\n", offset);
+        return;
+    case 4:
+        printf("    mov edx, DWORD PTR [rdi+%d]\n", offset);
+        printf("    mov [rax+%d], edx\n", offset);
+        return;
+    case 8:
+        printf("    mov rdx, [rdi+%d]\n", offset);
+        printf("    mov [rax+%d], rdx\n", offset);
+        return;
+    default:;
+    }
+}
+
 static void store(Type *ty) {
     if (is_type_of(TY_STRUCT, ty)) {
         for (Member *mem = ty->members; mem; mem = mem->next) {
-            switch (mem->ty->size) {
-            case 1:
-                printf("    movsx edx, BYTE PTR [rdi+%d]\n", mem->offset);
-                printf("    mov [rax+%d], dl\n", mem->offset);
-                continue;
-            case 2:
-                printf("    movsx edx, WORD PTR [rdi+%d]\n", mem->offset);
-                printf("    mov [rax+%d], dx\n", mem->offset);
-                continue;
-            case 4:
-                printf("    mov edx, DWORD PTR [rdi+%d]\n", mem->offset);
-                printf("    mov [rax+%d], edx\n", mem->offset);
-                continue;
-            case 8:
-                printf("    mov rdx, [rdi+%d]\n", mem->offset);
-                printf("    mov [rax+%d], rdx\n", mem->offset);
-                continue;
-            default:;
+            if (is_type_of(TY_STRUCT, mem->ty) || is_type_of(TY_ARY, mem->ty)) {
+                printf("    mov rsi, rdi\n");
+                printf("    add rdi, %d\n", mem->offset);
+                printf("    mov rbx, rax\n");
+                printf("    add rax, %d\n", mem->offset);
+                store(mem->ty);
+                printf("    mov rdi, rsi\n");
+                printf("    mov rax, rbx\n");
             }
+
+            store2(mem->ty->size, mem->offset);
         }
-    } else {
-        switch (ty->size) {
-        case 1:
-            printf("    mov [rax], dil\n");
-            break;
-        case 2:
-            printf("    mov [rax], di\n");
-            break;
-        case 4:
-            printf("    mov [rax], edi\n");
-            break;
-        case 8:
-            printf("    mov [rax], rdi\n");
-            break;
-        default:;
+        return;
+    }
+
+    if (is_type_of(TY_ARY, ty)) {
+        for (int i = 0; i < ty->ary_len; i++) {
+            store2(ty->base->size, ty->base->size * i);
         }
+        return;
+    }
+
+    switch (ty->size) {
+    case 1:
+        printf("    mov [rax], dil\n");
+        break;
+    case 2:
+        printf("    mov [rax], di\n");
+        break;
+    case 4:
+        printf("    mov [rax], edi\n");
+        break;
+    case 8:
+        printf("    mov [rax], rdi\n");
+        break;
+    default:;
     }
 }
 

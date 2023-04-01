@@ -347,6 +347,13 @@ int main() {
     ASSERT(7, ({ struct t {int a; int b;}; struct t x; x.a=7; struct t y; struct t *z=&y; *z=x; y.a; }));
     ASSERT(7, ({ struct t {int a; int b;}; struct t x; x.a=7; struct t y; struct t *p=&x; struct t *q=&y; *q=*p; y.a; }));
     ASSERT(5, ({ struct t {char a; char b;} x; struct t y; x.a=5; y=x; y.a; }));
+    ASSERT(1, ({ struct t {int a; struct { int x; int y;} b; }; struct t x={1,{2,3}}; struct t y=x; y.a; }));
+    ASSERT(2, ({ struct t {int a; struct { int x; int y;} b; }; struct t x={1,{2,3}}; struct t y=x; y.b.x; }));
+    ASSERT(3, ({ struct t {int a; struct { int x; int y;} b; }; struct t x={1,{2,3}}; struct t y=x; y.b.y; }));
+    ASSERT(1, ({ struct t {int a; char b[3];}; struct t x={1,{2,3,4}}; struct t y=x; y.a; }));
+    ASSERT(2, ({ struct t {int a; char b[3];}; struct t x={1,{2,3,4}}; struct t y=x; y.b[0]; }));
+    ASSERT(3, ({ struct t {int a; char b[3];}; struct t x={1,{2,3,4}}; struct t y=x; y.b[1]; }));
+    ASSERT(4, ({ struct t {int a; char b[3];}; struct t x={1,{2,3,4}}; struct t y=x; y.b[2]; }));
 
     ASSERT(1, ({ struct {int a; int b; int c;} x={1,2,3}; x.a; }));
     ASSERT(2, ({ struct {int a; int b; int c;} x={1,2,3}; x.b; }));
