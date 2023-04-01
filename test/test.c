@@ -26,6 +26,7 @@ int g19[]={0, 1, 2, 3};
 int g20[][2]={{0, 1}, {2, 3}, {4, 5}};
 struct {char a; int b;} g21[2] = {{1, 2}, {3, 4}};
 struct {int a[2];} g22[2] = {{{1, 2}}};
+union {int a; char b;} g23[2];
 
 int ret3() { return 3; }
 int ret5() { return 5; }
@@ -373,6 +374,12 @@ int main() {
 
     ASSERT(0, ({ struct {int a; int b;} x={}; x.a; }));
     ASSERT(0, ({ struct {int a; int b;} x={}; x.b; }));
+
+    ASSERT(8, ({ union { int a; char b[6]; } x; sizeof(x); }));
+    ASSERT(3, ({ union { int a; char b[4]; } x; x.a = 515; x.b[0]; }));
+    ASSERT(2, ({ union { int a; char b[4]; } x; x.a = 515; x.b[1]; }));
+    ASSERT(0, ({ union { int a; char b[4]; } x; x.a = 515; x.b[2]; }));
+    ASSERT(0, ({ union { int a; char b[4]; } x; x.a = 515; x.b[3]; }));
 
     ASSERT(42, g4);
     ASSERT(41, g5);

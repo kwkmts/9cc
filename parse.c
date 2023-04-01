@@ -474,7 +474,63 @@ static Type *struct_decl() {
     return ty;
 }
 
-// declspec = "void" | "int" | "char" | "short" | "long" | "struct"
+// union-decl = ident? "{" (declspec declarator ";")* "}"
+//             | ident
+static Type *union_decl() {
+    Token *tag = consume_ident();
+    if (tag && !equal("{", TK_RESERVED)) {
+        Type *ty = find_tag(tag);
+        if (!ty) {
+            error_tok(tag, "そのような構造体型はありません");
+        }
+        return ty;
+    }
+
+    expect("{");
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_UNION;
+    ty->align = 1;
+
+    Member head = {};
+    Member *cur = &head;
+
+    int offset = 0;
+    int idx = 0;
+    while (!consume("}", TK_RESERVED)) {
+        Member *mem = calloc(1, sizeof(Member));
+        Type *ty2 = declarator(declspec());
+        expect(";");
+
+        mem->idx = idx++;
+        mem->ty = ty2;
+        mem->name = ty2->ident;
+        mem->offset = 0;
+
+        if (offset < ty2->size) {
+            offset = ty2->size;
+        }
+
+        if (ty->align < mem->ty->align) {
+            ty->align = mem->ty->align;
+        }
+
+        cur = cur->next = mem;
+    }
+
+    ty->members = head.next;
+    ty->size = align_to(offset, ty->align);
+
+    // タグとスコープを紐付ける
+    if (tag) {
+        ty->name = tag;
+        ty->scope_next = scope->tags;
+        scope->tags = ty;
+    }
+
+    return ty;
+}
+
+// declspec = "void" | "int" | "char" | "short" | "long" | "struct" | "union"
 static Type *declspec() {
     if (consume("void", TK_KEYWORD)) {
         return ty_void;
@@ -498,6 +554,10 @@ static Type *declspec() {
 
     if (consume("struct", TK_KEYWORD)) {
         return struct_decl();
+    }
+
+    if (consume("union", TK_KEYWORD)) {
+        return union_decl();
     }
 }
 
@@ -812,7 +872,8 @@ static Node *declaration() {
 }
 
 static bool is_typename() {
-    static char *kw[] = {"void", "int", "char", "short", "long", "struct"};
+    static char *kw[] = {"void", "int",    "char", "short",
+                         "long", "struct", "union"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD)) {
             return true;
@@ -1420,8 +1481,8 @@ static Member *struct_member(Type *ty) {
 
 static Node *struct_ref(Node *lhs, Token *tok) {
     add_type(lhs);
-    if (!is_type_of(TY_STRUCT, lhs->ty)) {
-        error_tok(lhs->tok, "構造体ではありません");
+    if (!is_type_of(TY_STRUCT, lhs->ty) && !is_type_of(TY_UNION, lhs->ty)) {
+        error_tok(lhs->tok, "構造体/共用体ではありません");
     }
 
     Node *node = new_node_member(lhs, struct_member(lhs->ty), tok);
