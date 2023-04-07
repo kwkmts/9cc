@@ -76,27 +76,21 @@ static void store2(int size, int offset) {
     }
 }
 
-static void store(Type *ty) {
+static void store(Type *ty, int offset) {
     if (is_type_of(TY_STRUCT, ty)) {
         for (Member *mem = ty->members; mem; mem = mem->next) {
             if (is_type_of(TY_STRUCT, mem->ty) || is_type_of(TY_ARY, mem->ty)) {
-                printf("    mov rsi, rdi\n");
-                printf("    add rdi, %d\n", mem->offset);
-                printf("    mov rbx, rax\n");
-                printf("    add rax, %d\n", mem->offset);
-                store(mem->ty);
-                printf("    mov rdi, rsi\n");
-                printf("    mov rax, rbx\n");
+                store(mem->ty, offset + mem->offset);
             }
 
-            store2(mem->ty->size, mem->offset);
+            store2(mem->ty->size, offset + mem->offset);
         }
         return;
     }
 
     if (is_type_of(TY_ARY, ty)) {
         for (int i = 0; i < ty->ary_len; i++) {
-            store2(ty->base->size, ty->base->size * i);
+            store2(ty->base->size, offset + ty->base->size * i);
         }
         return;
     }
@@ -214,7 +208,7 @@ static void gen_expr(Node *node) {
         gen_expr(node->rhs);
         printf("    pop rdi\n");
         printf("    pop rax\n");
-        store(node->ty);
+        store(node->ty, 0);
         printf("    push rdi\n");
         return;
     case ND_NOT:
