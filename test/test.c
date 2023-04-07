@@ -381,6 +381,9 @@ int main() {
     ASSERT(0, ({ union { int a; char b[4]; } x; x.a = 515; x.b[2]; }));
     ASSERT(0, ({ union { int a; char b[4]; } x; x.a = 515; x.b[3]; }));
 
+    ASSERT(3, ({ union t {int a; char b[9];}; union t x; x.a=3; union t y=x; y.a; }));
+    ASSERT(7, ({ union t {int a; char b[9];}; union t x; x.a=7; union t y; union t *z=&y; *z=x; y.a; }));
+
     ASSERT(42, g4);
     ASSERT(41, g5);
     ASSERT(47, g6);
