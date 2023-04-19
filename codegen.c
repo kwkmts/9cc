@@ -540,6 +540,14 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         }
         break;
     }
+    case TY_UNION: {
+        emit_gvar_init(cur->children[0], NULL);
+        int padding = cur->ty->size - cur->children[0]->ty->size;
+        if (padding > 0) {
+            printf("    .zero %d\n", padding);
+        }
+        break;
+    }
     default:;
     }
 }
