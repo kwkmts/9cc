@@ -384,6 +384,13 @@ int main() {
     ASSERT(3, ({ union t {int a; char b[9];}; union t x; x.a=3; union t y=x; y.a; }));
     ASSERT(7, ({ union t {int a; char b[9];}; union t x; x.a=7; union t y; union t *z=&y; *z=x; y.a; }));
 
+    ASSERT(3, ({ union t {int a; char b[9];} x={515}; x.b[0]; }));
+    ASSERT(2, ({ union t {int a; char b[9];} x={515}; x.b[1]; }));
+    ASSERT(0, ({ union t {int a; char b[9];} x={515}; x.b[2]; }));
+    ASSERT(0, ({ union t {int a; char b[9];} x={515}; x.b[3]; }));
+
+    ASSERT(16909060, ({union {struct {char a; char b; char c; char d;} e; int f;} x={{4,3,2,1}}; x.f; }));
+
     ASSERT(42, g4);
     ASSERT(41, g5);
     ASSERT(47, g6);

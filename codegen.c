@@ -33,7 +33,8 @@ static void push_imm(int64_t val) {
 }
 
 static void load(Type *ty) {
-    if (is_type_of(TY_ARY, ty) || is_type_of(TY_STRUCT, ty)) {
+    if (is_type_of(TY_ARY, ty) || is_type_of(TY_STRUCT, ty) ||
+        is_type_of(TY_UNION, ty)) {
         return;
     }
 
@@ -77,15 +78,28 @@ static void store2(int size, int offset) {
 }
 
 static void store(Type *ty, int offset) {
-    if (is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty)) {
+    if (is_type_of(TY_STRUCT, ty)) {
         for (Member *mem = ty->members; mem; mem = mem->next) {
             if (is_type_of(TY_STRUCT, mem->ty) ||
                 is_type_of(TY_UNION, mem->ty) || is_type_of(TY_ARY, mem->ty)) {
                 store(mem->ty, offset + mem->offset);
+                continue;
             }
 
             store2(mem->ty->size, offset + mem->offset);
         }
+        return;
+    }
+
+    if (is_type_of(TY_UNION, ty)) {
+        if (is_type_of(TY_STRUCT, ty->members->ty) ||
+            is_type_of(TY_UNION, ty->members->ty) ||
+            is_type_of(TY_ARY, ty->members->ty)) {
+            store(ty->members->ty, offset);
+            return;
+        }
+
+        store2(ty->members->ty->size, offset);
         return;
     }
 

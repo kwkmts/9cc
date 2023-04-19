@@ -349,7 +349,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
         return init;
     }
 
-    if (is_type_of(TY_STRUCT, ty)) {
+    if (is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty)) {
         int len = 0;
         for (Member *mem = ty->members; mem; mem = mem->next) {
             len++;
@@ -707,7 +707,7 @@ static void initialize_with_zero(Initializer *init) {
         return;
     }
 
-    if (is_type_of(TY_STRUCT, init->ty)) {
+    if (is_type_of(TY_STRUCT, init->ty) || is_type_of(TY_UNION, init->ty)) {
         for (Member *mem = init->ty->members; mem; mem = mem->next) {
             initialize_with_zero(init->children[mem->idx]);
         }
@@ -768,6 +768,21 @@ static void initializer2(Initializer *init) {
         return;
     }
 
+    if (is_type_of(TY_UNION, init->ty)) {
+        if (!consume("{", TK_RESERVED)) {
+            Node *expr = assign();
+            add_type(expr);
+            if (is_type_of(TY_UNION, expr->ty)) {
+                init->expr = expr;
+                return;
+            }
+        }
+
+        initializer2(init->children[0]);
+        expect("}");
+        return;
+    }
+
     init->expr = assign();
 }
 
@@ -819,6 +834,13 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
         }
 
         return node;
+    }
+
+    if (is_type_of(TY_UNION, init->ty) && !init->expr) {
+        InitDesg desg2 = {desg, 0, init->ty->members};
+        return new_node_binary(ND_COMMA, new_node(ND_NULL_EXPR, NULL),
+                               create_lvar_init(init->children[0], &desg2),
+                               NULL);
     }
 
     return new_node_binary(ND_ASSIGN, init_designator(desg), init->expr, NULL);
