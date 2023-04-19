@@ -202,6 +202,7 @@ typedef enum {
     TY_PTR,
     TY_ARY,
     TY_STRUCT,
+    TY_UNION,
     TY_FUNC,
 } TypeKind;
 

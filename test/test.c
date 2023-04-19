@@ -26,6 +26,8 @@ int g19[]={0, 1, 2, 3};
 int g20[][2]={{0, 1}, {2, 3}, {4, 5}};
 struct {char a; int b;} g21[2] = {{1, 2}, {3, 4}};
 struct {int a[2];} g22[2] = {{{1, 2}}};
+union {int a; char b;} g23[2] = {{515}, {0}};
+union {int a; char b[9];} g24 = {515};
 
 int ret3() { return 3; }
 int ret5() { return 5; }
@@ -374,6 +376,22 @@ int main() {
     ASSERT(0, ({ struct {int a; int b;} x={}; x.a; }));
     ASSERT(0, ({ struct {int a; int b;} x={}; x.b; }));
 
+    ASSERT(8, ({ union { int a; char b[6]; } x; sizeof(x); }));
+    ASSERT(3, ({ union { int a; char b[4]; } x; x.a = 515; x.b[0]; }));
+    ASSERT(2, ({ union { int a; char b[4]; } x; x.a = 515; x.b[1]; }));
+    ASSERT(0, ({ union { int a; char b[4]; } x; x.a = 515; x.b[2]; }));
+    ASSERT(0, ({ union { int a; char b[4]; } x; x.a = 515; x.b[3]; }));
+
+    ASSERT(3, ({ union t {int a; char b[9];}; union t x; x.a=3; union t y=x; y.a; }));
+    ASSERT(7, ({ union t {int a; char b[9];}; union t x; x.a=7; union t y; union t *z=&y; *z=x; y.a; }));
+
+    ASSERT(3, ({ union t {int a; char b[9];} x={515}; x.b[0]; }));
+    ASSERT(2, ({ union t {int a; char b[9];} x={515}; x.b[1]; }));
+    ASSERT(0, ({ union t {int a; char b[9];} x={515}; x.b[2]; }));
+    ASSERT(0, ({ union t {int a; char b[9];} x={515}; x.b[3]; }));
+
+    ASSERT(16909060, ({union {struct {char a; char b; char c; char d;} e; int f;} x={{4,3,2,1}}; x.f; }));
+
     ASSERT(42, g4);
     ASSERT(41, g5);
     ASSERT(47, g6);
@@ -407,6 +425,15 @@ int main() {
     ASSERT(2, g22[0].a[1]);
     ASSERT(0, g22[1].a[0]);
     ASSERT(0, g22[1].a[1]);
+    ASSERT(515, g23[0].a);
+    ASSERT(3, g23[0].b);
+    ASSERT(0, g23[1].a);
+    ASSERT(0, g23[1].b);
+    ASSERT(515, g24.a);
+    ASSERT(3, g24.b[0]);
+    ASSERT(2, g24.b[1]);
+    ASSERT(0, g24.b[2]);
+    ASSERT(0, g24.b[3]);
 
     ASSERT(4, sizeof(g1));
     ASSERT(16, sizeof(g3));
