@@ -1,5 +1,11 @@
 #include "9cc.h"
 
+Type *ty_void = &(Type){TY_VOID, 1, 1};
+Type *ty_char = &(Type){TY_CHAR, 1, 1};
+Type *ty_short = &(Type){TY_SHORT, 2, 2};
+Type *ty_int = &(Type){TY_INT, 4, 4};
+Type *ty_long = &(Type){TY_LONG, 8, 8};
+
 bool is_type_of(TypeKind kind, Type *ty) { return ty->kind == kind; }
 
 bool is_integer(Type *ty) {
@@ -21,7 +27,7 @@ Type *pointer_to(Type *base) {
     return ty;
 }
 
-Type *array_of(Type *base, size_t len) {
+Type *array_of(Type *base, int len) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_ARY;
     ty->base = base;
@@ -39,25 +45,14 @@ Type *func_type(Type *ret, Type *params) {
     return ty;
 }
 
+void add_type_binop(Node *node) {
+    add_type(node->binop.lhs);
+    add_type(node->binop.rhs);
+}
+
 void add_type(Node *node) {
     if (!node || node->ty) {
         return;
-    }
-
-    add_type(node->lhs);
-    add_type(node->rhs);
-    add_type(node->cond);
-    add_type(node->then);
-    add_type(node->els);
-    add_type(node->init);
-    add_type(node->after);
-
-    for (Node *n = node->body; n; n = n->next) {
-        add_type(n);
-    }
-
-    for (Node *n = node->args; n; n = n->next) {
-        add_type(n);
     }
 
     switch (node->kind) {
@@ -69,77 +64,138 @@ void add_type(Node *node) {
     case ND_BITAND:
     case ND_BITOR:
     case ND_BITXOR:
-        node->ty = node->lhs->ty;
+        add_type_binop(node);
+        node->ty = node->binop.lhs->ty;
         return;
     case ND_ASSIGN:
-        if (is_type_of(TY_ARY, node->lhs->ty)) {
-            error_tok(node->lhs->tok, "左辺値ではありません");
+        add_type_binop(node);
+        if (is_type_of(TY_ARY, node->binop.lhs->ty)) {
+            error_tok(node->binop.lhs->tok, "左辺値ではありません");
         }
-        node->ty = node->lhs->ty;
+        node->ty = node->binop.lhs->ty;
         return;
     case ND_EQ:
     case ND_LE:
     case ND_LT:
     case ND_NE:
-    case ND_NOT:
     case ND_LOGAND:
     case ND_LOGOR:
+        add_type_binop(node);
+        node->ty = ty_int;
+        return;
+    case ND_NOT:
+        add_type(node->unary.expr);
+        node->ty = ty_int;
+        return;
     case ND_NUM:
-    case ND_FUNCALL:
         node->ty = ty_long;
         return;
+    case ND_FUNCALL:
+        node->ty = ty_long;
+        for (Node *n = node->funcall.args; n; n = n->next) {
+            add_type(n);
+        }
+        return;
     case ND_VAR:
-        node->ty = node->var->ty;
+        node->ty = node->var.var->ty;
         return;
     case ND_BITNOT:
     case ND_SHL:
     case ND_SHR:
-        node->ty = node->lhs->ty;
+        add_type_binop(node);
+        node->ty = node->binop.lhs->ty;
         return;
     case ND_ADDR:
-        if (is_type_of(TY_ARY, node->lhs->ty)) {
-            node->ty = pointer_to(node->lhs->ty->base);
+        add_type(node->unary.expr);
+        if (is_type_of(TY_ARY, node->unary.expr->ty)) {
+            node->ty = pointer_to(node->unary.expr->ty->base);
         } else {
-            node->ty = pointer_to(node->lhs->ty);
+            node->ty = pointer_to(node->unary.expr->ty);
         }
         return;
     case ND_DEREF:
-        if (!node->lhs->ty->base) {
+        add_type(node->unary.expr);
+        if (!node->unary.expr->ty->base) {
             error_tok(node->tok, "参照外しできません");
         }
 
-        if (is_type_of(TY_VOID, node->lhs->ty->base)) {
+        if (is_type_of(TY_VOID, node->unary.expr->ty->base)) {
             error_tok(node->tok, "'void *'型の参照外しはできません");
         }
 
-        node->ty = node->lhs->ty->base;
+        node->ty = node->unary.expr->ty->base;
         return;
     case ND_COMMA:
-        node->ty = node->rhs->ty;
+        add_type_binop(node);
+        node->ty = node->binop.rhs->ty;
         return;
     case ND_COND:
-        if (is_type_of(TY_VOID, node->then->ty) ||
-            is_type_of(TY_VOID, node->then->ty)) {
+        add_type(node->condop.cond);
+        add_type(node->condop.then);
+        add_type(node->condop.els);
+        if (is_type_of(TY_VOID, node->condop.then->ty) ||
+            is_type_of(TY_VOID, node->condop.els->ty)) {
             node->ty = ty_void;
         } else {
-            node->ty = node->then->ty;
+            node->ty = node->condop.then->ty;
         }
         return;
     case ND_MEMBER:
-        node->ty = node->member->ty;
+        add_type(node->member.lhs);
+        node->ty = node->member.mem->ty;
         return;
     case ND_STMT_EXPR:
-        if (node->body) {
-            Node *stmt = node->body;
+        if (node->block.body) {
+            Node *stmt = node->block.body;
             for (; stmt->next; stmt = stmt->next) {
             }
 
             if (stmt->kind == ND_EXPR_STMT) {
-                node->ty = stmt->lhs->ty;
+                node->ty = stmt->exprstmt.expr->ty;
                 return;
             }
         }
         error_tok(node->tok, "voidを返すことはできません");
+        return;
+
+    case ND_IF:
+        add_type(node->if_.cond);
+        add_type(node->if_.then);
+        add_type(node->if_.els);
+        return;
+    case ND_SWITCH:
+        add_type(node->switch_.cond);
+        add_type(node->switch_.then);
+        return;
+    case ND_CASE:
+        add_type(node->case_.stmt);
+        return;
+    case ND_WHILE:
+        add_type(node->while_.cond);
+        add_type(node->while_.then);
+        return;
+    case ND_FOR:
+        add_type(node->for_.init);
+        add_type(node->for_.cond);
+        add_type(node->for_.after);
+        add_type(node->for_.then);
+        return;
+    case ND_LABEL:
+        add_type(node->label.stmt);
+        return;
+    case ND_RETURN:
+        add_type(node->return_.expr);
+        return;
+    case ND_EXPR_STMT:
+        add_type(node->exprstmt.expr);
+        return;
+    case ND_BLOCK:
+        for (Node *n = node->block.body; n; n = n->next) {
+            add_type(n);
+        }
+        return;
+    case ND_INIT:
+        add_type(node->init.assigns);
         return;
     default:;
     }

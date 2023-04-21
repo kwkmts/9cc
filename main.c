@@ -1,16 +1,6 @@
 #include "9cc.h"
 
 char *filepath;
-char *user_input;
-Token *token;
-Var *locals;
-Var *globals;
-Function *functions;
-Type *ty_void = &(Type){TY_VOID, 1, 1};
-Type *ty_char = &(Type){TY_CHAR, 1, 1};
-Type *ty_short = &(Type){TY_SHORT, 2, 2};
-Type *ty_int = &(Type){TY_INT, 4, 4};
-Type *ty_long = &(Type){TY_LONG, 8, 8};
 
 static char *read_file(char *path) {
     FILE *fp;
@@ -29,12 +19,12 @@ static char *read_file(char *path) {
     FILE *out = open_memstream(&buf, &buflen);
 
     for (;;) {
-        char buf[4096];
-        int n = fread(buf, 1, sizeof(buf), fp);
+        char buf2[4096];
+        size_t n = fread(buf2, 1, sizeof(buf2), fp);
         if (n == 0) {
             break;
         }
-        fwrite(buf, 1, n, out);
+        fwrite(buf2, 1, n, out);
     }
 
     if (fp != stdin) {
@@ -59,12 +49,6 @@ int main(int argc, char **argv) {
     // トークナイズ
     user_input = read_file(filepath = argv[1]);
     token = tokenize();
-
-#ifdef ___DEBUG
-    for (Token *var = token; var->next; var = var->next) {
-        printf("# debug:: [%d]token->str: %s\n", var->kind, var->str);
-    }
-#endif
 
     // パース
     program();

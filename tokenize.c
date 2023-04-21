@@ -1,5 +1,7 @@
 #include "9cc.h"
 
+char *user_input;
+
 // エラーを報告する関数
 //  printf()と同じ引数
 void error(char *fmt, ...) {
@@ -33,9 +35,9 @@ void error_at(char *loc, char *fmt, ...) {
     }
 
     int indent = fprintf(stderr, "%s:%d: ", filepath, line_num);
-    fprintf(stderr, "%.*s\n", end - line, line);
+    fprintf(stderr, "%.*s\n", (int)(end - line), line);
 
-    int pos = loc - line + indent;
+    int pos = (int)(loc - line + indent);
     fprintf(stderr, "%*s", pos, "");
     fprintf(stderr, "^ ");
     vfprintf(stderr, fmt, ap);
@@ -61,16 +63,11 @@ static bool startswith(char *p, char *q) {
     return memcmp(p, q, strlen(q)) == 0;
 }
 
-static bool is_ident1(char c) {
+static bool is_alpha(char c) {
     return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
 }
 
-static bool is_ident2(char c) { return is_ident1(c) || ('0' <= c && c <= '9'); }
-
-static bool is_alnum(char c) {
-    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
-           ('0' <= c && c <= '9') || (c == '_');
-}
+static bool is_alnum(char c) { return is_alpha(c) || ('0' <= c && c <= '9'); }
 
 static int read_keyword(char *c) {
     static char *kw[] = {"if",     "else",   "switch", "case",  "default",
@@ -78,7 +75,7 @@ static int read_keyword(char *c) {
                          "return", "void",   "int",    "char",  "short",
                          "long",   "struct", "union",  "sizeof"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-        int len = strlen(kw[i]);
+        int len = (int)strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {
             return len;
         }
@@ -92,7 +89,7 @@ static int read_punct(char *p) {
                          "|=",  "^=",  "++", "--", "&&", "||", "->"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (startswith(p, kw[i])) {
-            return strlen(kw[i]);
+            return (int)strlen(kw[i]);
         }
     }
     return strchr("+-*/%&|()<>{}[]=~^!?:;,.", *p) ? 1 : 0;
@@ -108,32 +105,44 @@ static char *str_literal_end(char *p) {
     return p;
 }
 
-static char *read_escaped_char(const char *p) {
+static void read_escaped_char(char *buf, const char *p) {
     switch (*p) {
     case 'a':
-        return "\\007";
+        strcat(buf, "\\007");
+        return;
     case 'b':
-        return "\\b";
+        strcat(buf, "\\b");
+        return;
     case 't':
-        return "\\t";
+        strcat(buf, "\\t");
+        return;
     case 'n':
-        return "\\n";
+        strcat(buf, "\\n");
+        return;
     case 'v':
-        return "\\013";
+        strcat(buf, "\\013");
+        return;
     case 'f':
-        return "\\f";
+        strcat(buf, "\\f");
+        return;
     case 'r':
-        return "\\r";
+        strcat(buf, "\\r");
+        return;
     case 'e':
-        return "\\033"; // GNU拡張(ASCII ESC)
+        strcat(buf, "\\033"); // GNU拡張(ASCII ESC)
+        return;
     case '"':
-        return "\\\"";
+        strcat(buf, "\\\"");
+        return;
     case '\\':
-        return "\\\\";
+        strcat(buf, "\\\\");
+        return;
     case '0':
-        return "\\000";
+        strcat(buf, "\\000");
+        return;
     default:
-        return strndup(p, 1);
+        strncat(buf, p, 1);
+        return;
     }
 }
 
@@ -200,13 +209,13 @@ Token *tokenize() {
             int len = 0;
             while (*p != '"') {
                 if (*p == '\\') {
-                    strcat(buf, read_escaped_char(p + 1));
+                    read_escaped_char(buf, p + 1);
                     len++;
                     p += 2;
                     continue;
                 }
 
-                strcat(buf, strndup(p, 1));
+                strncat(buf, p, 1);
                 len++;
                 p++;
             }
@@ -219,13 +228,13 @@ Token *tokenize() {
         }
 
         // 識別子
-        if (is_ident1(*p)) {
+        if (is_alpha(*p)) {
             char *start = p;
             do {
                 p++;
-            } while (is_ident2(*p));
+            } while (is_alnum(*p));
 
-            cur = cur->next = new_token(TK_IDENT, start, p - start);
+            cur = cur->next = new_token(TK_IDENT, start, (int)(p - start));
             continue;
         }
 

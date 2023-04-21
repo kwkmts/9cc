@@ -8,11 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef ___DEBUG
-// 下の１行をアンコメントしてデバッグフラグを有効化
-// #define ___DEBUG
-#endif
-
 typedef struct Token Token;
 typedef struct Var Var;
 typedef struct Function Function;
@@ -138,8 +133,9 @@ typedef enum {
     ND_RETURN,    // return
     ND_IF,        // if
     ND_SWITCH,    // switch
-    ND_CASE,      // case
-    ND_LOOP,      // while, for
+    ND_CASE,      // case, default
+    ND_WHILE,     // while
+    ND_FOR,       // for
     ND_INIT,      // 初期化
     ND_EXPR_STMT, // 式文
     ND_STMT_EXPR, // GNU Statement Exprs
@@ -152,38 +148,110 @@ struct Node {
     NodeKind kind; // ノードの種類
     Type *ty;      // データ型
     Token *tok;    // 対応するトークン
+    Node *next;    // { ... }の中において、次の文を表す
 
-    Node *lhs; // 左辺
-    Node *rhs; // 右辺
+    union {
+        struct {
+            Node *lhs; // 左辺
+            Node *rhs; // 右辺
+        } binop;
 
-    int64_t val; // kindがND_NUMの場合、その値
+        struct {
+            Node *expr; // 式
+        } unary;
 
-    Var *var; // kindがND_VARの場合
+        struct {
+            Node *cond; // 条件式
+            Node *then; // then節
+            Node *els;  // else節
+        } condop;
 
-    Member *member; // 構造体のメンバ
+        struct {
+            Node *lhs;   // 左辺
+            Member *mem; // メンバ
+        } member;
 
-    char *funcname; // kindがND_FUNCALLの場合、関数名
-    Node *args;     // kindがND_FUNCALLの場合、その引数リスト
+        struct {
+            int64_t val;
+        } num;
 
-    Node *cond;       // 条件式(ND_IF, ND_LOOP, ND_SWITCH)
-    Node *then;       // then節(ND_IF, ND_LOOP)
-    Node *els;        // else節(ND_IF)
-    Node *init;       // 初期化式(for文)
-    Node *after;      // 更新式(for文)
-    int brk_label_id; // break文のジャンプ先ラベルID(ND_LOOP, ND_SWITCH)
-    int cont_label_id;  // continue文のジャンプ先ラベルID(ND_LOOP)
-    Node *cases;        // case文リスト(ND_SWITCH)
-    Node *default_case; // default文(ND_SWITCH)
-    int64_t case_val;   // `case n:`の`n`の値
-    Node *case_next;    // 次のcase文
+        struct {
+            Var *var;
+        } var;
 
-    char *label;      // ラベル名
-    int label_id;     // ラベルにつけるユニークな番号
-    Node *goto_next;  // 次のgoto文
-    Node *label_next; // 次のラベル
+        struct {
+            char *name; // 関数名
+            Node *args; // 引数リスト
+        } funcall;
 
-    Node *body; // kindがND_BLOCKかND_STMT_EXPRの場合、{ ... }の中身
-    Node *next; // { ... }の中において、次の文を表す
+        // ND_BLOCK, ND_STMT_EXPR
+        struct {
+            Node *body;
+        } block;
+
+        struct {
+            Node *cond; // 条件式
+            Node *then; // then節
+            Node *els;  // else節
+        } if_;
+
+        struct {
+            Node *cond;       // 条件式
+            Node *then;       // then節
+            Node *cases;      // case文リスト
+            Node *default_;   // default文
+            Node *case_next;  // 次のcase文
+            int brk_label_id; // break文のジャンプ先ラベルID
+        } switch_;
+
+        struct {
+            int64_t val; // `case n:`の`n`の値
+            int id;      // case文のID(ラベルと共通)
+            Node *stmt;  // case文に続く文
+            Node *next;  // 次のcase文
+        } case_;
+
+        struct {
+            Node *cond;        // 条件式
+            Node *then;        // then節
+            int brk_label_id;  // break文のジャンプ先ラベルID
+            int cont_label_id; // continue文のジャンプ先ラベルID
+        } while_;
+
+        struct {
+            Node *init;        // 初期化式
+            Node *cond;        // 条件式
+            Node *after;       // 更新式
+            Node *then;        // then節
+            int brk_label_id;  // break文のジャンプ先ラベルID
+            int cont_label_id; // continue文のジャンプ先ラベルID
+        } for_;
+
+        struct {
+            char *label; // 対応するラベル名
+            int id;      // goto文のジャンプ先ラベルID
+            Node *next;  // 次のgoto文
+        } goto_;
+
+        struct {
+            char *name; // ラベル名
+            int id;     // ラベルID
+            Node *stmt; // ラベルがついている文
+            Node *next; // 次のラベル
+        } label;
+
+        struct {
+            Node *expr;
+        } return_;
+
+        struct {
+            Node *expr;
+        } exprstmt;
+
+        struct {
+            Node *assigns;
+        } init;
+    };
 };
 
 void program();
@@ -208,17 +276,17 @@ typedef enum {
 
 // データ型の型
 struct Type {
-    TypeKind kind; // データ型の種類
-    int size;      // サイズ
-    int align;     // アライメント
-    Token *ident;  // 識別子名
+    TypeKind kind;    // データ型の種類
+    int size;         // サイズ
+    int align;        // アライメント
+    Token *ident;     // 識別子名
 
     Type *scope_next; // スコープ内での次のタグ
     Token *name;      // タグ名
     Member *members;  // 構造体のメンバリスト
 
-    int ary_len; // 配列の要素数
-    Type *base;  // データ型がポインタや配列の場合使われる
+    int ary_len;      // 配列の要素数
+    Type *base;   // データ型がポインタや配列の場合使われる
 
     Type *ret;    // 関数型の戻り値のデータ型
     Type *params; // 関数型のパラメータのデータ型リスト
@@ -243,7 +311,7 @@ bool is_type_of(TypeKind kind, Type *ty);
 bool is_integer(Type *ty);
 Type *copy_type(Type *ty);
 Type *pointer_to(Type *base);
-Type *array_of(Type *base, size_t len);
+Type *array_of(Type *base, int len);
 Type *func_type(Type *ret, Type *params);
 void add_type(Node *node);
 
