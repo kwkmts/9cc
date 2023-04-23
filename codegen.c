@@ -691,8 +691,8 @@ static void emit_functions() {
             continue;
         }
 
-        if (locals) {
-            fn->stack_size = align_to(locals->offset, 16);
+        if (fn->locals) {
+            fn->stack_size = align_to(fn->locals->offset, 16);
         }
 
         // アセンブリの前半部分を出力
