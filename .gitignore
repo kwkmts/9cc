@@ -5,5 +5,5 @@ a.out
 9cc
 .devcontainer/
 .vscode/
-test/test
-test/test.s
+test/*.s
+test/*.out

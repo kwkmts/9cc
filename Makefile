@@ -1,18 +1,26 @@
 CFLAGS=-std=c11 -g -static
 SRCS=$(wildcard *.c)
-OBJS=$(SRCS: .c=.o)
+OBJS=$(SRCS:.c=.o)
+TEST_SRCS=$(wildcard test/*.c)
+TESTS=$(TEST_SRCS:.c=.out)
 
 9cc: $(OBJS)
 	$(CC) -o 9cc $(OBJS) $(CFLAGS) $(LDFLAGS)
 
 $(OBJS): 9cc.h
 
-test: 9cc
-	$(CC) -E -P -C test/test.c -o- | ./9cc - > test/test.s
-	$(CC) test/test.s -xc test/common -o test/test -g
-	./test/test
+test/%.out: test/%.c 9cc
+	$(CC) -o- -E -P -C test/$*.c | ./9cc - > test/$*.s
+	$(CC) test/$*.s -xc test/common -o $@ -g
+
+test: $(TESTS)
+	for t in $^; do \
+		echo "== $$(basename "$$t") =="; \
+		./$$t || exit 1; \
+		echo; echo "OK"; echo; \
+	done
 
 clean:
-	rm -f 9cc *.o *~ tmp* test/test test/test.s
+	rm -f 9cc *.o *~ test/*.s test/*.out
 
 .PHONY: test clean
