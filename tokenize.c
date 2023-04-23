@@ -96,53 +96,51 @@ static int read_punct(char *p) {
 }
 
 static char *str_literal_end(char *p) {
-    while (*p != '\"') {
+    while (*p != '"') {
         if (*p == '\n' || *p == '\0') {
             error_at(p, "'\"'がありません");
+        }
+        if (*p == '\\') {
+            p++;
         }
         p++;
     }
     return p;
 }
 
-static void read_escaped_char(char *buf, const char *p) {
-    switch (*p) {
+static char read_char(char **p) {
+    if ((*p)[0] != '\\') {
+        return ((*p)++)[0];
+    }
+
+    char c = (*p)[1];
+    (*p) += 2;
+
+    switch (c) {
     case 'a':
-        strcat(buf, "\\007");
-        return;
+        return '\a';
     case 'b':
-        strcat(buf, "\\b");
-        return;
+        return '\b';
     case 't':
-        strcat(buf, "\\t");
-        return;
+        return '\t';
     case 'n':
-        strcat(buf, "\\n");
-        return;
+        return '\n';
     case 'v':
-        strcat(buf, "\\013");
-        return;
+        return '\v';
     case 'f':
-        strcat(buf, "\\f");
-        return;
+        return '\f';
     case 'r':
-        strcat(buf, "\\r");
-        return;
+        return '\r';
     case 'e':
-        strcat(buf, "\\033"); // GNU拡張(ASCII ESC)
-        return;
+        return '\033'; // GNU拡張(ASCII ESC)
     case '"':
-        strcat(buf, "\\\"");
-        return;
+        return '\"';
     case '\\':
-        strcat(buf, "\\\\");
-        return;
+        return '\\';
     case '0':
-        strcat(buf, "\\000");
-        return;
+        return '\0';
     default:
-        strncat(buf, p, 1);
-        return;
+        return c;
     }
 }
 
@@ -203,26 +201,14 @@ Token *tokenize() {
 
         // 文字列リテラル
         if (*p == '"') {
-            char *start = ++p;
-            char *end = str_literal_end(start);
-            char *buf = calloc(2 * (end - start) + 1, sizeof(char));
-            int len = 0;
-            while (*p != '"') {
-                if (*p == '\\') {
-                    read_escaped_char(buf, p + 1);
-                    len++;
-                    p += 2;
-                    continue;
-                }
-
-                strncat(buf, p, 1);
-                len++;
-                p++;
+            char *start = p++;
+            char *end = str_literal_end(start + 1);
+            char *buf = calloc(end - start, sizeof(char));
+            for (int i = 0; *p != '"'; i++) {
+                buf[i] = read_char(&p);
             }
 
-            cur = cur->next = new_token(TK_STR, start, len);
-            cur->str = buf;
-
+            cur = cur->next = new_token(TK_STR, buf, (int)strlen(buf));
             p++; // 結びの`"`を読み飛ばす
             continue;
         }

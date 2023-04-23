@@ -668,12 +668,15 @@ static void emit_global_variables() {
     }
 
     for (Var *var = globals; var; var = var->next) {
-        println("    .globl %s", var->name);
         if (var->init_data_str) {
             println("    .section .rodata");
             println("%s:", var->name);
             println("    .string \"%s\"", var->init_data_str);
-        } else if (var->init) {
+            continue;
+        }
+
+        println("    .globl %s", var->name);
+        if (var->init) {
             println("    .data");
             println("%s:", var->name);
             emit_gvar_init(var->init, NULL);

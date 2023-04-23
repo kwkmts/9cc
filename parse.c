@@ -316,12 +316,61 @@ static Function *new_func(char *str, int len, Type *ty) {
     return fn;
 }
 
-static Var *new_str_literal(Token *tok, char *str) {
+static char *to_init_data(char *str) {
+    // e.g.) str: "\a\a\a"(長さ3)の場合、buf: "\\007\\007\\007"(長さ12)となる。
+    //       strの長さの4倍 + '\0'分のメモリを確保
+    char *buf = calloc(4 * strlen(str) + 1, 1);
+
+    for (char *p = str; *p; p++) {
+        switch (*p) {
+        case '\a':
+            strcat(buf, "\\007");
+            break;
+        case '\b':
+            strcat(buf, "\\b");
+            break;
+        case '\t':
+            strcat(buf, "\\t");
+            break;
+        case '\n':
+            strcat(buf, "\\n");
+            break;
+        case '\v':
+            strcat(buf, "\\013");
+            break;
+        case '\f':
+            strcat(buf, "\\f");
+            break;
+        case '\r':
+            strcat(buf, "\\r");
+            break;
+        case '\e':
+            strcat(buf, "\\033"); // GNU拡張(ASCII ESC)
+            break;
+        case '"':
+            strcat(buf, "\\\"");
+            break;
+        case '\\':
+            strcat(buf, "\\\\");
+            break;
+        case '\0':
+            strcat(buf, "\\000");
+            break;
+        default:
+            strncat(buf, p, 1);
+            break;
+        }
+    }
+
+    return buf;
+}
+
+static Var *new_str_literal(Token *tok) {
     static int str_count = 0;
     char *bf = calloc(1, 16);
     sprintf(bf, ".Lstr%d", str_count++);
     Var *var = new_gvar(bf, (int)strlen(bf), array_of(ty_char, tok->len + 1));
-    var->init_data_str = str;
+    var->init_data_str = to_init_data(tok->str);
     return var;
 }
 
@@ -495,7 +544,7 @@ static Type *union_decl() {
     if (tag && !equal("{", TK_RESERVED, token)) {
         Type *ty = find_tag(tag);
         if (!ty) {
-            error_tok(tag, "そのような構造体型はありません");
+            error_tok(tag, "そのような共用体型はありません");
         }
         return ty;
     }
@@ -812,9 +861,31 @@ static void union_initializer(Initializer *init) {
     expect("}");
 }
 
-// initializer = ary-initializer | struct-initializer | union-initializer |
-//             | assign
+// str-initializer = str
+static void str_initializer(Initializer *init) {
+    if (init->is_flexible) {
+        *init =
+            *new_initializer(array_of(init->ty->base, token->len + 1), false);
+        initialize_with_zero(init);
+    }
+
+    int len =
+        init->ty->ary_len < token->len + 1 ? init->ty->ary_len : token->len + 1;
+    for (int i = 0; i < len; i++) {
+        init->children[i]->expr = new_node_num(token->str[i], token);
+    }
+
+    token = token->next;
+}
+
+// initializer = str-initializer | ary-initializer
+//             | struct-initializer | union-initializer | assign
 static void initializer2(Initializer *init) {
+    if (is_type_of(TY_ARY, init->ty) && token->kind == TK_STR) {
+        str_initializer(init);
+        return;
+    }
+
     if (is_type_of(TY_ARY, init->ty)) {
         ary_initializer(init);
         return;
@@ -1712,7 +1783,7 @@ static Node *primary() {
 
     // 文字列リテラル
     if (token->kind == TK_STR) {
-        Var *var = new_str_literal(token, token->str);
+        Var *var = new_str_literal(token);
         Node *node = new_node_var(var, token);
         token = token->next;
         return node;

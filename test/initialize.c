@@ -10,6 +10,10 @@ struct {char a; int b;} g21[2]={{1,2},{3,4}};
 struct {int a[2];} g22[2]={{{1,2}}};
 union {int a; char b;} g23[2]={{515},{0}};
 union {int a; char b[9];} g24={515};
+char g25[3]="abc";
+char g26[]="abc";
+char g27[2][4]={"abc","def"};
+char g28[][4]={"abc","def"};
 
 int main() {
     int l3[3]={0,1,2};
@@ -53,6 +57,14 @@ int main() {
     ASSERT(2, g24.b[1]);
     ASSERT(0, g24.b[2]);
     ASSERT(0, g24.b[3]);
+    ASSERT(97, g25[0]);
+    ASSERT(98, g25[1]);
+    ASSERT(99, g26[2]);
+    ASSERT(0, g26[3]);
+    ASSERT(97, g27[0][0]);
+    ASSERT(100, g27[1][0]);
+    ASSERT(99, g28[0][2]);
+    ASSERT(0, g28[1][3]);
 
     ASSERT(1, ({ int x[3]={1,2,3}; x[0]; }));
     ASSERT(2, ({ int x[3]={1,2,3}; x[1]; }));
@@ -108,6 +120,15 @@ int main() {
     ASSERT(0, ({ union t {int a; char b[9];} x={515}; x.b[3]; }));
 
     ASSERT(16909060, ({union {struct {char a; char b; char c; char d;} e; int f;} x={{4,3,2,1}}; x.f; }));
+
+    ASSERT(97, ({ char x[4]="abc"; x[0]; }));
+    ASSERT(99, ({ char x[4]="abc"; x[2]; }));
+    ASSERT(98, ({ char x[]="abc"; x[1]; }));
+    ASSERT(0, ({ char x[]="abc"; x[3]; }));
+    ASSERT(97, ({ char x[2][4]={"abc","def"}; x[0][0]; }));
+    ASSERT(0, ({ char x[2][4]={"abc","def"}; x[0][3]; }));
+    ASSERT(100, ({ char x[][4]={"abc","def"}; x[1][0]; }));
+    ASSERT(102, ({ char x[][4]={"abc","def"}; x[1][2]; }));
 
     return 0;
 }
