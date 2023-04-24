@@ -31,5 +31,11 @@ int main() {
     ASSERT(10, "\ax\ny"[2]);
     ASSERT(121, "\ax\ny"[3]);
 
+    ASSERT(97, 'a');
+    ASSERT(10, '\n');
+
+    ASSERT('a', "abc"[0]);
+    ASSERT('\0', "abc"[3]);
+
     return 0;
 }

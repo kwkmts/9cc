@@ -199,6 +199,17 @@ Token *tokenize() {
             continue;
         }
 
+        // 文字リテラル
+        if (*p == '\'') {
+            cur = cur->next = new_token(TK_NUM, p++, 0);
+            cur->val = (int64_t)read_char(&p);
+            if (*p != '\'') {
+                error_at(p, "'''ではありません");
+            }
+            p++;
+            continue;
+        }
+
         // 文字列リテラル
         if (*p == '"') {
             char *start = p++;
