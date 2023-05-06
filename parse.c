@@ -26,6 +26,7 @@ struct VarScope {
     VarScope *next;
     Var *var;
     EnumConst *enum_const;
+    Type *typedef_;
 };
 
 typedef struct TagScope TagScope;
@@ -129,6 +130,13 @@ static void push_enum_const_into_var_scope(EnumConst *ec) {
     scope->vars = sc;
 }
 
+static void push_typedef_into_var_scope(Type *td) {
+    VarScope *sc = calloc(1, sizeof(VarScope));
+    sc->typedef_ = td;
+    sc->next = scope->vars;
+    scope->vars = sc;
+}
+
 static void push_tag_scope(Type *ty) {
     TagScope *sc = calloc(1, sizeof(TagScope));
     sc->ty = ty;
@@ -214,6 +222,23 @@ static EnumConst *find_enum_const(Token *tok) {
                 !memcmp(tok->str, var_sc->enum_const->name->str,
                         var_sc->enum_const->name->len)) {
                 return var_sc->enum_const;
+            }
+        }
+    }
+    return NULL;
+}
+
+// typedef宣言子を名前で検索。見つからなければNULLを返す
+static Type *find_typedef(Token *tok) {
+    for (Scope *sc = scope; sc; sc = sc->parent) {
+        for (VarScope *var_sc = sc->vars; var_sc; var_sc = var_sc->next) {
+            if (!var_sc->typedef_) {
+                continue;
+            }
+            if (var_sc->typedef_->name->len == tok->len &&
+                !memcmp(tok->str, var_sc->typedef_->name->str,
+                        var_sc->typedef_->name->len)) {
+                return var_sc->typedef_;
             }
         }
     }
@@ -487,6 +512,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
     return init;
 }
 
+static void typedef_();
 static Type *declspec();
 static Type *declarator(Type *ty);
 static void function(Type *ty);
@@ -513,12 +539,18 @@ static Node *unary();
 static Node *postfix();
 static Node *primary();
 
-// program = global-declaration*
+// program = (global-declaration | typedef)*
 // global-declaration = declspec declarator function-decl
 //                    | declspec declarator ("=" initializer)? ";"
 //                    | declspec ";"
 void program() {
     while (!at_eof()) {
+        // typedef
+        if (consume("typedef", TK_KEYWORD)) {
+            typedef_();
+            continue;
+        }
+
         Type *basety = declspec();
 
         if (consume(";", TK_RESERVED)) {
@@ -540,6 +572,14 @@ void program() {
         }
         expect(";");
     }
+}
+
+static void typedef_() {
+    Type *ty = copy_type(declarator(declspec()));
+    expect(";");
+
+    ty->name = ty->ident;
+    push_typedef_into_var_scope(ty);
 }
 
 // struct-decl = ident? "{" (declspec declarator ";")* "}"
@@ -692,7 +732,8 @@ static Type *enum_specifier() {
     return ty;
 }
 
-// declspec = "void" | "int" | "char" | "short" | "long" | "struct" | "union"
+// declspec = "void" | "int" | "char" | "short" | "long" |
+//          | struct-decl | union-decl | enum-specifier | typedef-name
 static Type *declspec() {
     if (consume("void", TK_KEYWORD)) {
         return ty_void;
@@ -725,6 +766,10 @@ static Type *declspec() {
     if (consume("enum", TK_KEYWORD)) {
         return enum_specifier();
     }
+
+    Type *ty = find_typedef(token);
+    token = token->next;
+    return ty;
 }
 
 // ary-suffix = "[" num? "]" ary-suffix?
@@ -758,7 +803,7 @@ static Type *func_suffix(Type *ty) {
     return func_type(ty, head.next);
 }
 
-// ty-suffix = ary-suffix | func-suffix | ε
+// type-suffix = ary-suffix | func-suffix | ε
 static Type *type_suffix(Type *ty) {
     if (equal("[", TK_RESERVED, token)) {
         return ary_suffix(ty);
@@ -771,7 +816,7 @@ static Type *type_suffix(Type *ty) {
     return ty;
 }
 
-// declarator = "*"* (ident | "(" declarator ")") ty-suffix
+// declarator = "*"* (ident | "(" declarator ")") type-suffix
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
@@ -799,7 +844,7 @@ static Type *declarator(Type *ty) {
     return ty;
 }
 
-// abstract-declarator = "*"* ("(" abstract-declarator ")")? ty-suffix
+// abstract-declarator = "*"* ("(" abstract-declarator ")")? type-suffix
 static Type *abstract_declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
@@ -1125,7 +1170,7 @@ static bool is_typename() {
             return true;
         }
     }
-    return false;
+    return find_typedef(token);
 }
 
 // expr-stmt = expr ";"
@@ -1387,7 +1432,7 @@ static Node *stmt() {
     return expr_stmt();
 }
 
-// compound-stmt = (stmt | declaration)* "}"
+// compound-stmt = (stmt | declaration | typedef)* "}"
 static Node *compound_stmt() {
     Node *node = new_node(ND_BLOCK, NULL);
     Node head = {};
@@ -1395,7 +1440,12 @@ static Node *compound_stmt() {
     enter_scope();
 
     for (Node *cur = &head; !consume("}", TK_RESERVED);) {
-        if (is_typename()) {
+        if (consume("typedef", TK_KEYWORD)) {
+            typedef_();
+            continue;
+        }
+
+        if (is_typename() && !equal(":", TK_RESERVED, token->next)) {
             cur = cur->next = declaration();
         } else {
             cur = cur->next = stmt();

@@ -276,15 +276,15 @@ typedef enum {
 
 // データ型の型
 struct Type {
-    TypeKind kind;    // データ型の種類
-    int size;         // サイズ
-    int align;        // アライメント
-    Token *ident;     // 識別子名
+    TypeKind kind;   // データ型の種類
+    int size;        // サイズ
+    int align;       // アライメント
+    Token *ident;    // 識別子名
 
-    Token *name;      // タグ名
-    Member *members;  // 構造体のメンバリスト
+    Token *name;     // タグ名またはtypedef名
+    Member *members; // 構造体のメンバリスト
 
-    int ary_len;      // 配列の要素数
+    int ary_len;     // 配列の要素数
     Type *base;   // データ型がポインタや配列の場合使われる
 
     Type *ret;    // 関数型の戻り値のデータ型
