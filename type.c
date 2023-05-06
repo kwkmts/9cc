@@ -10,7 +10,8 @@ bool is_type_of(TypeKind kind, Type *ty) { return ty->kind == kind; }
 
 bool is_integer(Type *ty) {
     return is_type_of(TY_INT, ty) || is_type_of(TY_CHAR, ty) ||
-           is_type_of(TY_SHORT, ty) || is_type_of(TY_LONG, ty);
+           is_type_of(TY_SHORT, ty) || is_type_of(TY_LONG, ty) ||
+           is_type_of(TY_ENUM, ty);
 }
 
 Type *copy_type(Type *ty) {
@@ -34,6 +35,14 @@ Type *array_of(Type *base, int len) {
     ty->size = base->size * len;
     ty->align = base->align;
     ty->ary_len = len;
+    return ty;
+}
+
+Type *enum_type() {
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_ENUM;
+    ty->size = 4;
+    ty->align = 4;
     return ty;
 }
 

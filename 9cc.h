@@ -67,7 +67,6 @@ int64_t calc_const_expr(Node *node);
 // 変数の型
 struct Var {
     Var *next;           // 次の変数
-    Var *scope_next;     // スコープ内での次の変数
     char *name;          // 変数名
     Type *ty;            // 型
     int len;             // 名前の長さ
@@ -271,6 +270,7 @@ typedef enum {
     TY_ARY,
     TY_STRUCT,
     TY_UNION,
+    TY_ENUM,
     TY_FUNC,
 } TypeKind;
 
@@ -281,7 +281,6 @@ struct Type {
     int align;        // アライメント
     Token *ident;     // 識別子名
 
-    Type *scope_next; // スコープ内での次のタグ
     Token *name;      // タグ名
     Member *members;  // 構造体のメンバリスト
 
@@ -312,6 +311,7 @@ bool is_integer(Type *ty);
 Type *copy_type(Type *ty);
 Type *pointer_to(Type *base);
 Type *array_of(Type *base, int len);
+Type *enum_type();
 Type *func_type(Type *ret, Type *params);
 void add_type(Node *node);
 

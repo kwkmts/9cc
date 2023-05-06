@@ -14,6 +14,7 @@ char g25[4]="abc";
 char g26[]="abc";
 char g27[2][4]={"abc","def"};
 char g28[][4]={"abc","def"};
+enum {five=5, six, seven} g29=five;
 
 int main() {
     int l3[3]={0,1,2};
@@ -65,6 +66,7 @@ int main() {
     ASSERT(100, g27[1][0]);
     ASSERT(99, g28[0][2]);
     ASSERT(0, g28[1][3]);
+    ASSERT(5, g29);
 
     ASSERT(1, ({ int x[3]={1,2,3}; x[0]; }));
     ASSERT(2, ({ int x[3]={1,2,3}; x[1]; }));
@@ -129,6 +131,10 @@ int main() {
     ASSERT(0, ({ char x[2][4]={"abc","def"}; x[0][3]; }));
     ASSERT(100, ({ char x[][4]={"abc","def"}; x[1][0]; }));
     ASSERT(102, ({ char x[][4]={"abc","def"}; x[1][2]; }));
+
+    ASSERT(0, ({ enum { zero, one, two } x=zero; x; }));
+    ASSERT(1, ({ enum { zero, one, two } x=one; x; }));
+    ASSERT(2, ({ enum { zero, one, two } x=two; x; }));
 
     return 0;
 }

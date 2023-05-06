@@ -14,12 +14,32 @@ static int cur_brk_label_id; // 現在のbreak文のジャンプ先ラベルID
 static int cur_cont_label_id; // 現在のcontinue文のジャンプ先ラベルID
 static Node *cur_switch;      // 現在パース中のswitch文ノード
 
+// 列挙定数の型
+typedef struct EnumConst EnumConst;
+struct EnumConst {
+    Token *name;
+    int val;
+};
+
+typedef struct VarScope VarScope;
+struct VarScope {
+    VarScope *next;
+    Var *var;
+    EnumConst *enum_const;
+};
+
+typedef struct TagScope TagScope;
+struct TagScope {
+    TagScope *next;
+    Type *ty;
+};
+
 // ブロックスコープの型
 typedef struct Scope Scope;
 struct Scope {
-    Scope *parent; // 親のスコープ
-    Var *vars;     // スコープに属する変数
-    Type *tags;    // スコープに属するタグ
+    Scope *parent;  // 親のスコープ
+    VarScope *vars; // スコープに属する変数
+    TagScope *tags; // スコープに属するタグ
 };
 
 Scope *scope = &(Scope){};
@@ -95,6 +115,27 @@ static Token *expect_ident() {
 
 static bool at_eof() { return token->kind == TK_EOF; }
 
+static void push_var_into_var_scope(Var *var) {
+    VarScope *sc = calloc(1, sizeof(VarScope));
+    sc->var = var;
+    sc->next = scope->vars;
+    scope->vars = sc;
+}
+
+static void push_enum_const_into_var_scope(EnumConst *ec) {
+    VarScope *sc = calloc(1, sizeof(VarScope));
+    sc->enum_const = ec;
+    sc->next = scope->vars;
+    scope->vars = sc;
+}
+
+static void push_tag_scope(Type *ty) {
+    TagScope *sc = calloc(1, sizeof(TagScope));
+    sc->ty = ty;
+    sc->next = scope->tags;
+    scope->tags = sc;
+}
+
 static void enter_scope() {
     Scope *sc = calloc(1, sizeof(Scope));
     sc->parent = scope;
@@ -139,10 +180,13 @@ int64_t calc_const_expr(Node *node) {
 // 変数を名前で検索。見つからなければNULLを返す
 static Var *find_var(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->parent) {
-        for (Var *var = sc->vars; var; var = var->scope_next) {
-            if (var->len == tok->len &&
-                !memcmp(tok->str, var->name, var->len)) {
-                return var;
+        for (VarScope *var_sc = sc->vars; var_sc; var_sc = var_sc->next) {
+            if (!var_sc->var) {
+                continue;
+            }
+            if (var_sc->var->len == tok->len &&
+                !memcmp(tok->str, var_sc->var->name, var_sc->var->len)) {
+                return var_sc->var;
             }
         }
     }
@@ -159,13 +203,31 @@ static Function *find_func(Token *tok) {
     return NULL;
 }
 
+// 列挙定数を名前で検索。見つからなければNULLを返す
+static EnumConst *find_enum_const(Token *tok) {
+    for (Scope *sc = scope; sc; sc = sc->parent) {
+        for (VarScope *var_sc = sc->vars; var_sc; var_sc = var_sc->next) {
+            if (!var_sc->enum_const) {
+                continue;
+            }
+            if (var_sc->enum_const->name->len == tok->len &&
+                !memcmp(tok->str, var_sc->enum_const->name->str,
+                        var_sc->enum_const->name->len)) {
+                return var_sc->enum_const;
+            }
+        }
+    }
+    return NULL;
+}
+
 // 構造体・共用体タグを名前で検索。見つからなければNULLを返す
 static Type *find_tag(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->parent) {
-        for (Type *tag = sc->tags; tag; tag = tag->scope_next) {
-            if (tag->name->len == tok->len &&
-                !memcmp(tok->str, tag->name->str, tag->name->len)) {
-                return tag;
+        for (TagScope *tag_sc = sc->tags; tag_sc; tag_sc = tag_sc->next) {
+            if (tag_sc->ty->name->len == tok->len &&
+                !memcmp(tok->str, tag_sc->ty->name->str,
+                        tag_sc->ty->name->len)) {
+                return tag_sc->ty;
             }
         }
     }
@@ -279,11 +341,7 @@ static Var *new_var(char *str, int len, Type *ty) {
     var->name = strndup(str, len);
     var->len = len;
     var->ty = ty;
-
-    // 変数とスコープを紐付ける
-    var->scope_next = scope->vars;
-    scope->vars = var;
-
+    push_var_into_var_scope(var);
     return var;
 }
 
@@ -527,11 +585,9 @@ static Type *struct_decl() {
     ty->members = head.next;
     ty->size = align_to(offset, ty->align);
 
-    // タグとスコープを紐付ける
     if (tag) {
         ty->name = tag;
-        ty->scope_next = scope->tags;
-        scope->tags = ty;
+        push_tag_scope(ty);
     }
 
     return ty;
@@ -583,11 +639,54 @@ static Type *union_decl() {
     ty->members = head.next;
     ty->size = align_to(offset, ty->align);
 
-    // タグとスコープを紐付ける
     if (tag) {
         ty->name = tag;
-        ty->scope_next = scope->tags;
-        scope->tags = ty;
+        push_tag_scope(ty);
+    }
+
+    return ty;
+}
+
+// enum-specifier = ident? "{" enum-list? "}"
+//                | ident
+// enum-list = ident ("=" num)? ("," ident ("=" num)?)*
+static Type *enum_specifier() {
+    Token *tag = consume_ident();
+    if (tag && !equal("{", TK_RESERVED, token)) {
+        Type *ty = find_tag(tag);
+        if (!ty) {
+            error_tok(tag, "そのような列挙型はありません");
+        }
+        return ty;
+    }
+
+    expect("{");
+    int val = 0;
+    for (int i = 0; !consume("}", TK_RESERVED); i++) {
+        if (i > 0) {
+            expect(",");
+        }
+
+        Token *tok = expect_ident();
+        // TODO: 重複チェック
+
+        if (consume("=", TK_RESERVED)) {
+            val = (int)expect_number()->val;
+        }
+
+        EnumConst *ec = calloc(1, sizeof(EnumConst));
+        ec->name = tok;
+        ec->val = val++;
+        push_enum_const_into_var_scope(ec);
+    }
+
+    Type *ty = enum_type();
+    if (tag) {
+        TagScope *tag_sc = calloc(1, sizeof(TagScope));
+        ty->name = tag;
+        tag_sc->ty = ty;
+        tag_sc->next = scope->tags;
+        scope->tags = tag_sc;
     }
 
     return ty;
@@ -622,6 +721,10 @@ static Type *declspec() {
     if (consume("union", TK_KEYWORD)) {
         return union_decl();
     }
+
+    if (consume("enum", TK_KEYWORD)) {
+        return enum_specifier();
+    }
 }
 
 // ary-suffix = "[" num? "]" ary-suffix?
@@ -655,7 +758,7 @@ static Type *func_suffix(Type *ty) {
     return func_type(ty, head.next);
 }
 
-// type-suffix = ary-suffix | func-suffix | ε
+// ty-suffix = ary-suffix | func-suffix | ε
 static Type *type_suffix(Type *ty) {
     if (equal("[", TK_RESERVED, token)) {
         return ary_suffix(ty);
@@ -668,7 +771,7 @@ static Type *type_suffix(Type *ty) {
     return ty;
 }
 
-// declarator = "*"* (ident | "(" declarator ")") type-suffix
+// declarator = "*"* (ident | "(" declarator ")") ty-suffix
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
@@ -690,12 +793,13 @@ static Type *declarator(Type *ty) {
     }
 
     Token *tok = expect_ident();
+    // TODO: 変数の重複定義をエラーにする
     ty = type_suffix(ty);
     ty->ident = tok;
     return ty;
 }
 
-// abstract-declarator = "*"* ("(" abstract-declarator ")")? type-suffix
+// abstract-declarator = "*"* ("(" abstract-declarator ")")? ty-suffix
 static Type *abstract_declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
@@ -1014,8 +1118,8 @@ static Node *declaration() {
 }
 
 static bool is_typename() {
-    static char *kw[] = {"void", "int",    "char", "short",
-                         "long", "struct", "union"};
+    static char *kw[] = {"void", "int",    "char",  "short",
+                         "long", "struct", "union", "enum"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD, token)) {
             return true;
@@ -1772,13 +1876,18 @@ static Node *primary() {
             return funcall(tok);
         }
 
-        // 変数
+        // 変数または列挙定数
         Var *var = find_var(tok);
-        if (!var) {
+        EnumConst *enum_const = find_enum_const(tok);
+        if (!var && !enum_const) {
             error_at(tok->str, "定義されていない変数です");
         }
 
-        return new_node_var(var, tok);
+        if (var) {
+            return new_node_var(var, tok);
+        } else {
+            return new_node_num(enum_const->val, tok);
+        }
     }
 
     // 文字列リテラル
