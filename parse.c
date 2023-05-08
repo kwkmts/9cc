@@ -24,6 +24,7 @@ struct EnumConst {
 typedef struct VarScope VarScope;
 struct VarScope {
     VarScope *next;
+    char *name;
     Var *var;
     EnumConst *enum_const;
     Type *typedef_;
@@ -53,6 +54,12 @@ struct InitDesg {
     Member *member;
     Var *var;
 };
+
+typedef int VarAttr;
+#define NOATTR 0x00
+#define TYPEDEF 0x01
+#define STATIC 0x02
+#define EXTERN 0x04
 
 // 指定したトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
 static bool equal(char *op, TokenKind kind, Token *tok) {
@@ -114,24 +121,34 @@ static Token *expect_ident() {
     return ident;
 }
 
+static char *get_ident(Token *tok) {
+    if (tok->kind != TK_IDENT) {
+        error_tok(tok, "識別子ではありません");
+    }
+    return strndup(tok->str, tok->len);
+}
+
 static bool at_eof() { return token->kind == TK_EOF; }
 
-static void push_var_into_var_scope(Var *var) {
+static void push_var_into_var_scope(char *name, Var *var) {
     VarScope *sc = calloc(1, sizeof(VarScope));
+    sc->name = name;
     sc->var = var;
     sc->next = scope->vars;
     scope->vars = sc;
 }
 
-static void push_enum_const_into_var_scope(EnumConst *ec) {
+static void push_enum_const_into_var_scope(char *name, EnumConst *ec) {
     VarScope *sc = calloc(1, sizeof(VarScope));
+    sc->name = name;
     sc->enum_const = ec;
     sc->next = scope->vars;
     scope->vars = sc;
 }
 
-static void push_typedef_into_var_scope(Type *td) {
+static void push_typedef_into_var_scope(char *name, Type *td) {
     VarScope *sc = calloc(1, sizeof(VarScope));
+    sc->name = name;
     sc->typedef_ = td;
     sc->next = scope->vars;
     scope->vars = sc;
@@ -185,16 +202,15 @@ int64_t calc_const_expr(Node *node) {
     }
 }
 
-// 変数を名前で検索。見つからなければNULLを返す
-static Var *find_var(Token *tok) {
+static VarScope *look_in_var_scope(Token *tok) {
+    if (tok->kind != TK_IDENT) {
+        return NULL;
+    }
     for (Scope *sc = scope; sc; sc = sc->parent) {
         for (VarScope *var_sc = sc->vars; var_sc; var_sc = var_sc->next) {
-            if (!var_sc->var) {
-                continue;
-            }
-            if (var_sc->var->len == tok->len &&
-                !memcmp(tok->str, var_sc->var->name, var_sc->var->len)) {
-                return var_sc->var;
+            if (tok->len == (int)strlen(var_sc->name) &&
+                !memcmp(tok->str, var_sc->name, (int)strlen(var_sc->name))) {
+                return var_sc;
             }
         }
     }
@@ -204,25 +220,9 @@ static Var *find_var(Token *tok) {
 // 関数を名前で検索。見つからなければNULLを返す
 static Function *find_func(Token *tok) {
     for (Function *fn = functions; fn; fn = fn->next) {
-        if (fn->len == tok->len && !memcmp(tok->str, fn->name, fn->len)) {
+        if (tok->len == (int)strlen(fn->name) &&
+            !memcmp(tok->str, fn->name, (int)strlen(fn->name))) {
             return fn;
-        }
-    }
-    return NULL;
-}
-
-// 列挙定数を名前で検索。見つからなければNULLを返す
-static EnumConst *find_enum_const(Token *tok) {
-    for (Scope *sc = scope; sc; sc = sc->parent) {
-        for (VarScope *var_sc = sc->vars; var_sc; var_sc = var_sc->next) {
-            if (!var_sc->enum_const) {
-                continue;
-            }
-            if (var_sc->enum_const->name->len == tok->len &&
-                !memcmp(tok->str, var_sc->enum_const->name->str,
-                        var_sc->enum_const->name->len)) {
-                return var_sc->enum_const;
-            }
         }
     }
     return NULL;
@@ -230,22 +230,14 @@ static EnumConst *find_enum_const(Token *tok) {
 
 // typedef宣言子を名前で検索。見つからなければNULLを返す
 static Type *find_typedef(Token *tok) {
-    for (Scope *sc = scope; sc; sc = sc->parent) {
-        for (VarScope *var_sc = sc->vars; var_sc; var_sc = var_sc->next) {
-            if (!var_sc->typedef_) {
-                continue;
-            }
-            if (var_sc->typedef_->name->len == tok->len &&
-                !memcmp(tok->str, var_sc->typedef_->name->str,
-                        var_sc->typedef_->name->len)) {
-                return var_sc->typedef_;
-            }
-        }
+    VarScope *sc = look_in_var_scope(tok);
+    if (sc) {
+        return sc->typedef_;
     }
     return NULL;
 }
 
-// 構造体・共用体タグを名前で検索。見つからなければNULLを返す
+// 構造体・共用体・列挙体タグを名前で検索。見つからなければNULLを返す
 static Type *find_tag(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->parent) {
         for (TagScope *tag_sc = sc->tags; tag_sc; tag_sc = tag_sc->next) {
@@ -361,17 +353,16 @@ static Node *new_node_sub(Node *lhs, Node *rhs, Token *tok) {
     error_at(tok->str, "数値からポインタ値を引くことはできません");
 }
 
-static Var *new_var(char *str, int len, Type *ty) {
+static Var *new_var(char *name, Type *ty) {
     Var *var = calloc(1, sizeof(Var));
-    var->name = strndup(str, len);
-    var->len = len;
+    var->name = name;
     var->ty = ty;
-    push_var_into_var_scope(var);
+    push_var_into_var_scope(var->name, var);
     return var;
 }
 
-static Var *new_lvar(char *str, int len, Type *ty) {
-    Var *var = new_var(str, len, ty);
+static Var *new_lvar(char *name, Type *ty) {
+    Var *var = new_var(name, ty);
     var->next = locals;
     var->offset =
         align_to(locals ? locals->offset + ty->size : ty->size, ty->align);
@@ -380,19 +371,18 @@ static Var *new_lvar(char *str, int len, Type *ty) {
     return var;
 }
 
-static Var *new_gvar(char *str, int len, Type *ty) {
-    Var *var = new_var(str, len, ty);
+static Var *new_gvar(char *name, Type *ty) {
+    Var *var = new_var(name, ty);
     var->next = globals;
     var->is_lvar = false;
     globals = var;
     return var;
 }
 
-static Function *new_func(char *str, int len, Type *ty) {
+static Function *new_func(char *name, Type *ty) {
     Function *fn = calloc(1, sizeof(Function));
     fn->next = functions;
-    fn->name = strndup(str, len);
-    fn->len = len;
+    fn->name = name;
     fn->ty = ty;
     fn->has_definition = false;
     functions = fn;
@@ -427,7 +417,7 @@ static char *to_init_data(char *str) {
         case '\r':
             strcat(buf, "\\r");
             break;
-        case '\e':
+        case 27:
             strcat(buf, "\\033"); // GNU拡張(ASCII ESC)
             break;
         case '"':
@@ -450,9 +440,8 @@ static char *to_init_data(char *str) {
 
 static Var *new_str_literal(Token *tok) {
     static int str_count = 0;
-    char *bf = calloc(1, 16);
-    sprintf(bf, ".Lstr%d", str_count++);
-    Var *var = new_gvar(bf, (int)strlen(bf), array_of(ty_char, tok->len + 1));
+    Var *var = new_gvar(format(".Lstr%d", str_count++),
+                        array_of(ty_char, tok->len + 1));
     var->init_data_str = to_init_data(tok->str);
     return var;
 }
@@ -462,8 +451,8 @@ static Node *to_assign(Node *binary) {
     add_type(binary->binop.lhs);
     add_type(binary->binop.rhs);
 
-    Node *var =
-        new_node_var(new_lvar("", 0, pointer_to(binary->binop.lhs->ty)), NULL);
+    Node *var = new_node_var(
+        new_lvar(strndup("", 0), pointer_to(binary->binop.lhs->ty)), NULL);
 
     Node *expr1 = new_node_binary(
         ND_ASSIGN, var, new_node_unary(ND_ADDR, binary->binop.lhs, NULL), NULL);
@@ -518,7 +507,7 @@ static Type *declarator(Type *ty);
 static void function(Type *ty);
 static Node *lvar_initializer(Var *var);
 static void gvar_initializer(Var *var);
-static Node *declaration();
+static Node *declaration(VarAttr attr);
 static Node *stmt();
 static Node *compound_stmt();
 static Node *expr();
@@ -566,7 +555,7 @@ void program() {
         }
 
         // グローバル変数
-        Var *var = new_gvar(ty->ident->str, ty->ident->len, ty);
+        Var *var = new_gvar(get_ident(ty->ident), ty);
         if (consume("=", TK_RESERVED)) {
             gvar_initializer(var);
         }
@@ -579,7 +568,7 @@ static void typedef_() {
     expect(";");
 
     ty->name = ty->ident;
-    push_typedef_into_var_scope(ty);
+    push_typedef_into_var_scope(get_ident(ty->name), ty);
 }
 
 // struct-decl = ident? "{" (declspec declarator ";")* "}"
@@ -717,7 +706,7 @@ static Type *enum_specifier() {
         EnumConst *ec = calloc(1, sizeof(EnumConst));
         ec->name = tok;
         ec->val = val++;
-        push_enum_const_into_var_scope(ec);
+        push_enum_const_into_var_scope(get_ident(tok), ec);
     }
 
     Type *ty = enum_type();
@@ -887,7 +876,7 @@ static void resolve_goto_labels() {
 static void function(Type *ty) {
     Function *fn = find_func(ty->ident);
     if (!fn) {
-        fn = new_func(ty->ident->str, ty->ident->len, ty);
+        fn = new_func(get_ident(ty->ident), ty);
     }
 
     if (consume(";", TK_RESERVED)) {
@@ -897,7 +886,7 @@ static void function(Type *ty) {
     locals = NULL;
     enter_scope();
     for (Type *param = ty->params; param; param = param->next) {
-        new_lvar(param->ident->str, param->ident->len, param);
+        new_lvar(get_ident(param->ident), param);
     }
 
     fn->params = locals;
@@ -1130,7 +1119,7 @@ static void gvar_initializer(Var *var) {
 
 // declaration = declspec declarator ("=" initializer)? ";"
 //             | declspec ";"
-static Node *declaration() {
+static Node *declaration(VarAttr attr) {
     Node head = {};
     Node *cur = &head;
 
@@ -1141,17 +1130,28 @@ static Node *declaration() {
         if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
             error_tok(ty->ident, "void型の変数を宣言することはできません");
         }
-        Var *var = new_lvar(ty->ident->str, ty->ident->len, ty);
 
-        // 初期化
-        if (consume("=", TK_RESERVED)) {
-            Node *node = new_node(ND_INIT, NULL);
-            node->init.assigns = lvar_initializer(var);
-            cur->next = node;
-        }
+        if (attr & STATIC) {
+            static int static_count = 0;
+            char *name = get_ident(ty->ident);
+            char *unique_name = format("%s.%d", name, static_count++);
+            Var *var = new_gvar(unique_name, ty);
+            push_var_into_var_scope(name, var);
+            if (consume("=", TK_RESERVED)) {
+                gvar_initializer(var);
+            }
+        } else {
+            Var *var = new_lvar(get_ident(ty->ident), ty);
 
-        if (var->ty->ary_len < 0) {
-            error_at(ty->ident->str, "配列の要素数が指定されていません");
+            if (consume("=", TK_RESERVED)) {
+                Node *node = new_node(ND_INIT, NULL);
+                node->init.assigns = lvar_initializer(var);
+                cur->next = node;
+            }
+
+            if (var->ty->ary_len < 0) {
+                error_at(ty->ident->str, "配列の要素数が指定されていません");
+            }
         }
     }
 
@@ -1291,7 +1291,7 @@ static Node *for_stmt() {
     enter_scope();
 
     if (!consume(";", TK_RESERVED)) {
-        node->for_.init = is_typename() ? declaration() : expr_stmt();
+        node->for_.init = is_typename() ? declaration(NOATTR) : expr_stmt();
     }
 
     if (!consume(";", TK_RESERVED)) {
@@ -1322,7 +1322,7 @@ static Node *for_stmt() {
 static Node *goto_stmt() {
     Node *node = new_node(ND_GOTO, consume("goto", TK_KEYWORD));
     Token *tok = expect_ident();
-    node->goto_.label = strndup(tok->str, tok->len);
+    node->goto_.label = get_ident(tok);
     node->goto_.next = gotos;
     gotos = node;
     expect(";");
@@ -1334,7 +1334,7 @@ static Node *label_stmt() {
     Token *name = expect_ident();
     expect(":");
     Node *node = new_node(ND_LABEL, name);
-    node->label.name = strndup(name->str, name->len);
+    node->label.name = get_ident(name);
     node->label.id = count();
     node->label.stmt = stmt();
     node->label.next = labels;
@@ -1445,8 +1445,13 @@ static Node *compound_stmt() {
             continue;
         }
 
+        VarAttr attr = NOATTR;
+        if (consume("static", TK_KEYWORD)) {
+            attr |= STATIC;
+        }
+
         if (is_typename() && !equal(":", TK_RESERVED, token->next)) {
-            cur = cur->next = declaration();
+            cur = cur->next = declaration(attr);
         } else {
             cur = cur->next = stmt();
         }
@@ -1895,7 +1900,7 @@ static Node *funcall(Token *tok) {
     }
 
     Node *node = new_node(ND_FUNCALL, tok);
-    node->funcall.name = strndup(start->str, start->len);
+    node->funcall.name = get_ident(start);
     node->funcall.args = head.next;
     return node;
 }
@@ -1927,16 +1932,15 @@ static Node *primary() {
         }
 
         // 変数または列挙定数
-        Var *var = find_var(tok);
-        EnumConst *enum_const = find_enum_const(tok);
-        if (!var && !enum_const) {
+        VarScope *sc = look_in_var_scope(tok);
+        if (!sc || !sc->var && !sc->enum_const) {
             error_at(tok->str, "定義されていない変数です");
         }
 
-        if (var) {
-            return new_node_var(var, tok);
+        if (sc->var) {
+            return new_node_var(sc->var, tok);
         } else {
-            return new_node_num(enum_const->val, tok);
+            return new_node_num(sc->enum_const->val, tok);
         }
     }
 

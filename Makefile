@@ -14,8 +14,8 @@ test/%.out: test/%.c 9cc
 	$(CC) test/$*.s -xc test/common -o $@ -g
 
 test: $(TESTS)
-	for t in $^; do \
-		echo "== $$(basename "$$t") =="; \
+	@for t in $^; do \
+		echo "== $$(basename "$$t" .out) =="; \
 		./$$t || exit 1; \
 		echo; echo "OK"; echo; \
 	done

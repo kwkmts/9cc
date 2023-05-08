@@ -69,7 +69,6 @@ struct Var {
     Var *next;           // 次の変数
     char *name;          // 変数名
     Type *ty;            // 型
-    int len;             // 名前の長さ
     int offset;          // RBPからのオフセット(ローカル変数)
     Initializer *init;   // 初期値(グローバル変数)
     char *init_data_str; // 文字列リテラル(グローバル変数)
@@ -320,5 +319,6 @@ void add_type(Node *node);
 //
 
 int count();
+char *format(const char *fmt, ...);
 int align_to(int n, int align);
 void codegen();

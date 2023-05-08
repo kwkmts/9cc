@@ -12,6 +12,11 @@ int fib(int x){
     if(x<=1) return 1;
     return fib(x-1)+fib(x-2);
 }
+int counter() {
+    static int i;
+    static int j = 1+1;
+    return i++ + j++;
+}
 
 int main() {
     ASSERT(3, ret3());
@@ -25,6 +30,10 @@ int main() {
     ASSERT(1, ({ sub_char(7,3,3); }));
     ASSERT(1, sub_short(7,3,3));
     ASSERT(1, sub_long(7,3,3));
+
+    ASSERT(2, counter());
+    ASSERT(4, counter());
+    ASSERT(6, counter());
 
     return 0;
 }
