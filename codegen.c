@@ -234,7 +234,7 @@ static void cast(Type *from, Type *to) {
 static void gen_lval(Node *node) {
     switch (node->kind) {
     case ND_VAR:
-        if (node->var.var->is_lvar) {
+        if (node->var.var->kind == LVAR) {
             // ローカル変数
             MOV(RAX, RBP);
             SUB(RAX, IMM(node->var.var->offset));
@@ -667,7 +667,7 @@ static void emit_global_variables() {
         return;
     }
 
-    for (Var *var = globals; var; var = var->next) {
+    for (Obj *var = globals; var; var = var->next) {
         if (var->init_data_str) {
             println("    .section .rodata");
             println("%s:", var->name);
@@ -675,7 +675,10 @@ static void emit_global_variables() {
             continue;
         }
 
-        println("    .globl %s", var->name);
+        if (!var->is_static) {
+            println("    .globl %s", var->name);
+        }
+
         if (var->init) {
             println("    .data");
             println("%s:", var->name);
@@ -689,7 +692,7 @@ static void emit_global_variables() {
 }
 
 static void emit_functions() {
-    for (Function *fn = functions; fn; fn = fn->next) {
+    for (Obj *fn = functions; fn; fn = fn->next) {
         if (!fn->has_definition) {
             continue;
         }
@@ -710,13 +713,13 @@ static void emit_functions() {
         SUB(RSP, IMM(fn->stack_size));
 
         int nparams = 0;
-        for (Var *var = fn->params; var; var = var->next) {
+        for (Obj *var = fn->params; var; var = var->next) {
             nparams++;
         }
 
         // レジスタによって渡された引数の値をスタックに保存する
         int i = nparams - 1;
-        for (Var *var = fn->params; var; var = var->next) {
+        for (Obj *var = fn->params; var; var = var->next) {
             switch (var->ty->size) {
             case 1:
                 MOV(INDIRECT(RBP, -var->offset), argreg8[i--]);

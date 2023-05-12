@@ -11,6 +11,7 @@
 typedef struct Token Token;
 typedef struct Var Var;
 typedef struct Function Function;
+typedef struct Obj Obj;
 typedef struct Node Node;
 typedef struct Type Type;
 typedef struct Member Member;
@@ -64,34 +65,31 @@ struct Initializer {
 
 int64_t calc_const_expr(Node *node);
 
-// 変数の型
-struct Var {
-    Var *next;           // 次の変数
-    char *name;          // 変数名
-    Type *ty;            // 型
-    int offset;          // RBPからのオフセット(ローカル変数)
-    Initializer *init;   // 初期値(グローバル変数)
-    char *init_data_str; // 文字列リテラル(グローバル変数)
-    bool is_lvar;
-};
-
-extern Var *locals;         // ローカル変数の連結リスト
-extern Var *globals;        // グローバル変数の連結リスト
-extern Function *functions; // 関数の連結リスト
+extern Obj *locals;    // ローカル変数の連結リスト
+extern Obj *globals;   // グローバル変数の連結リスト
+extern Obj *functions; // 関数の連結リスト
 
 // 現在着目しているトークン
 extern Token *token;
 
-// 関数の型
-struct Function {
-    Function *next; // 次の関数
-    char *name;     // 関数名
-    Type *ty;       // 型
-    int len;        // 名前の長さ
-    Node *body;     // {}内
-    Var *params;    // パラメータ
-    Var *locals;    // ローカル変数
+// 変数・関数
+struct Obj {
+    enum { LVAR, GVAR, FUNC } kind;
+    Obj *next;
+    char *name; // 識別子名
+    Type *ty;
+
+    int offset;          // RBPからのオフセット
+
+    Initializer *init;   // 初期値
+    char *init_data_str; // 文字列リテラル
+
+    Node *body;          // {}内
+    Obj *params;         // パラメータ
+    Obj *locals;         // ローカル変数
     int stack_size;
+
+    bool is_static; // グローバル変数・関数で使われる
     bool has_definition;
 };
 
@@ -174,7 +172,7 @@ struct Node {
         } num;
 
         struct {
-            Var *var;
+            Obj *var;
         } var;
 
         struct {

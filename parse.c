@@ -5,9 +5,9 @@
 //
 
 Token *token;
-Var *locals;
-Var *globals;
-Function *functions;
+Obj *locals;
+Obj *globals;
+Obj *functions;
 static Node *gotos;  // 現在の関数内におけるgoto文のリスト
 static Node *labels; // 現在の関数内におけるラベルのリスト
 static int cur_brk_label_id; // 現在のbreak文のジャンプ先ラベルID
@@ -19,13 +19,14 @@ typedef struct EnumConst EnumConst;
 struct EnumConst {
     Token *name;
     int val;
+    Type *ty;
 };
 
 typedef struct VarScope VarScope;
 struct VarScope {
     VarScope *next;
     char *name;
-    Var *var;
+    Obj *var;
     EnumConst *enum_const;
     Type *typedef_;
 };
@@ -52,7 +53,7 @@ struct InitDesg {
     InitDesg *next;
     int idx;
     Member *member;
-    Var *var;
+    Obj *var;
 };
 
 typedef int VarAttr;
@@ -130,7 +131,7 @@ static char *get_ident(Token *tok) {
 
 static bool at_eof() { return token->kind == TK_EOF; }
 
-static void push_var_into_var_scope(char *name, Var *var) {
+static void push_var_into_var_scope(char *name, Obj *var) {
     VarScope *sc = calloc(1, sizeof(VarScope));
     sc->name = name;
     sc->var = var;
@@ -218,8 +219,8 @@ static VarScope *look_in_var_scope(Token *tok) {
 }
 
 // 関数を名前で検索。見つからなければNULLを返す
-static Function *find_func(Token *tok) {
-    for (Function *fn = functions; fn; fn = fn->next) {
+static Obj *find_func(Token *tok) {
+    for (Obj *fn = functions; fn; fn = fn->next) {
         if (tok->len == (int)strlen(fn->name) &&
             !memcmp(tok->str, fn->name, (int)strlen(fn->name))) {
             return fn;
@@ -286,7 +287,7 @@ static Node *new_node_cast(Node *expr, Type *ty) {
     return node;
 }
 
-static Node *new_node_var(Var *var, Token *tok) {
+static Node *new_node_var(Obj *var, Token *tok) {
     Node *node = new_node(ND_VAR, tok);
     node->ty = var->ty;
     node->var.var = var;
@@ -353,34 +354,35 @@ static Node *new_node_sub(Node *lhs, Node *rhs, Token *tok) {
     error_at(tok->str, "数値からポインタ値を引くことはできません");
 }
 
-static Var *new_var(char *name, Type *ty) {
-    Var *var = calloc(1, sizeof(Var));
+static Obj *new_var(char *name, Type *ty) {
+    Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
     var->ty = ty;
     push_var_into_var_scope(var->name, var);
     return var;
 }
 
-static Var *new_lvar(char *name, Type *ty) {
-    Var *var = new_var(name, ty);
+static Obj *new_lvar(char *name, Type *ty) {
+    Obj *var = new_var(name, ty);
     var->next = locals;
     var->offset =
         align_to(locals ? locals->offset + ty->size : ty->size, ty->align);
-    var->is_lvar = true;
+    var->kind = LVAR;
     locals = var;
     return var;
 }
 
-static Var *new_gvar(char *name, Type *ty) {
-    Var *var = new_var(name, ty);
+static Obj *new_gvar(char *name, Type *ty) {
+    Obj *var = new_var(name, ty);
     var->next = globals;
-    var->is_lvar = false;
+    var->kind = GVAR;
     globals = var;
     return var;
 }
 
-static Function *new_func(char *name, Type *ty) {
-    Function *fn = calloc(1, sizeof(Function));
+static Obj *new_func(char *name, Type *ty) {
+    Obj *fn = calloc(1, sizeof(Obj));
+    fn->kind = FUNC;
     fn->next = functions;
     fn->name = name;
     fn->ty = ty;
@@ -438,9 +440,9 @@ static char *to_init_data(char *str) {
     return buf;
 }
 
-static Var *new_str_literal(Token *tok) {
+static Obj *new_str_literal(Token *tok) {
     static int str_count = 0;
-    Var *var = new_gvar(format(".Lstr%d", str_count++),
+    Obj *var = new_gvar(format(".Lstr%d", str_count++),
                         array_of(ty_char, tok->len + 1));
     var->init_data_str = to_init_data(tok->str);
     return var;
@@ -504,9 +506,9 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
 static void typedef_();
 static Type *declspec();
 static Type *declarator(Type *ty);
-static void function(Type *ty);
-static Node *lvar_initializer(Var *var);
-static void gvar_initializer(Var *var);
+static Obj *function(Type *ty);
+static Node *lvar_initializer(Obj *var);
+static void gvar_initializer(Obj *var);
 static Node *declaration(VarAttr attr);
 static Node *stmt();
 static Node *compound_stmt();
@@ -540,6 +542,8 @@ void program() {
             continue;
         }
 
+        bool is_static = consume("static", TK_KEYWORD);
+
         Type *basety = declspec();
 
         if (consume(";", TK_RESERVED)) {
@@ -550,12 +554,14 @@ void program() {
 
         // 関数定義
         if (is_type_of(TY_FUNC, ty)) {
-            function(ty);
+            Obj *fn = function(ty);
+            fn->is_static = is_static;
             continue;
         }
 
         // グローバル変数
-        Var *var = new_gvar(get_ident(ty->ident), ty);
+        Obj *var = new_gvar(get_ident(ty->ident), ty);
+        var->is_static = is_static;
         if (consume("=", TK_RESERVED)) {
             gvar_initializer(var);
         }
@@ -680,13 +686,14 @@ static Type *union_decl() {
 //                | ident
 // enum-list = ident ("=" num)? ("," ident ("=" num)?)*
 static Type *enum_specifier() {
-    Token *tag = consume_ident();
-    if (tag && !equal("{", TK_RESERVED, token)) {
-        Type *ty = find_tag(tag);
-        if (!ty) {
-            error_tok(tag, "そのような列挙型はありません");
+    Type *ty = enum_type();
+    ty->name = consume_ident();
+    if (ty->name && !equal("{", TK_RESERVED, token)) {
+        Type *ty2 = find_tag(ty->name);
+        if (!ty2) {
+            error_tok(ty->name, "そのような列挙型はありません");
         }
-        return ty;
+        return ty2;
     }
 
     expect("{");
@@ -706,16 +713,12 @@ static Type *enum_specifier() {
         EnumConst *ec = calloc(1, sizeof(EnumConst));
         ec->name = tok;
         ec->val = val++;
+        ec->ty = ty;
         push_enum_const_into_var_scope(get_ident(tok), ec);
     }
 
-    Type *ty = enum_type();
-    if (tag) {
-        TagScope *tag_sc = calloc(1, sizeof(TagScope));
-        ty->name = tag;
-        tag_sc->ty = ty;
-        tag_sc->next = scope->tags;
-        scope->tags = tag_sc;
+    if (ty->name) {
+        push_tag_scope(ty);
     }
 
     return ty;
@@ -873,14 +876,14 @@ static void resolve_goto_labels() {
 }
 
 // function-decl = ("{" compound-stmt) | ";"
-static void function(Type *ty) {
-    Function *fn = find_func(ty->ident);
+static Obj *function(Type *ty) {
+    Obj *fn = find_func(ty->ident);
     if (!fn) {
         fn = new_func(get_ident(ty->ident), ty);
     }
 
     if (consume(";", TK_RESERVED)) {
-        return;
+        return fn;
     }
 
     locals = NULL;
@@ -896,6 +899,8 @@ static void function(Type *ty) {
     fn->has_definition = true;
     leave_scope();
     resolve_goto_labels();
+
+    return fn;
 }
 
 static void initializer2(Initializer *init);
@@ -1104,7 +1109,7 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
                            NULL);
 }
 
-static Node *lvar_initializer(Var *var) {
+static Node *lvar_initializer(Obj *var) {
     Initializer *init = initializer(var->ty, &var->ty);
     // 配列の要素数が省略された場合、var->ty->sizeがこの時点で確定するのでvar->offsetを更新
     var->offset =
@@ -1113,7 +1118,7 @@ static Node *lvar_initializer(Var *var) {
     return create_lvar_init(init, &desg);
 }
 
-static void gvar_initializer(Var *var) {
+static void gvar_initializer(Obj *var) {
     var->init = initializer(var->ty, &var->ty);
 }
 
@@ -1135,13 +1140,13 @@ static Node *declaration(VarAttr attr) {
             static int static_count = 0;
             char *name = get_ident(ty->ident);
             char *unique_name = format("%s.%d", name, static_count++);
-            Var *var = new_gvar(unique_name, ty);
+            Obj *var = new_gvar(unique_name, ty);
             push_var_into_var_scope(name, var);
             if (consume("=", TK_RESERVED)) {
                 gvar_initializer(var);
             }
         } else {
-            Var *var = new_lvar(get_ident(ty->ident), ty);
+            Obj *var = new_lvar(get_ident(ty->ident), ty);
 
             if (consume("=", TK_RESERVED)) {
                 Node *node = new_node(ND_INIT, NULL);
@@ -1946,7 +1951,7 @@ static Node *primary() {
 
     // 文字列リテラル
     if (token->kind == TK_STR) {
-        Var *var = new_str_literal(token);
+        Obj *var = new_str_literal(token);
         Node *node = new_node_var(var, token);
         token = token->next;
         return node;

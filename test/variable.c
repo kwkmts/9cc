@@ -4,6 +4,7 @@ int g1;
 int g2;
 int g3[4];
 int g4 = 42;
+static int g5 = 3;
 
 int main() {
     int l1 = 0;
@@ -99,6 +100,8 @@ int main() {
     ASSERT(4, ({ char (x[3])[4]; sizeof(x[0]); }));
     ASSERT(3, ({ char *x[3]; char y; x[0]=&y; y=3; x[0][0]; }));
     ASSERT(4, ({ char x[3]; char (*y)[3]=x; y[0][0]=4; y[0][0]; }));
+
+    ASSERT(3, g5);
 
     return 0;
 }
