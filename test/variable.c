@@ -5,6 +5,8 @@ int g2;
 int g3[4];
 int g4 = 42;
 static int g5 = 3;
+extern int ext1;
+extern int *ext2;
 
 int main() {
     int l1 = 0;
@@ -102,6 +104,9 @@ int main() {
     ASSERT(4, ({ char x[3]; char (*y)[3]=x; y[0][0]=4; y[0][0]; }));
 
     ASSERT(3, g5);
+
+    ASSERT(5, ext1);
+    ASSERT(5, *ext2);
 
     return 0;
 }

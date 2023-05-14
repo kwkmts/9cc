@@ -376,6 +376,7 @@ static Obj *new_gvar(char *name, Type *ty) {
     Obj *var = new_var(name, ty);
     var->next = globals;
     var->kind = GVAR;
+    var->has_definition = true;
     globals = var;
     return var;
 }
@@ -542,7 +543,13 @@ void program() {
             continue;
         }
 
-        bool is_static = consume("static", TK_KEYWORD);
+        VarAttr attr = NOATTR;
+        if (consume("static", TK_KEYWORD)) {
+            attr |= STATIC;
+        }
+        if (consume("extern", TK_KEYWORD)) {
+            attr |= EXTERN;
+        }
 
         Type *basety = declspec();
 
@@ -555,13 +562,14 @@ void program() {
         // 関数定義
         if (is_type_of(TY_FUNC, ty)) {
             Obj *fn = function(ty);
-            fn->is_static = is_static;
+            fn->is_static = attr & STATIC;
             continue;
         }
 
         // グローバル変数
         Obj *var = new_gvar(get_ident(ty->ident), ty);
-        var->is_static = is_static;
+        var->is_static = attr & STATIC;
+        var->has_definition = !(attr & EXTERN);
         if (consume("=", TK_RESERVED)) {
             gvar_initializer(var);
         }
@@ -1453,6 +1461,9 @@ static Node *compound_stmt() {
         VarAttr attr = NOATTR;
         if (consume("static", TK_KEYWORD)) {
             attr |= STATIC;
+        }
+        if (consume("extern", TK_KEYWORD)) {
+            attr |= EXTERN;
         }
 
         if (is_typename() && !equal(":", TK_RESERVED, token->next)) {

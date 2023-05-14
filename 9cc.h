@@ -89,8 +89,8 @@ struct Obj {
     Obj *locals;         // ローカル変数
     int stack_size;
 
-    bool is_static; // グローバル変数・関数で使われる
-    bool has_definition;
+    bool is_static;      // グローバル変数・関数で使われる
+    bool has_definition; // グローバル変数・関数で使われる
 };
 
 // 抽象構文木のノードの種類

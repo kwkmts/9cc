@@ -668,6 +668,10 @@ static void emit_global_variables() {
     }
 
     for (Obj *var = globals; var; var = var->next) {
+        if (!var->has_definition) {
+            continue;
+        }
+
         if (var->init_data_str) {
             println("    .section .rodata");
             println("%s:", var->name);

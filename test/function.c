@@ -17,6 +17,7 @@ int counter() {
     static int j = 1+1;
     return i++ + j++;
 }
+static int static_fn() { return 3; }
 
 int main() {
     ASSERT(3, ret3());
@@ -34,6 +35,8 @@ int main() {
     ASSERT(2, counter());
     ASSERT(4, counter());
     ASSERT(6, counter());
+
+    ASSERT(3, static_fn());
 
     return 0;
 }

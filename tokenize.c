@@ -74,7 +74,7 @@ static int read_keyword(char *c) {
                          "while",   "for",    "goto",   "break", "continue",
                          "return",  "void",   "int",    "char",  "short",
                          "long",    "struct", "union",  "enum",  "sizeof",
-                         "typedef", "static"};
+                         "typedef", "static", "extern"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = (int)strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {
