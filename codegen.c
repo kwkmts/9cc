@@ -307,7 +307,7 @@ static void gen_expr(Node *node) {
         }
 
         MOV(RAX, IMM(0));
-        CALL(node->funcall.name);
+        CALL(node->funcall.fn->name);
         PUSH(RAX);
         return;
     }

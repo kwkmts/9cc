@@ -177,7 +177,7 @@ struct Node {
         } var;
 
         struct {
-            char *name; // 関数名
+            Obj *fn;
             Node *args; // 引数リスト
         } funcall;
 

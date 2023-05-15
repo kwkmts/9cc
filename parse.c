@@ -1964,18 +1964,19 @@ static Node *funcall(Token *tok) {
 
     Node head = {};
     Node *cur = &head;
+    Type *param_ty = fn->ty->params;
 
     while (!consume(")", TK_RESERVED)) {
         if (cur != &head) {
             expect(",");
         }
-        cur = cur->next = assign();
-        add_type(cur);
+        cur = cur->next = new_node_cast(assign(), fn->ty->params);
+        param_ty = param_ty->next;
     }
 
     Node *node = new_node(ND_FUNCALL, tok);
     node->ty = fn->ty->ret;
-    node->funcall.name = get_ident(start);
+    node->funcall.fn = fn;
     node->funcall.args = head.next;
     return node;
 }
