@@ -800,6 +800,10 @@ static Type *declspec() {
         return ty_long;
     }
 
+    if (consume("_Bool", TK_KEYWORD)) {
+        return ty_bool;
+    }
+
     if (consume("struct", TK_KEYWORD)) {
         return struct_decl();
     }
@@ -1223,8 +1227,8 @@ static Node *declaration(VarAttr attr) {
 }
 
 static bool is_typename() {
-    static char *kw[] = {"void", "int",    "char",  "short",
-                         "long", "struct", "union", "enum"};
+    static char *kw[] = {"void",  "int",    "char",  "short", "long",
+                         "_Bool", "struct", "union", "enum"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD, token)) {
             return true;

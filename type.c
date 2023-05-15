@@ -1,6 +1,7 @@
 #include "9cc.h"
 
 Type *ty_void = &(Type){TY_VOID, 1, 1};
+Type *ty_bool = &(Type){TY_BOOL, 1, 1};
 Type *ty_char = &(Type){TY_CHAR, 1, 1};
 Type *ty_short = &(Type){TY_SHORT, 2, 2};
 Type *ty_int = &(Type){TY_INT, 4, 4};
@@ -11,7 +12,7 @@ bool is_type_of(TypeKind kind, Type *ty) { return ty->kind == kind; }
 bool is_integer(Type *ty) {
     return is_type_of(TY_INT, ty) || is_type_of(TY_CHAR, ty) ||
            is_type_of(TY_SHORT, ty) || is_type_of(TY_LONG, ty) ||
-           is_type_of(TY_ENUM, ty);
+           is_type_of(TY_BOOL, ty) || is_type_of(TY_ENUM, ty);
 }
 
 Type *copy_type(Type *ty) {
@@ -97,6 +98,10 @@ void add_type(Node *node) {
         add_type_binop(node);
         if (is_type_of(TY_ARY, node->binop.lhs->ty)) {
             error_tok(node->binop.lhs->tok, "左辺値ではありません");
+        }
+        if (!is_type_of(TY_STRUCT, node->binop.lhs->ty)) {
+            node->binop.rhs =
+                new_node_cast(node->binop.rhs, node->binop.lhs->ty);
         }
         node->ty = node->binop.lhs->ty;
         return;

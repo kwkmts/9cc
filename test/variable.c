@@ -54,6 +54,13 @@ int main() {
     ASSERT(2, ({ short x; sizeof(x); }));
     ASSERT(8, ({ long x; sizeof(x); }));
 
+    ASSERT(0, ({ _Bool x=0; x; }));
+    ASSERT(1, ({ _Bool x=1; x; }));
+    ASSERT(1, ({ _Bool x=2; x; }));
+    ASSERT(1, (_Bool)1);
+    ASSERT(1, (_Bool)2);
+    ASSERT(0, (_Bool)(char)256);
+
     ASSERT(3, ({ int x[2]; int *y; y=&x; *y=3; *x; }));
 
     ASSERT(3, ({ int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *x; }));

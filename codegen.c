@@ -220,6 +220,24 @@ static void cast(Type *from, Type *to) {
         return;
     }
 
+    if (is_integer(from) && is_type_of(TY_BOOL, to)) {
+        switch (from->size) {
+        case 1:
+        case 2:
+        case 4:
+            CMP(EAX, IMM(0));
+            break;
+        case 8:
+            CMP(RAX, IMM(0));
+            break;
+        default:;
+        }
+
+        SETNE(AL);
+        MOVZB(EAX, AL);
+        return;
+    }
+
     switch (to->size) {
     case 1:
         MOVSX(EAX, AL);
