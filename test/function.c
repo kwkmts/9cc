@@ -18,6 +18,9 @@ int counter() {
     return i++ + j++;
 }
 static int static_fn() { return 3; }
+int g1;
+int *g1_ptr() { return &g1; }
+char int_to_char(int x) { return x; }
 
 int main() {
     ASSERT(3, ret3());
@@ -37,6 +40,11 @@ int main() {
     ASSERT(6, counter());
 
     ASSERT(3, static_fn());
+
+    g1 = 3;
+
+    ASSERT(3, *g1_ptr());
+    ASSERT(5, int_to_char(261));
 
     return 0;
 }

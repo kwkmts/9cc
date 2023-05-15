@@ -8,6 +8,7 @@ Token *token;
 Obj *locals;
 Obj *globals;
 Obj *functions;
+Obj *cur_fn;         // 現在パース中の関数
 static Node *gotos;  // 現在の関数内におけるgoto文のリスト
 static Node *labels; // 現在の関数内におけるラベルのリスト
 static int cur_brk_label_id; // 現在のbreak文のジャンプ先ラベルID
@@ -263,11 +264,12 @@ static VarScope *look_in_var_scope(Token *tok) {
 
 // 関数を名前で検索。見つからなければNULLを返す
 static Obj *find_func(Token *tok) {
-    for (Obj *fn = functions; fn; fn = fn->next) {
-        if (tok->len == (int)strlen(fn->name) &&
-            !memcmp(tok->str, fn->name, (int)strlen(fn->name))) {
-            return fn;
-        }
+    VarScope *sc = look_in_var_scope(tok);
+    if (!sc || !sc->var) {
+        return NULL;
+    }
+    if (sc->var->kind == FUNC) {
+        return sc->var;
     }
     return NULL;
 }
@@ -397,7 +399,7 @@ static Node *new_node_sub(Node *lhs, Node *rhs, Token *tok) {
     error_at(tok->str, "数値からポインタ値を引くことはできません");
 }
 
-static Obj *new_var(char *name, Type *ty) {
+static Obj *new_obj(char *name, Type *ty) {
     Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
     var->ty = ty;
@@ -406,7 +408,7 @@ static Obj *new_var(char *name, Type *ty) {
 }
 
 static Obj *new_lvar(char *name, Type *ty) {
-    Obj *var = new_var(name, ty);
+    Obj *var = new_obj(name, ty);
     var->next = locals;
     var->offset =
         align_to(locals ? locals->offset + ty->size : ty->size, ty->align);
@@ -416,7 +418,7 @@ static Obj *new_lvar(char *name, Type *ty) {
 }
 
 static Obj *new_gvar(char *name, Type *ty) {
-    Obj *var = new_var(name, ty);
+    Obj *var = new_obj(name, ty);
     var->next = globals;
     var->kind = GVAR;
     var->has_definition = true;
@@ -425,7 +427,7 @@ static Obj *new_gvar(char *name, Type *ty) {
 }
 
 static Obj *new_func(char *name, Type *ty) {
-    Obj *fn = calloc(1, sizeof(Obj));
+    Obj *fn = new_obj(name, ty);
     fn->kind = FUNC;
     fn->next = functions;
     fn->name = name;
@@ -937,6 +939,7 @@ static Obj *function(Type *ty) {
         return fn;
     }
 
+    cur_fn = fn;
     locals = NULL;
     enter_scope();
     for (Type *param = ty->params; param; param = param->next) {
@@ -1190,7 +1193,8 @@ static Node *declaration(VarAttr attr) {
         if (attr & STATIC) {
             static int static_count = 0;
             char *name = get_ident(ty->ident);
-            char *unique_name = format("%s.%d", name, static_count++);
+            char *unique_name =
+                format("%s.%s.%d", cur_fn->name, name, static_count++);
             Obj *var = new_gvar(unique_name, ty);
             push_var_into_var_scope(name, var);
             if (consume("=", TK_RESERVED)) {
@@ -1425,8 +1429,11 @@ static Node *continue_stmt() {
 // return-stmt = "return" expr ";"
 static Node *return_stmt() {
     Node *node = new_node(ND_RETURN, consume("return", TK_KEYWORD));
-    node->return_.expr = expr();
+    Node *exp = node->return_.expr = expr();
     expect(";");
+
+    add_type(exp);
+    node->return_.expr = new_node_cast(exp, cur_fn->ty->ret);
     return node;
 }
 
@@ -1946,8 +1953,9 @@ static Node *postfix() {
 // funcall = ident "(" func-args? ")"
 // func-args = assign ("," assign)*
 static Node *funcall(Token *tok) {
-    if (!find_func(tok)) {
-        error_tok(tok, "宣言されていない関数です");
+    Obj *fn = find_func(tok);
+    if (!fn) {
+        error_tok(tok, "そのような関数は存在しません");
     }
 
     expect("(");
@@ -1962,9 +1970,11 @@ static Node *funcall(Token *tok) {
             expect(",");
         }
         cur = cur->next = assign();
+        add_type(cur);
     }
 
     Node *node = new_node(ND_FUNCALL, tok);
+    node->ty = fn->ty->ret;
     node->funcall.name = get_ident(start);
     node->funcall.args = head.next;
     return node;
