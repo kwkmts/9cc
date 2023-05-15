@@ -213,6 +213,9 @@ static void store(Type *ty, int offset) {
 }
 
 static void cast(Type *from, Type *to) {
+    if (is_type_of(TY_ARY, from)) {
+        from = pointer_to(from->base);
+    }
     if (is_type_of(TY_VOID, to) || from->size == to->size) {
         return;
     }

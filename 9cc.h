@@ -64,6 +64,7 @@ struct Initializer {
 };
 
 int64_t calc_const_expr(Node *node);
+Node *new_node_cast(Node *expr, Type *ty);
 
 extern Obj *locals;    // ローカル変数の連結リスト
 extern Obj *globals;   // グローバル変数の連結リスト

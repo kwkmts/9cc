@@ -54,6 +54,22 @@ Type *func_type(Type *ret, Type *params) {
     return ty;
 }
 
+static Type *get_common_type(Type *ty1, Type *ty2) {
+    if (ty1->base) {
+        return pointer_to(ty1->base);
+    }
+    if (is_type_of(TY_LONG, ty1) && is_type_of(TY_LONG, ty2)) {
+        return ty_long;
+    }
+    return ty_int;
+}
+
+static void usual_arith_conv(Node **lhs, Node **rhs) {
+    Type *ty = get_common_type((*lhs)->ty, (*rhs)->ty);
+    *lhs = new_node_cast(*lhs, ty);
+    *rhs = new_node_cast(*rhs, ty);
+}
+
 void add_type_binop(Node *node) {
     add_type(node->binop.lhs);
     add_type(node->binop.rhs);
@@ -74,6 +90,7 @@ void add_type(Node *node) {
     case ND_BITOR:
     case ND_BITXOR:
         add_type_binop(node);
+        usual_arith_conv(&node->binop.lhs, &node->binop.rhs);
         node->ty = node->binop.lhs->ty;
         return;
     case ND_ASSIGN:
@@ -87,6 +104,10 @@ void add_type(Node *node) {
     case ND_LE:
     case ND_LT:
     case ND_NE:
+        add_type_binop(node);
+        usual_arith_conv(&node->binop.lhs, &node->binop.rhs);
+        node->ty = ty_int;
+        return;
     case ND_LOGAND:
     case ND_LOGOR:
         add_type_binop(node);
@@ -97,7 +118,11 @@ void add_type(Node *node) {
         node->ty = ty_int;
         return;
     case ND_NUM:
-        node->ty = ty_long;
+        if (node->num.val < INT32_MIN || INT32_MAX < node->num.val) {
+            node->ty = ty_long;
+        } else {
+            node->ty = ty_int;
+        }
         return;
     case ND_FUNCALL:
         node->ty = ty_long;
@@ -146,6 +171,7 @@ void add_type(Node *node) {
             is_type_of(TY_VOID, node->condop.els->ty)) {
             node->ty = ty_void;
         } else {
+            usual_arith_conv(&node->condop.then, &node->condop.els);
             node->ty = node->condop.then->ty;
         }
         return;

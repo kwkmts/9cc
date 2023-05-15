@@ -196,10 +196,53 @@ int64_t calc_const_expr(Node *node) {
     case ND_LE:
         return calc_const_expr(node->binop.lhs) <=
                calc_const_expr(node->binop.rhs);
+    case ND_LOGAND:
+        return calc_const_expr(node->binop.lhs) &&
+               calc_const_expr(node->binop.rhs);
+    case ND_LOGOR:
+        return calc_const_expr(node->binop.lhs) ||
+               calc_const_expr(node->binop.rhs);
+    case ND_BITAND:
+        return calc_const_expr(node->binop.lhs) &
+               calc_const_expr(node->binop.rhs);
+    case ND_BITOR:
+        return calc_const_expr(node->binop.lhs) |
+               calc_const_expr(node->binop.rhs);
+    case ND_BITXOR:
+        return calc_const_expr(node->binop.lhs) ^
+               calc_const_expr(node->binop.rhs);
+    case ND_SHL:
+        return calc_const_expr(node->binop.lhs)
+               << calc_const_expr(node->binop.rhs);
+    case ND_SHR:
+        return calc_const_expr(node->binop.lhs) >>
+               calc_const_expr(node->binop.rhs);
+    case ND_COMMA:
+        return calc_const_expr(node->binop.rhs);
+    case ND_COND:
+        return calc_const_expr(node->condop.cond)
+                   ? calc_const_expr(node->condop.then)
+                   : calc_const_expr(node->condop.els);
+    case ND_NOT:
+        return !calc_const_expr(node->unary.expr);
+    case ND_BITNOT:
+        return ~calc_const_expr(node->unary.expr);
+    case ND_CAST:
+        if (is_integer(node->ty)) {
+            switch (node->ty->size) {
+            case 1:
+                return (int8_t)calc_const_expr(node->unary.expr);
+            case 2:
+                return (int16_t)calc_const_expr(node->unary.expr);
+            case 4:
+                return (int32_t)calc_const_expr(node->unary.expr);
+            }
+        }
+        return calc_const_expr(node->unary.expr);
     case ND_NUM:
         return node->num.val;
     default:
-        error_tok(node->tok, "初期化子が定数ではありません");
+        error_tok(node->tok, "定数式ではありません");
     }
 }
 
@@ -278,7 +321,7 @@ static Node *new_node_num(int64_t val, Token *tok) {
     return node;
 }
 
-static Node *new_node_cast(Node *expr, Type *ty) {
+Node *new_node_cast(Node *expr, Type *ty) {
     add_type(expr);
 
     Node *node = new_node(ND_CAST, ty->ident);
@@ -1868,13 +1911,19 @@ static Node *postfix() {
     for (;;) {
         if (equal("++", TK_RESERVED, token)) {
             // `A++` は `(A += 1) - 1` と等価
-            node = new_node_sub(to_assign(new_node_add(node, node_one, NULL)),
-                                node_one, consume("++", TK_RESERVED));
+            add_type(node);
+            node = new_node_cast(
+                new_node_sub(to_assign(new_node_add(node, node_one, NULL)),
+                             node_one, consume("++", TK_RESERVED)),
+                node->ty);
 
         } else if (equal("--", TK_RESERVED, token)) {
             // `A--` は `(A -= 1) + 1` と等価
-            node = new_node_add(to_assign(new_node_sub(node, node_one, NULL)),
-                                node_one, consume("--", TK_RESERVED));
+            add_type(node);
+            node = new_node_cast(
+                new_node_add(to_assign(new_node_sub(node, node_one, NULL)),
+                             node_one, consume("--", TK_RESERVED)),
+                node->ty);
 
         } else if (equal(".", TK_RESERVED, token)) {
             node = struct_ref(node, consume(".", TK_RESERVED));
