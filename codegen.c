@@ -131,7 +131,7 @@ static void load(Type *ty) {
         MOVSX(EAX, WORD_PTR(INDIRECT(RAX, 0)));
         break;
     case 4:
-        MOVSX(EAX, DWORD_PTR(INDIRECT(RAX, 0)));
+        MOV(EAX, DWORD_PTR(INDIRECT(RAX, 0)));
         break;
     case 8:
         MOV(RAX, INDIRECT(RAX, 0));
@@ -151,7 +151,7 @@ static void store2(int size, int offset) {
         MOV(INDIRECT(RAX, offset), DX);
         return;
     case 4:
-        MOVSX(EDX, DWORD_PTR(INDIRECT(RDI, offset)));
+        MOV(EDX, DWORD_PTR(INDIRECT(RDI, offset)));
         MOV(INDIRECT(RAX, offset), EDX);
         return;
     case 8:
