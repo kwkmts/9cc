@@ -60,8 +60,8 @@ struct InitDesg {
 typedef int VarAttr;
 #define NOATTR 0x00
 #define TYPEDEF 0x01
-#define STATIC 0x02
-#define EXTERN 0x04
+#define STATIC 0x04
+#define EXTERN 0x10
 
 // 指定したトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
 static bool equal(char *op, TokenKind kind, Token *tok) {
@@ -549,13 +549,12 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
     return init;
 }
 
-static void typedef_();
-static Type *declspec();
+static Type *declspec(VarAttr *attr);
 static Type *declarator(Type *ty);
 static Obj *function(Type *ty);
 static Node *lvar_initializer(Obj *var);
 static void gvar_initializer(Obj *var);
-static Node *declaration(VarAttr attr);
+static Node *declaration();
 static Node *stmt();
 static Node *compound_stmt();
 static Node *expr();
@@ -576,33 +575,28 @@ static Node *unary();
 static Node *postfix();
 static Node *primary();
 
-// program = (global-declaration | typedef)*
+// program = global-declaration*
 // global-declaration = declspec declarator function-decl
 //                    | declspec declarator ("=" initializer)? ";"
 //                    | declspec ";"
 void program() {
     while (!at_eof()) {
-        // typedef
-        if (consume("typedef", TK_KEYWORD)) {
-            typedef_();
-            continue;
-        }
-
         VarAttr attr = NOATTR;
-        if (consume("static", TK_KEYWORD)) {
-            attr |= STATIC;
-        }
-        if (consume("extern", TK_KEYWORD)) {
-            attr |= EXTERN;
-        }
-
-        Type *basety = declspec();
+        Type *basety = declspec(&attr);
 
         if (consume(";", TK_RESERVED)) {
             continue;
         }
 
         Type *ty = declarator(basety);
+
+        // typedef
+        if (attr & TYPEDEF) {
+            expect(";");
+            ty->name = ty->ident;
+            push_typedef_into_var_scope(get_ident(ty->name), ty);
+            continue;
+        }
 
         // 関数定義
         if (is_type_of(TY_FUNC, ty)) {
@@ -620,14 +614,6 @@ void program() {
         }
         expect(";");
     }
-}
-
-static void typedef_() {
-    Type *ty = copy_type(declarator(declspec()));
-    expect(";");
-
-    ty->name = ty->ident;
-    push_typedef_into_var_scope(get_ident(ty->name), ty);
 }
 
 // struct-decl = ident? "{" (declspec declarator ";")* "}"
@@ -654,7 +640,7 @@ static Type *struct_decl() {
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
         Member *mem = calloc(1, sizeof(Member));
-        Type *ty2 = declarator(declspec());
+        Type *ty2 = declarator(declspec(NULL));
         expect(";");
 
         mem->idx = idx++;
@@ -705,7 +691,7 @@ static Type *union_decl() {
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
         Member *mem = calloc(1, sizeof(Member));
-        Type *ty2 = declarator(declspec());
+        Type *ty2 = declarator(declspec(NULL));
         expect(";");
 
         mem->idx = idx++;
@@ -777,47 +763,139 @@ static Type *enum_specifier() {
     return ty;
 }
 
-// declspec = "void" | "int" | "char" | "short" | "long" |
-//          | struct-decl | union-decl | enum-specifier | typedef-name
-static Type *declspec() {
-    if (consume("void", TK_KEYWORD)) {
-        return ty_void;
+static bool is_storage_class_spec() {
+    static char *kw[] = {"typedef", "static", "extern"};
+    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+        if (equal(kw[i], TK_KEYWORD, token)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool is_typename() {
+    static char *kw[] = {"void",  "int",    "char",  "short", "long",
+                         "_Bool", "struct", "union", "enum"};
+    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+        if (equal(kw[i], TK_KEYWORD, token)) {
+            return true;
+        }
+    }
+    return find_typedef(token) || is_storage_class_spec();
+}
+
+// declspec = ("void" | "int" | "char" | "short" | "long" |
+//             | struct-decl | union-decl | enum-specifier | typedef-name
+//             | "typedef" | "static" | "extern")*
+static Type *declspec(VarAttr *attr) {
+    enum {
+        VOID = 1 << 0,
+        BOOL = 1 << 2,
+        CHAR = 1 << 4,
+        SHORT = 1 << 6,
+        INT = 1 << 8,
+        LONG = 1 << 10,
+        OTHER = 1 << 12,
+    };
+
+    Token *tok;
+    Type *ty;
+    int ty_spec_count = 0;
+
+    while (is_typename()) {
+        if (is_storage_class_spec()) {
+            if (!attr) {
+                error_tok(token,
+                          "ここで記憶クラス指定子を使うことはできません");
+            }
+
+            if ((tok = consume("typedef", TK_KEYWORD))) {
+                *attr += TYPEDEF;
+
+            } else if ((tok = consume("static", TK_KEYWORD))) {
+                *attr += STATIC;
+
+            } else if ((tok = consume("extern", TK_KEYWORD))) {
+                *attr += EXTERN;
+            }
+
+            switch (*attr) {
+            case TYPEDEF:
+            case STATIC:
+            case EXTERN:
+                continue;
+            default:
+                error_tok(tok,
+                          "記憶クラス指定子を複数指定することはできません");
+            }
+        }
+
+        if (consume("struct", TK_KEYWORD)) {
+            ty_spec_count += OTHER;
+            ty = struct_decl();
+            continue;
+        }
+        if (consume("union", TK_KEYWORD)) {
+            ty_spec_count += OTHER;
+            ty = union_decl();
+            continue;
+        }
+        if (consume("enum", TK_KEYWORD)) {
+            ty_spec_count += OTHER;
+            ty = enum_specifier();
+            continue;
+        }
+        if ((ty = find_typedef(token))) {
+            ty_spec_count += OTHER;
+            token = token->next;
+            continue;
+        }
+
+        if ((tok = consume("void", TK_KEYWORD))) {
+            ty_spec_count += VOID;
+
+        } else if ((tok = consume("_Bool", TK_KEYWORD))) {
+            ty_spec_count += BOOL;
+
+        } else if ((tok = consume("char", TK_KEYWORD))) {
+            ty_spec_count += CHAR;
+
+        } else if ((tok = consume("short", TK_KEYWORD))) {
+            ty_spec_count += SHORT;
+
+        } else if ((tok = consume("int", TK_KEYWORD))) {
+            ty_spec_count += INT;
+
+        } else if ((tok = consume("long", TK_KEYWORD))) {
+            ty_spec_count += LONG;
+        }
+
+        switch (ty_spec_count) {
+        case VOID:
+            ty = ty_void;
+            break;
+        case BOOL:
+            ty = ty_bool;
+            break;
+        case CHAR:
+            ty = ty_char;
+            break;
+        case SHORT:
+        case SHORT + INT:
+            ty = ty_short;
+            break;
+        case INT:
+            ty = ty_int;
+            break;
+        case LONG:
+        case LONG + INT:
+            ty = ty_long;
+            break;
+        default:
+            error_tok(tok, "型の指定が正しくありません");
+        }
     }
 
-    if (consume("int", TK_KEYWORD)) {
-        return ty_int;
-    }
-
-    if (consume("char", TK_KEYWORD)) {
-        return ty_char;
-    }
-
-    if (consume("short", TK_KEYWORD)) {
-        return ty_short;
-    }
-
-    if (consume("long", TK_KEYWORD)) {
-        return ty_long;
-    }
-
-    if (consume("_Bool", TK_KEYWORD)) {
-        return ty_bool;
-    }
-
-    if (consume("struct", TK_KEYWORD)) {
-        return struct_decl();
-    }
-
-    if (consume("union", TK_KEYWORD)) {
-        return union_decl();
-    }
-
-    if (consume("enum", TK_KEYWORD)) {
-        return enum_specifier();
-    }
-
-    Type *ty = find_typedef(token);
-    token = token->next;
     return ty;
 }
 
@@ -846,7 +924,7 @@ static Type *func_suffix(Type *ty) {
             expect(",");
         }
 
-        cur = cur->next = copy_type(declarator(declspec()));
+        cur = cur->next = copy_type(declarator(declspec(NULL)));
     }
 
     return func_type(ty, head.next);
@@ -1182,11 +1260,12 @@ static void gvar_initializer(Obj *var) {
 
 // declaration = declspec declarator ("=" initializer)? ";"
 //             | declspec ";"
-static Node *declaration(VarAttr attr) {
+static Node *declaration() {
     Node head = {};
     Node *cur = &head;
 
-    Type *basety = declspec();
+    VarAttr attr = NOATTR;
+    Type *basety = declspec(&attr);
 
     if (!equal(";", TK_RESERVED, token)) {
         Type *ty = declarator(basety);
@@ -1194,7 +1273,11 @@ static Node *declaration(VarAttr attr) {
             error_tok(ty->ident, "void型の変数を宣言することはできません");
         }
 
-        if (attr & STATIC) {
+        if (attr & TYPEDEF) {
+            ty->name = ty->ident;
+            push_typedef_into_var_scope(get_ident(ty->name), ty);
+
+        } else if (attr & STATIC) {
             static int static_count = 0;
             char *name = get_ident(ty->ident);
             char *unique_name =
@@ -1224,17 +1307,6 @@ static Node *declaration(VarAttr attr) {
     Node *node = new_node(ND_BLOCK, NULL);
     node->block.body = head.next;
     return node;
-}
-
-static bool is_typename() {
-    static char *kw[] = {"void",  "int",    "char",  "short", "long",
-                         "_Bool", "struct", "union", "enum"};
-    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-        if (equal(kw[i], TK_KEYWORD, token)) {
-            return true;
-        }
-    }
-    return find_typedef(token);
 }
 
 // expr-stmt = expr ";"
@@ -1507,21 +1579,8 @@ static Node *compound_stmt() {
     enter_scope();
 
     for (Node *cur = &head; !consume("}", TK_RESERVED);) {
-        if (consume("typedef", TK_KEYWORD)) {
-            typedef_();
-            continue;
-        }
-
-        VarAttr attr = NOATTR;
-        if (consume("static", TK_KEYWORD)) {
-            attr |= STATIC;
-        }
-        if (consume("extern", TK_KEYWORD)) {
-            attr |= EXTERN;
-        }
-
         if (is_typename() && !equal(":", TK_RESERVED, token->next)) {
-            cur = cur->next = declaration(attr);
+            cur = cur->next = declaration();
         } else {
             cur = cur->next = stmt();
         }
@@ -1809,7 +1868,7 @@ static Node *cast() {
     Token *tmp = token;
     if (consume("(", TK_RESERVED)) {
         if (is_typename()) {
-            Type *ty = abstract_declarator(declspec());
+            Type *ty = abstract_declarator(declspec(NULL));
             expect(")");
             return new_node_cast(cast(), ty);
         }
@@ -1831,7 +1890,7 @@ static Node *unary() {
         if (consume("(", TK_RESERVED)) {
             int sz;
             if (is_typename()) {
-                Type *ty = abstract_declarator(declspec());
+                Type *ty = abstract_declarator(declspec(NULL));
                 sz = ty->size;
             } else {
                 Node *node = expr();
