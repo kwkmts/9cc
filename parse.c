@@ -262,6 +262,19 @@ static VarScope *look_in_var_scope(Token *tok) {
     return NULL;
 }
 
+static VarScope *look_in_cur_var_scope(Token *tok) {
+    if (tok->kind != TK_IDENT) {
+        return NULL;
+    }
+    for (VarScope *var_sc = scope->vars; var_sc; var_sc = var_sc->next) {
+        if (tok->len == (int)strlen(var_sc->name) &&
+            !memcmp(tok->str, var_sc->name, (int)strlen(var_sc->name))) {
+            return var_sc;
+        }
+    }
+    return NULL;
+}
+
 // 関数を名前で検索。見つからなければNULLを返す
 static Obj *find_func(Token *tok) {
     VarScope *sc = look_in_var_scope(tok);
@@ -743,7 +756,9 @@ static Type *enum_specifier() {
         }
 
         Token *tok = expect_ident();
-        // TODO: 重複チェック
+        if (look_in_cur_var_scope(tok)) {
+            error_tok(tok, "そのような識別子はすでに存在します");
+        }
 
         if (consume("=", TK_RESERVED)) {
             val = (int)expect_number()->val;
@@ -830,27 +845,7 @@ static Type *declspec(VarAttr *attr) {
             }
         }
 
-        if (consume("struct", TK_KEYWORD)) {
-            ty_spec_count += OTHER;
-            ty = struct_decl();
-            continue;
-        }
-        if (consume("union", TK_KEYWORD)) {
-            ty_spec_count += OTHER;
-            ty = union_decl();
-            continue;
-        }
-        if (consume("enum", TK_KEYWORD)) {
-            ty_spec_count += OTHER;
-            ty = enum_specifier();
-            continue;
-        }
-        if ((ty = find_typedef(token))) {
-            ty_spec_count += OTHER;
-            token = token->next;
-            continue;
-        }
-
+        Type *ty2;
         if ((tok = consume("void", TK_KEYWORD))) {
             ty_spec_count += VOID;
 
@@ -868,6 +863,28 @@ static Type *declspec(VarAttr *attr) {
 
         } else if ((tok = consume("long", TK_KEYWORD))) {
             ty_spec_count += LONG;
+
+        } else if ((tok = consume("struct", TK_KEYWORD))) {
+            ty_spec_count += OTHER;
+            ty = struct_decl();
+
+        } else if ((tok = consume("union", TK_KEYWORD))) {
+            ty_spec_count += OTHER;
+            ty = union_decl();
+
+        } else if ((tok = consume("enum", TK_KEYWORD))) {
+            ty_spec_count += OTHER;
+            ty = enum_specifier();
+
+        } else if ((ty2 = find_typedef(token))) {
+            if (ty_spec_count) {
+                return ty;
+            }
+            ty_spec_count += OTHER;
+            ty = ty2;
+            tok = token;
+            token = token->next;
+            continue;
         }
 
         switch (ty_spec_count) {
@@ -892,6 +909,8 @@ static Type *declspec(VarAttr *attr) {
         case LONG + LONG:
         case LONG + LONG + INT:
             ty = ty_long;
+            break;
+        case OTHER:
             break;
         default:
             error_tok(tok, "型の指定が正しくありません");
@@ -967,7 +986,9 @@ static Type *declarator(Type *ty) {
     }
 
     Token *tok = expect_ident();
-    // TODO: 変数の重複定義をエラーにする
+    if (look_in_cur_var_scope(tok)) {
+        error_tok(tok, "そのような識別子はすでに存在します");
+    }
     ty = type_suffix(ty);
     ty->ident = tok;
     return ty;
