@@ -705,11 +705,19 @@ static void emit_global_variables() {
         }
 
         if (var->init) {
-            println("    .data");
+            if (var->ty->is_const) {
+                println("    .section .rodata");
+            } else {
+                println("    .data");
+            }
             println("%s:", var->name);
             emit_gvar_init(var->init, NULL);
         } else {
-            println("    .bss");
+            if (var->ty->is_const) {
+                println("    .section .rodata");
+            } else {
+                println("    .bss");
+            }
             println("%s:", var->name);
             println("    .zero %d", var->ty->size);
         }

@@ -52,5 +52,7 @@ int main() {
     ASSERT(3, ({ union t {int a; char b[9];}; union t x; x.a=3; union t y=x; y.a; }));
     ASSERT(7, ({ union t {int a; char b[9];}; union t x; x.a=7; union t y; union t *z=&y; *z=x; y.a; }));
 
+    ASSERT(8, ({ struct t {const int a; int const b;} x={1,2}; sizeof(x); }));
+
     return 0;
 }

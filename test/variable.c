@@ -7,6 +7,7 @@ int g4 = 42;
 static int g5 = 3;
 extern int ext1;
 extern int *ext2;
+const int g6;
 
 int main() {
     int l1 = 0;
@@ -122,6 +123,12 @@ int main() {
     ASSERT(8, ({ long int x; sizeof(x); }));
     ASSERT(8, ({ int long x; sizeof(x); }));
     ASSERT(8, ({ long long x; sizeof(x); }));
+
+    ASSERT(5, ({ const int x = 5; x; }));
+    ASSERT(8, ({ const int x = 8; int *const y=&x; *y; }));
+    ASSERT(6, ({ int const x = 6; *(int const * const)&x; }));
+    ASSERT(10, ({ const struct t {char a; int b;} x={10,100}; x.a; }));
+    ASSERT(2, ({ const int a[4]={1,2,3,4}; a[1];}));
 
     return 0;
 }

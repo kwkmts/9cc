@@ -70,11 +70,12 @@ static bool is_alpha(char c) {
 static bool is_alnum(char c) { return is_alpha(c) || ('0' <= c && c <= '9'); }
 
 static int read_keyword(char *c) {
-    static char *kw[] = {"if",     "else",    "switch", "case",  "default",
-                         "while",  "for",     "goto",   "break", "continue",
-                         "return", "void",    "int",    "char",  "short",
-                         "long",   "_Bool",   "struct", "union", "enum",
-                         "sizeof", "typedef", "static", "extern"};
+    static char *kw[] = {
+        "if",      "else",   "switch",   "case",   "default", "while", "for",
+        "goto",    "break",  "continue", "return", "void",    "int",   "char",
+        "short",   "long",   "_Bool",    "struct", "union",   "enum",  "sizeof",
+        "typedef", "static", "extern",   "const",
+    };
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = (int)strlen(kw[i]);
         if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {

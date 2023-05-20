@@ -790,7 +790,7 @@ static bool is_storage_class_spec() {
 
 static bool is_typename() {
     static char *kw[] = {"void",  "int",    "char",  "short", "long",
-                         "_Bool", "struct", "union", "enum"};
+                         "_Bool", "struct", "union", "enum",  "const"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD, token)) {
             return true;
@@ -801,7 +801,7 @@ static bool is_typename() {
 
 // declspec = ("void" | "int" | "char" | "short" | "long" |
 //             | struct-decl | union-decl | enum-specifier | typedef-name
-//             | "typedef" | "static" | "extern")*
+//             | "typedef" | "static" | "extern" | "const")*
 static Type *declspec(VarAttr *attr) {
     enum {
         VOID = 1 << 0,
@@ -816,8 +816,17 @@ static Type *declspec(VarAttr *attr) {
     Token *tok;
     Type *ty;
     int ty_spec_count = 0;
+    bool is_const = false;
 
     while (is_typename()) {
+        if ((tok = consume("const", TK_KEYWORD))) {
+            if (is_const) {
+                error_tok(tok, "constを複数指定することはできません");
+            }
+            is_const = true;
+            continue;
+        }
+
         if (is_storage_class_spec()) {
             if (!attr) {
                 error_tok(token,
@@ -878,13 +887,12 @@ static Type *declspec(VarAttr *attr) {
 
         } else if ((ty2 = find_typedef(token))) {
             if (ty_spec_count) {
-                return ty;
+                break;
             }
             ty_spec_count += OTHER;
             ty = ty2;
             tok = token;
             token = token->next;
-            continue;
         }
 
         switch (ty_spec_count) {
@@ -915,6 +923,10 @@ static Type *declspec(VarAttr *attr) {
         default:
             error_tok(tok, "型の指定が正しくありません");
         }
+    }
+
+    if (is_const) {
+        add_const(&ty);
     }
 
     return ty;
@@ -964,10 +976,13 @@ static Type *type_suffix(Type *ty) {
     return ty;
 }
 
-// declarator = "*"* (ident | "(" declarator ")") type-suffix
+// declarator = ("*" "const"?)* (ident | "(" declarator ")") type-suffix
 static Type *declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
+        if (consume("const", TK_KEYWORD)) {
+            ty->is_const = true;
+        }
     }
 
     if (consume("(", TK_RESERVED)) {
@@ -994,10 +1009,14 @@ static Type *declarator(Type *ty) {
     return ty;
 }
 
-// abstract-declarator = "*"* ("(" abstract-declarator ")")? type-suffix
+// abstract-declarator = ("*" "const"?)* ("(" abstract-declarator ")")?
+// type-suffix
 static Type *abstract_declarator(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
+        if (consume("const", TK_KEYWORD)) {
+            ty->is_const = true;
+        }
     }
 
     if (consume("(", TK_RESERVED)) {
@@ -1972,7 +1991,7 @@ static Node *unary() {
 }
 
 static Node *ary_elem(Node *var, Node *idx) {
-    return new_node_unary(ND_DEREF, new_node_add(var, idx, NULL), NULL);
+    return new_node_unary(ND_DEREF, new_node_add(var, idx, NULL), var->tok);
 }
 
 static Member *struct_member(Type *ty) {
@@ -1992,7 +2011,12 @@ static Node *struct_ref(Node *lhs, Token *tok) {
         error_tok(lhs->tok, "構造体/共用体ではありません");
     }
 
-    Node *node = new_node_member(lhs, struct_member(lhs->ty), tok);
+    Member *mem = struct_member(lhs->ty);
+    if (lhs->ty->is_const) {
+        add_const(&mem->ty);
+    }
+
+    Node *node = new_node_member(lhs, mem, tok);
     return node;
 }
 

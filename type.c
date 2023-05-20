@@ -55,6 +55,16 @@ Type *func_type(Type *ret, Type *params) {
     return ty;
 }
 
+void add_const(Type **ty) {
+    if (is_type_of(TY_ARY, *ty)) {
+        add_const(&(*ty)->base);
+        return;
+    }
+
+    *ty = copy_type(*ty);
+    (*ty)->is_const = true;
+}
+
 static Type *get_common_type(Type *ty1, Type *ty2) {
     if (ty1->base) {
         return pointer_to(ty1->base);
@@ -74,6 +84,27 @@ static void usual_arith_conv(Node **lhs, Node **rhs) {
 void add_type_binop(Node *node) {
     add_type(node->binop.lhs);
     add_type(node->binop.rhs);
+}
+
+void add_type_init(Node *node) {
+    switch (node->kind) {
+    case ND_COMMA:
+        add_type_init(node->binop.lhs);
+        add_type_init(node->binop.rhs);
+        node->ty = node->binop.rhs->ty;
+        return;
+    case ND_ASSIGN:
+        add_type_init(node->binop.lhs);
+        add_type_init(node->binop.rhs);
+        if (!is_type_of(TY_STRUCT, node->binop.lhs->ty)) {
+            node->binop.rhs =
+                new_node_cast(node->binop.rhs, node->binop.lhs->ty);
+        }
+        node->ty = node->binop.lhs->ty;
+        return;
+    default:
+        add_type(node);
+    }
 }
 
 void add_type(Node *node) {
@@ -96,6 +127,9 @@ void add_type(Node *node) {
         return;
     case ND_ASSIGN:
         add_type_binop(node);
+        if (node->binop.lhs->ty->is_const) {
+            error_tok(node->binop.lhs->tok, "読み取り専用の変数です");
+        }
         if (is_type_of(TY_ARY, node->binop.lhs->ty)) {
             error_tok(node->binop.lhs->tok, "左辺値ではありません");
         }
@@ -235,7 +269,7 @@ void add_type(Node *node) {
         }
         return;
     case ND_INIT:
-        add_type(node->init.assigns);
+        add_type_init(node->init.assigns);
         return;
     default:;
     }
