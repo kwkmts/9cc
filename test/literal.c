@@ -37,5 +37,13 @@ int main() {
     ASSERT('a', "abc"[0]);
     ASSERT('\0', "abc"[3]);
 
+    ASSERT(511, 0777);
+    ASSERT(0, 0x0);
+    ASSERT(10, 0xa);
+    ASSERT(10, 0XA);
+    ASSERT(48879, 0xbeef);
+    ASSERT(48879, 0xBEEF);
+    ASSERT(48879, 0XBEEF);
+
     return 0;
 }

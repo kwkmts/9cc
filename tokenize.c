@@ -146,6 +146,25 @@ static char read_char(char **p) {
     }
 }
 
+static int64_t read_int_literal(char **p) {
+    int base;
+    if (strncasecmp(*p, "0x", 2) == 0 && is_alnum(*p[2])) {
+        *p += 2;
+        base = 16;
+    } else if (**p == '0') {
+        base = 8;
+    } else {
+        base = 10;
+    }
+
+    int64_t val = strtol(*p, p, base);
+    if (is_alnum(**p)) {
+        error_at(*p, "不正な数字です");
+    }
+
+    return val;
+}
+
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize() {
     char *p = user_input;
@@ -197,7 +216,7 @@ Token *tokenize() {
         // 数値リテラル
         if (isdigit(*p)) {
             cur = cur->next = new_token(TK_NUM, p, 0);
-            cur->val = strtol(p, &p, 10);
+            cur->val = read_int_literal(&p);
             continue;
         }
 
