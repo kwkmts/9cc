@@ -10,5 +10,8 @@ int main() {
     ASSERT(3, ({ MyInt x=3; x; }));
     ASSERT(16, ({ MyInt2 x; sizeof(x); }));
 
+    ASSERT(-1, ({ typedef short T; T x = 65535; (int)x; }));
+    ASSERT(65535, ({ typedef unsigned short T; T x = 65535; (int)x; }));
+
     return 0;
 }

@@ -53,6 +53,7 @@
 #define CDQ() println("    cdq")
 #define CMP(o1, o2) println("    cmp %s, %s", o1, o2)
 #define CQO() println("    cqo")
+#define DIV(o1) println("    div %s", o1)
 #define IDIV(o1) println("    idiv %s", o1)
 #define IMUL(o1, o2) println("    imul %s, %s", o1, o2)
 #define JE(o1) println("    je %s", o1)
@@ -63,6 +64,7 @@
 #define MOVSX(o1, o2) println("    movsx %s, %s", o1, o2)
 #define MOVSXD(o1, o2) println("    movsxd %s, %s", o1, o2)
 #define MOVZB(o1, o2) println("    movzb %s, %s", o1, o2)
+#define MOVZX(o1, o2) println("    movzx %s, %s", o1, o2)
 #define NOT(o1) println("    not %s", o1)
 #define OR(o1, o2) println("    or %s, %s", o1, o2)
 #define POP(o1) println("    pop %s", o1)
@@ -70,6 +72,9 @@
 #define RET() println("    ret")
 #define SAL(o1, o2) println("    sal %s, %s", o1, o2)
 #define SAR(o1, o2) println("    sar %s, %s", o1, o2)
+#define SHR(o1, o2) println("    shr %s, %s", o1, o2)
+#define SETB(o1) println("    setb %s", o1)
+#define SETBE(o1) println("    setbe %s", o1)
 #define SETE(o1) println("    sete %s", o1)
 #define SETL(o1) println("    setl %s", o1)
 #define SETLE(o1) println("    setle %s", o1)
@@ -125,10 +130,18 @@ static void load(Type *ty) {
 
     switch (ty->size) {
     case 1:
-        MOVSX(EAX, BYTE_PTR(INDIRECT(RAX, 0)));
+        if (ty->is_unsigned) {
+            MOVZX(EAX, BYTE_PTR(INDIRECT(RAX, 0)));
+        } else {
+            MOVSX(EAX, BYTE_PTR(INDIRECT(RAX, 0)));
+        }
         break;
     case 2:
-        MOVSX(EAX, WORD_PTR(INDIRECT(RAX, 0)));
+        if (ty->is_unsigned) {
+            MOVZX(EAX, WORD_PTR(INDIRECT(RAX, 0)));
+        } else {
+            MOVSX(EAX, WORD_PTR(INDIRECT(RAX, 0)));
+        }
         break;
     case 4:
         MOV(EAX, DWORD_PTR(INDIRECT(RAX, 0)));
@@ -212,11 +225,48 @@ static void store(Type *ty, int offset) {
     }
 }
 
+static void s_8_32() { MOVSX(EAX, AL); }
+static void s_16_32() { MOVSX(EAX, AX); }
+static void s_32_64() { MOVSXD(RAX, EAX); }
+static void z_8_32() { MOVZX(EAX, AL); }
+static void z_16_32() { MOVZX(EAX, AX); }
+static void z_32_64() { MOV(EAX, EAX); }
+static void nocast() {}
+
+static void (*cast_fn_table[][8])() = {
+    {nocast, nocast, nocast, s_32_64, z_8_32, z_16_32, nocast, s_32_64},
+    {s_8_32, nocast, nocast, s_32_64, z_8_32, z_16_32, nocast, s_32_64},
+    {s_8_32, s_16_32, nocast, s_32_64, z_8_32, z_16_32, nocast, s_32_64},
+    {s_8_32, s_16_32, nocast, nocast, z_8_32, z_16_32, nocast, nocast},
+    {s_8_32, nocast, nocast, s_32_64, nocast, nocast, nocast, s_32_64},
+    {s_8_32, s_16_32, nocast, s_32_64, z_8_32, nocast, nocast, s_32_64},
+    {s_8_32, s_16_32, nocast, s_32_64, z_8_32, z_16_32, nocast, z_32_64},
+    {s_8_32, s_16_32, nocast, nocast, z_8_32, z_16_32, nocast, nocast},
+};
+
+static int type_id(Type *ty) {
+    assert(is_integer(ty) || is_type_of(TY_PTR, ty));
+
+    enum { I8, I16, I32, I64, U8, U16, U32, U64 };
+
+    switch (ty->size) {
+    case 1:
+        return ty->is_unsigned ? U8 : I8;
+    case 2:
+        return ty->is_unsigned ? U16 : I16;
+    case 4:
+        return ty->is_unsigned ? U32 : I32;
+    case 8:
+        return ty->is_unsigned ? U64 : I64;
+    }
+}
+
 static void cast(Type *from, Type *to) {
     if (is_type_of(TY_ARY, from)) {
         from = pointer_to(from->base);
     }
-    if (is_type_of(TY_VOID, to) || from->size == to->size) {
+    if (is_type_of(TY_STRUCT, from) || is_type_of(TY_UNION, from) ||
+        is_type_of(TY_VOID, to)) {
         return;
     }
 
@@ -238,18 +288,9 @@ static void cast(Type *from, Type *to) {
         return;
     }
 
-    switch (to->size) {
-    case 1:
-        MOVSX(EAX, AL);
-        break;
-    case 2:
-        MOVSX(EAX, AX);
-        break;
-    case 8:
-        MOVSXD(RAX, EAX);
-        break;
-    default:;
-    }
+    int from_id = type_id(from);
+    int to_id = type_id(to);
+    cast_fn_table[from_id][to_id]();
 }
 
 static void gen_lval(Node *node) {
@@ -438,6 +479,9 @@ static void gen_expr(Node *node) {
     char *di = node->binop.lhs->ty->kind == TY_LONG || node->binop.lhs->ty->base
                    ? RDI
                    : EDI;
+    char *dx = node->binop.lhs->ty->kind == TY_LONG || node->binop.lhs->ty->base
+                   ? RDX
+                   : EDX;
 
     switch (node->kind) {
     case ND_ADD:
@@ -451,8 +495,13 @@ static void gen_expr(Node *node) {
         break;
     case ND_DIV:
     case ND_MOD:
-        node->binop.lhs->ty->size == 8 ? CQO() : CDQ();
-        IDIV(di);
+        if (node->ty->is_unsigned) {
+            MOV(dx, IMM(0));
+            DIV(di);
+        } else {
+            node->binop.lhs->ty->size == 8 ? CQO() : CDQ();
+            IDIV(di);
+        }
 
         if (node->kind == ND_MOD) {
             MOV(RAX, RDX);
@@ -470,12 +519,12 @@ static void gen_expr(Node *node) {
         break;
     case ND_LT:
         CMP(ax, di);
-        SETL(AL);
+        node->binop.lhs->ty->is_unsigned ? SETB(AL) : SETL(AL);
         MOVZB(RAX, AL);
         break;
     case ND_LE:
         CMP(ax, di);
-        SETLE(AL);
+        node->binop.lhs->ty->is_unsigned ? SETBE(AL) : SETLE(AL);
         MOVZB(RAX, AL);
         break;
     case ND_BITAND:
@@ -493,7 +542,7 @@ static void gen_expr(Node *node) {
         break;
     case ND_SHR:
         MOV(ECX, EDI);
-        SAR(ax, CL);
+        node->ty->is_unsigned ? SHR(ax, CL) : SAR(ax, CL);
         break;
     default:;
     }

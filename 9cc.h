@@ -280,6 +280,7 @@ struct Type {
     TypeKind kind;   // データ型の種類
     int size;        // サイズ
     int align;       // アライメント
+    bool is_unsigned;
     Token *ident;    // 識別子名
 
     Token *name;     // タグ名またはtypedef名
@@ -309,6 +310,10 @@ extern Type *ty_char;
 extern Type *ty_short;
 extern Type *ty_int;
 extern Type *ty_long;
+extern Type *ty_uchar;
+extern Type *ty_ushort;
+extern Type *ty_uint;
+extern Type *ty_ulong;
 
 bool is_type_of(TypeKind kind, Type *ty);
 bool is_integer(Type *ty);

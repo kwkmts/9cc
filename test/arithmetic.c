@@ -135,6 +135,13 @@ int main() {
     ASSERT(2, sizeof(short));
     ASSERT(4, sizeof(int));
     ASSERT(8, sizeof(long));
+    ASSERT(1, sizeof(unsigned char));
+    ASSERT(2, sizeof(unsigned short));
+    ASSERT(2, sizeof(int short unsigned));
+    ASSERT(4, sizeof(unsigned int));
+    ASSERT(4, sizeof(unsigned));
+    ASSERT(8, sizeof(unsigned long));
+    ASSERT(8, sizeof(unsigned long int));
     ASSERT(8, sizeof(char *));
     ASSERT(8, sizeof(int *));
     ASSERT(8, sizeof(long *));
@@ -156,6 +163,27 @@ int main() {
     ASSERT(5, ({ int x=5; long y=(long)&x; *(int*)y; }));
 
     (void)1;
+
+    ASSERT(-1, (char)255);
+    ASSERT(255, (unsigned char)255);
+    ASSERT(-1, (short)65535);
+    ASSERT(65535, (unsigned short)65535);
+    ASSERT(-1, (int)0xffffffff);
+    ASSERT(0xffffffff, (unsigned)0xffffffff);
+
+    ASSERT(1, -1<1);
+    ASSERT(-1, -1>>1);
+    ASSERT(-1, (unsigned long)-1);
+    ASSERT(-50, (-100)/2);
+    ASSERT(-2, (-100)%7);
+    ASSERT(65535, (int)(unsigned short)65535);
+    ASSERT(65535, ({ unsigned short x = 65535; x; }));
+    ASSERT(65535, ({ unsigned short x = 65535; (int)x; }));
+
+    ASSERT(1, sizeof((char)1));
+    ASSERT(2, sizeof((short)1));
+    ASSERT(4, sizeof((int)1));
+    ASSERT(8, sizeof((long)1));
 
     return 0;
 }
