@@ -5,9 +5,9 @@
 //
 
 Token *token;
-Obj *locals;
-Obj *globals;
-Obj *functions;
+Obj locals = (Obj){};
+Obj globals = (Obj){};
+Obj functions = (Obj){};
 Obj *cur_fn;         // 現在パース中の関数
 static Node *gotos;  // 現在の関数内におけるgoto文のリスト
 static Node *labels; // 現在の関数内におけるラベルのリスト
@@ -171,77 +171,88 @@ static void enter_scope() {
 
 static void leave_scope() { scope = scope->parent; }
 
-int64_t calc_const_expr(Node *node) {
+static int64_t calc_const_expr2(Node *node, char **label) {
+    switch (node->kind) {
+    case ND_VAR:
+        *label = node->var.var->name;
+        return 0;
+    default:;
+    }
+}
+
+int64_t calc_const_expr(Node *node, char **label) {
     switch (node->kind) {
     case ND_ADD:
-        return calc_const_expr(node->binop.lhs) +
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) +
+               calc_const_expr(node->binop.rhs, label);
     case ND_SUB:
-        return calc_const_expr(node->binop.lhs) -
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) -
+               calc_const_expr(node->binop.rhs, label);
     case ND_MUL:
-        return calc_const_expr(node->binop.lhs) *
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) *
+               calc_const_expr(node->binop.rhs, label);
     case ND_DIV:
-        return calc_const_expr(node->binop.lhs) /
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) /
+               calc_const_expr(node->binop.rhs, label);
     case ND_EQ:
-        return calc_const_expr(node->binop.lhs) ==
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) ==
+               calc_const_expr(node->binop.rhs, label);
     case ND_NE:
-        return calc_const_expr(node->binop.lhs) !=
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) !=
+               calc_const_expr(node->binop.rhs, label);
     case ND_LT:
-        return calc_const_expr(node->binop.lhs) <
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) <
+               calc_const_expr(node->binop.rhs, label);
     case ND_LE:
-        return calc_const_expr(node->binop.lhs) <=
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) <=
+               calc_const_expr(node->binop.rhs, label);
     case ND_LOGAND:
-        return calc_const_expr(node->binop.lhs) &&
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) &&
+               calc_const_expr(node->binop.rhs, label);
     case ND_LOGOR:
-        return calc_const_expr(node->binop.lhs) ||
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) ||
+               calc_const_expr(node->binop.rhs, label);
     case ND_BITAND:
-        return calc_const_expr(node->binop.lhs) &
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) &
+               calc_const_expr(node->binop.rhs, label);
     case ND_BITOR:
-        return calc_const_expr(node->binop.lhs) |
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) |
+               calc_const_expr(node->binop.rhs, label);
     case ND_BITXOR:
-        return calc_const_expr(node->binop.lhs) ^
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) ^
+               calc_const_expr(node->binop.rhs, label);
     case ND_SHL:
-        return calc_const_expr(node->binop.lhs)
-               << calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label)
+               << calc_const_expr(node->binop.rhs, label);
     case ND_SHR:
-        return calc_const_expr(node->binop.lhs) >>
-               calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.lhs, label) >>
+               calc_const_expr(node->binop.rhs, label);
     case ND_COMMA:
-        return calc_const_expr(node->binop.rhs);
+        return calc_const_expr(node->binop.rhs, label);
     case ND_COND:
-        return calc_const_expr(node->condop.cond)
-                   ? calc_const_expr(node->condop.then)
-                   : calc_const_expr(node->condop.els);
+        return calc_const_expr(node->condop.cond, label)
+                   ? calc_const_expr(node->condop.then, label)
+                   : calc_const_expr(node->condop.els, label);
     case ND_NOT:
-        return !calc_const_expr(node->unary.expr);
+        return !calc_const_expr(node->unary.expr, label);
     case ND_BITNOT:
-        return ~calc_const_expr(node->unary.expr);
+        return ~calc_const_expr(node->unary.expr, label);
     case ND_CAST:
         if (is_integer(node->ty)) {
             switch (node->ty->size) {
             case 1:
-                return (int8_t)calc_const_expr(node->unary.expr);
+                return (int8_t)calc_const_expr(node->unary.expr, label);
             case 2:
-                return (int16_t)calc_const_expr(node->unary.expr);
+                return (int16_t)calc_const_expr(node->unary.expr, label);
             case 4:
-                return (int32_t)calc_const_expr(node->unary.expr);
+                return (int32_t)calc_const_expr(node->unary.expr, label);
             }
         }
-        return calc_const_expr(node->unary.expr);
+        return calc_const_expr(node->unary.expr, label);
     case ND_NUM:
         return node->num.val;
+    case ND_ADDR:
+        return calc_const_expr2(node->unary.expr, label);
     default:
         error_tok(node->tok, "定数式ではありません");
     }
@@ -412,6 +423,29 @@ static Node *new_node_sub(Node *lhs, Node *rhs, Token *tok) {
     error_at(tok->str, "数値からポインタ値を引くことはできません");
 }
 
+static void push_to_obj_list(Obj *obj) {
+    switch (obj->kind) {
+    case LVAR: {
+        static Obj *tail;
+        if (!locals.next) {
+            tail = &locals;
+        }
+        tail = tail->next = obj;
+        return;
+    }
+    case GVAR: {
+        static Obj *tail = &globals;
+        tail = tail->next = obj;
+        return;
+    }
+    case FUNC: {
+        static Obj *tail = &functions;
+        tail = tail->next = obj;
+        return;
+    }
+    }
+}
+
 static Obj *new_obj(char *name, Type *ty) {
     Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
@@ -422,31 +456,26 @@ static Obj *new_obj(char *name, Type *ty) {
 
 static Obj *new_lvar(char *name, Type *ty) {
     Obj *var = new_obj(name, ty);
-    var->next = locals;
-    var->offset =
-        align_to(locals ? locals->offset + ty->size : ty->size, ty->align);
     var->kind = LVAR;
-    locals = var;
+    push_to_obj_list(var);
     return var;
 }
 
 static Obj *new_gvar(char *name, Type *ty) {
     Obj *var = new_obj(name, ty);
-    var->next = globals;
     var->kind = GVAR;
     var->has_definition = true;
-    globals = var;
+    push_to_obj_list(var);
     return var;
 }
 
 static Obj *new_func(char *name, Type *ty) {
     Obj *fn = new_obj(name, ty);
     fn->kind = FUNC;
-    fn->next = functions;
     fn->name = name;
     fn->ty = ty;
     fn->has_definition = false;
-    functions = fn;
+    push_to_obj_list(fn);
     return fn;
 }
 
@@ -646,6 +675,11 @@ static Type *struct_decl() {
     ty->kind = TY_STRUCT;
     ty->align = 1;
 
+    if (tag) {
+        ty->name = tag;
+        push_tag_scope(ty);
+    }
+
     Member head = {};
     Member *cur = &head;
 
@@ -672,11 +706,6 @@ static Type *struct_decl() {
     ty->members = head.next;
     ty->size = align_to(offset, ty->align);
 
-    if (tag) {
-        ty->name = tag;
-        push_tag_scope(ty);
-    }
-
     return ty;
 }
 
@@ -696,6 +725,11 @@ static Type *union_decl() {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_UNION;
     ty->align = 1;
+
+    if (tag) {
+        ty->name = tag;
+        push_tag_scope(ty);
+    }
 
     Member head = {};
     Member *cur = &head;
@@ -725,11 +759,6 @@ static Type *union_decl() {
 
     ty->members = head.next;
     ty->size = align_to(offset, ty->align);
-
-    if (tag) {
-        ty->name = tag;
-        push_tag_scope(ty);
-    }
 
     return ty;
 }
@@ -1064,16 +1093,16 @@ static Obj *function(Type *ty) {
     }
 
     cur_fn = fn;
-    locals = NULL;
+    locals.next = NULL;
     enter_scope();
     for (Type *param = ty->params; param; param = param->next) {
         new_lvar(get_ident(param->ident), param);
+        fn->nparams++;
     }
 
-    fn->params = locals;
     expect("{");
     fn->body = compound_stmt();
-    fn->locals = locals;
+    fn->locals = locals.next;
     fn->has_definition = true;
     leave_scope();
     resolve_goto_labels();
@@ -1222,6 +1251,12 @@ static void initializer2(Initializer *init) {
         return;
     }
 
+    if (consume("{", TK_RESERVED)) {
+        init->expr = assign();
+        expect("}");
+        return;
+    }
+
     init->expr = assign();
 }
 
@@ -1289,15 +1324,21 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
 
 static Node *lvar_initializer(Obj *var) {
     Initializer *init = initializer(var->ty, &var->ty);
-    // 配列の要素数が省略された場合、var->ty->sizeがこの時点で確定するのでvar->offsetを更新
-    var->offset =
-        locals->next ? locals->next->offset + var->ty->size : var->ty->size;
     InitDesg desg = {NULL, 0, NULL, var};
     return create_lvar_init(init, &desg);
 }
 
 static void gvar_initializer(Obj *var) {
-    var->init = initializer(var->ty, &var->ty);
+    Initializer *init = initializer(var->ty, &var->ty);
+
+    // 変数Aの初期化子が変数Bの場合は変数Bの初期化子を変数Aに設定する
+    if (init->expr) {
+        if (init->expr->kind == ND_VAR) {
+            init = init->expr->var.var->init;
+        }
+    }
+
+    var->init = init;
 }
 
 // declaration = declspec declarator ("=" initializer)? ";"
@@ -1905,6 +1946,7 @@ static Node *mul() {
 }
 
 // cast = "(" declspec abstract-declarator ")" cast
+//      | "(" declspec abstract-declarator ")" "{" initializer-list "}"
 //      | unary
 static Node *cast() {
     Token *tmp = token;
@@ -1912,6 +1954,22 @@ static Node *cast() {
         if (is_typename()) {
             Type *ty = abstract_declarator(declspec(NULL));
             expect(")");
+
+            // 複合リテラル
+            if (equal("{", TK_RESERVED, token)) {
+                if (scope->parent) {
+                    Obj *var = new_lvar(strndup("", 0), ty);
+                    return new_node_binary(ND_COMMA, lvar_initializer(var),
+                                           new_node_var(var, NULL), NULL);
+                }
+
+                static int count = 0;
+                Obj *var = new_gvar(format(".Lcompoundliteral%d", count++), ty);
+                var->is_static = true;
+                gvar_initializer(var);
+                return new_node_var(var, NULL);
+            }
+
             return new_node_cast(cast(), ty);
         }
     }

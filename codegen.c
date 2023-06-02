@@ -275,6 +275,11 @@ static void gen_lval(Node *node) {
     case ND_DEREF:
         gen_expr(node->unary.expr);
         return;
+    case ND_COMMA:
+        gen_expr(node->binop.lhs);
+        POP(RAX);
+        gen_lval(node->binop.rhs);
+        return;
     default:;
     }
 
@@ -632,7 +637,13 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
     }
 
     if (cur->expr) {
-        int64_t val = calc_const_expr(cur->expr);
+        char *label = NULL;
+        int64_t val = calc_const_expr(cur->expr, &label);
+        if (label) {
+            println("    .quad %s", label);
+            return;
+        }
+
         switch (cur->ty->size) {
         case 1:
             println("    .byte %ld", val);
@@ -684,11 +695,11 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
 }
 
 static void emit_global_variables() {
-    if (!globals) {
+    if (!globals.next) {
         return;
     }
 
-    for (Obj *var = globals; var; var = var->next) {
+    for (Obj *var = globals.next; var; var = var->next) {
         if (!var->has_definition) {
             continue;
         }
@@ -725,13 +736,19 @@ static void emit_global_variables() {
 }
 
 static void emit_functions() {
-    for (Obj *fn = functions; fn; fn = fn->next) {
+    for (Obj *fn = functions.next; fn; fn = fn->next) {
         if (!fn->has_definition) {
             continue;
         }
 
         if (fn->locals) {
-            fn->stack_size = align_to(fn->locals->offset, 16);
+            int offset = 0;
+            for (Obj *var = fn->locals; var; var = var->next) {
+                offset += var->ty->size;
+                offset = var->offset = align_to(offset, var->ty->align);
+            }
+
+            fn->stack_size = align_to(offset, 16);
         }
 
         // アセンブリの前半部分を出力
@@ -745,29 +762,26 @@ static void emit_functions() {
         MOV(RBP, RSP);
         SUB(RSP, IMM(fn->stack_size));
 
-        int nparams = 0;
-        for (Obj *var = fn->params; var; var = var->next) {
-            nparams++;
-        }
-
         // レジスタによって渡された引数の値をスタックに保存する
-        int i = nparams - 1;
-        for (Obj *var = fn->params; var; var = var->next) {
+        Obj *var = fn->locals;
+        for (int i = 0; i < fn->nparams; i++) {
             switch (var->ty->size) {
             case 1:
-                MOV(INDIRECT(RBP, -var->offset), argreg8[i--]);
-                continue;
+                MOV(INDIRECT(RBP, -var->offset), argreg8[i]);
+                break;
             case 2:
-                MOV(INDIRECT(RBP, -var->offset), argreg16[i--]);
-                continue;
+                MOV(INDIRECT(RBP, -var->offset), argreg16[i]);
+                break;
             case 4:
-                MOV(INDIRECT(RBP, -var->offset), argreg32[i--]);
-                continue;
+                MOV(INDIRECT(RBP, -var->offset), argreg32[i]);
+                break;
             case 8:
-                MOV(INDIRECT(RBP, -var->offset), argreg64[i--]);
-                continue;
+                MOV(INDIRECT(RBP, -var->offset), argreg64[i]);
+                break;
             default:;
             }
+
+            var = var->next;
         }
 
         // 先頭の式から順にコード生成

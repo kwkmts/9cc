@@ -65,12 +65,12 @@ struct Initializer {
     bool is_flexible;
 };
 
-int64_t calc_const_expr(Node *node);
+int64_t calc_const_expr(Node *node, char **label);
 Node *new_node_cast(Node *expr, Type *ty);
 
-extern Obj *locals;    // ローカル変数の連結リスト
-extern Obj *globals;   // グローバル変数の連結リスト
-extern Obj *functions; // 関数の連結リスト
+extern Obj locals;    // ローカル変数の連結リスト
+extern Obj globals;   // グローバル変数の連結リスト
+extern Obj functions; // 関数の連結リスト
 
 // 現在着目しているトークン
 extern Token *token;
@@ -88,8 +88,8 @@ struct Obj {
     char *init_data_str; // 文字列リテラル
 
     Node *body;          // {}内
-    Obj *params;         // パラメータ
-    Obj *locals;         // ローカル変数
+    int nparams;         // パラメータの個数
+    Obj *locals; // ローカル変数の連結リスト(先頭からnparams個はパラメータ)
     int stack_size;
 
     bool is_static;      // グローバル変数・関数で使われる
