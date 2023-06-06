@@ -45,16 +45,16 @@ void error_at(char *loc, char *fmt, ...) {
     exit(1);
 }
 
-void error_tok(Token *tok, char *fmt, ...) { error_at(tok->str, fmt); }
+void error_tok(Token *tok, char *fmt, ...) { error_at(tok->loc, fmt); }
 
 //
 // トークナイザー
 //
 
-static Token *new_token(TokenKind kind, char *str, int len) {
+static Token *new_token(TokenKind kind, char *loc, int len) {
     Token *tok = calloc(1, sizeof(Token));
     tok->kind = kind;
-    tok->str = str;
+    tok->loc = loc;
     tok->len = len;
     return tok;
 }
@@ -165,6 +165,25 @@ static int64_t read_int_literal(char **p) {
     return val;
 }
 
+static void add_line_no(Token *tok) {
+    int line_no = 1;
+    int column_no = 1;
+    for (char *p = user_input; *p; p++) {
+        if (p == tok->loc) {
+            tok->line_no = line_no;
+            tok->column_no = column_no;
+            tok = tok->next;
+        }
+
+        if (*p == '\n') {
+            line_no++;
+            column_no = 1;
+        } else {
+            column_no++;
+        }
+    }
+}
+
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize() {
     char *p = user_input;
@@ -240,7 +259,8 @@ Token *tokenize() {
                 buf[i] = read_char(&p);
             }
 
-            cur = cur->next = new_token(TK_STR, buf, (int)strlen(buf));
+            cur = cur->next = new_token(TK_STR, start, (int)strlen(buf));
+            cur->str = buf;
             p++; // 結びの`"`を読み飛ばす
             continue;
         }
@@ -260,5 +280,7 @@ Token *tokenize() {
     }
 
     cur->next = new_token(TK_EOF, p, 0);
+
+    add_line_no(head.next);
     return head.next;
 }

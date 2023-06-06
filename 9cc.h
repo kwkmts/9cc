@@ -43,8 +43,11 @@ struct Token {
     TokenKind kind; // トークンの種類
     Token *next;    // 次の入力トークン
     int64_t val;    // kindがTK_NUMの場合、その数値
-    char *str;      // トークン文字列
+    char *loc;      // 入力プログラム中での位置
+    char *str;      // 文字列リテラル
     int len;        // トークンの長さ
+    int line_no;    // 行番号
+    int column_no;  // 列番号
 };
 
 extern char *filepath;   // ソースファイルのパス
@@ -91,6 +94,7 @@ struct Obj {
     int nparams;         // パラメータの個数
     Obj *locals; // ローカル変数の連結リスト(先頭からnparams個はパラメータ)
     int stack_size;
+    Token *lbrace;       // 関数定義の開始位置("{")
 
     bool is_static;      // グローバル変数・関数で使われる
     bool has_definition; // グローバル変数・関数で使われる

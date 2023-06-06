@@ -66,7 +66,7 @@ typedef int VarAttr;
 // 指定したトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
 static bool equal(char *op, TokenKind kind, Token *tok) {
     return tok->kind == kind && strlen(op) == tok->len &&
-           !memcmp(tok->str, op, tok->len);
+           !memcmp(tok->loc, op, tok->len);
 }
 
 // 次のトークンが期待しているトークンの時は、トークンを1つ読み進めてそのトークンを返す
@@ -95,7 +95,7 @@ static Token *consume_ident() {
 // それ以外の場合にはエラーを報告
 static Token *expect(char *op) {
     if (!equal(op, TK_RESERVED, token)) {
-        error_at(token->str, "'%s'ではありません", op);
+        error_at(token->loc, "'%s'ではありません", op);
     }
     Token *tok = token;
     token = token->next;
@@ -106,7 +106,7 @@ static Token *expect(char *op) {
 // それ以外の場合にはエラーを報告
 static Token *expect_number() {
     if (token->kind != TK_NUM) {
-        error_at(token->str, "数ではありません");
+        error_at(token->loc, "数ではありません");
     }
     Token *tok = token;
     token = token->next;
@@ -118,7 +118,7 @@ static Token *expect_number() {
 static Token *expect_ident() {
     Token *ident = consume_ident();
     if (!ident) {
-        error_at(token->str, "識別子ではありません");
+        error_at(token->loc, "識別子ではありません");
     }
     return ident;
 }
@@ -127,7 +127,7 @@ static char *get_ident(Token *tok) {
     if (tok->kind != TK_IDENT) {
         error_tok(tok, "識別子ではありません");
     }
-    return strndup(tok->str, tok->len);
+    return strndup(tok->loc, tok->len);
 }
 
 static bool at_eof() { return token->kind == TK_EOF; }
@@ -265,7 +265,7 @@ static VarScope *look_in_var_scope(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->parent) {
         for (VarScope *var_sc = sc->vars; var_sc; var_sc = var_sc->next) {
             if (tok->len == (int)strlen(var_sc->name) &&
-                !memcmp(tok->str, var_sc->name, (int)strlen(var_sc->name))) {
+                !memcmp(tok->loc, var_sc->name, (int)strlen(var_sc->name))) {
                 return var_sc;
             }
         }
@@ -279,7 +279,7 @@ static VarScope *look_in_cur_var_scope(Token *tok) {
     }
     for (VarScope *var_sc = scope->vars; var_sc; var_sc = var_sc->next) {
         if (tok->len == (int)strlen(var_sc->name) &&
-            !memcmp(tok->str, var_sc->name, (int)strlen(var_sc->name))) {
+            !memcmp(tok->loc, var_sc->name, (int)strlen(var_sc->name))) {
             return var_sc;
         }
     }
@@ -312,7 +312,7 @@ static Type *find_tag(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->parent) {
         for (TagScope *tag_sc = sc->tags; tag_sc; tag_sc = tag_sc->next) {
             if (tag_sc->ty->name->len == tok->len &&
-                !memcmp(tok->str, tag_sc->ty->name->str,
+                !memcmp(tok->loc, tag_sc->ty->name->loc,
                         tag_sc->ty->name->len)) {
                 return tag_sc->ty;
             }
@@ -380,7 +380,7 @@ static Node *new_node_add(Node *lhs, Node *rhs, Token *tok) {
     }
 
     if (lhs->ty->base && rhs->ty->base) {
-        error_at(tok->str, "ポインタ同士の加算はできません");
+        error_at(tok->loc, "ポインタ同士の加算はできません");
     }
 
     // num + ptr => ptr + num
@@ -420,7 +420,7 @@ static Node *new_node_sub(Node *lhs, Node *rhs, Token *tok) {
                                new_node_num(lhs->ty->base->size, NULL), NULL);
     }
 
-    error_at(tok->str, "数値からポインタ値を引くことはできません");
+    error_at(tok->loc, "数値からポインタ値を引くことはできません");
 }
 
 static void push_to_obj_list(Obj *obj) {
@@ -1137,7 +1137,7 @@ static Obj *function(Type *ty) {
         fn->nparams++;
     }
 
-    expect("{");
+    fn->lbrace = expect("{");
     fn->body = compound_stmt();
     fn->locals = locals.next;
     fn->has_definition = true;
@@ -1417,7 +1417,7 @@ static Node *declaration() {
             }
 
             if (var->ty->ary_len < 0) {
-                error_at(ty->ident->str, "配列の要素数が指定されていません");
+                error_at(ty->ident->loc, "配列の要素数が指定されていません");
             }
         }
     }
@@ -1693,12 +1693,10 @@ static Node *stmt() {
 
 // compound-stmt = (stmt | declaration | typedef)* "}"
 static Node *compound_stmt() {
-    Node *node = new_node(ND_BLOCK, NULL);
-    Node head = {};
-
     enter_scope();
 
-    for (Node *cur = &head; !consume("}", TK_RESERVED);) {
+    Node head = {};
+    for (Node *cur = &head; !equal("}", TK_RESERVED, token);) {
         if (is_typename() && !equal(":", TK_RESERVED, token->next)) {
             cur = cur->next = declaration();
         } else {
@@ -1709,6 +1707,7 @@ static Node *compound_stmt() {
 
     leave_scope();
 
+    Node *node = new_node(ND_BLOCK, expect("}"));
     node->block.body = head.next;
 
     return node;
@@ -2092,7 +2091,7 @@ static Node *ary_elem(Node *var, Node *idx) {
 static Member *struct_member(Type *ty) {
     for (Member *cur = ty->members; cur; cur = cur->next) {
         if (cur->name->len == token->len &&
-            !memcmp(cur->name->str, token->str, token->len)) {
+            !memcmp(cur->name->loc, token->loc, token->len)) {
             return cur;
         }
     }
@@ -2215,7 +2214,7 @@ static Node *primary() {
         // 変数または列挙定数
         VarScope *sc = look_in_var_scope(tok);
         if (!sc || !sc->var && !sc->enum_const) {
-            error_at(tok->str, "定義されていない変数です");
+            error_at(tok->loc, "定義されていない変数です");
         }
 
         if (sc->var) {

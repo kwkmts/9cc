@@ -551,6 +551,10 @@ static void gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
+    if (node->tok) {
+        println("    .loc 1 %d %d", node->tok->line_no, node->tok->column_no);
+    }
+
     switch (node->kind) {
     case ND_BLOCK: {
         for (Node *cur = node->block.body; cur; cur = cur->next) {
@@ -804,6 +808,7 @@ static void emit_functions() {
         println("    .globl %s", fn->name);
         println("    .text");
         println("%s:", fn->name);
+        println("    .loc 1 %d %d", fn->lbrace->line_no, fn->lbrace->column_no);
 
         // プロローグ
         // 変数の領域を確保する
@@ -841,6 +846,8 @@ static void emit_functions() {
 
         // エピローグ
         // 最後の式の結果がRAXに残っているのでそれが戻り値となる
+        println("    .loc 1 %d %d", fn->body->tok->line_no,
+                fn->body->tok->column_no);
         MOV(RSP, RBP);
         POP(RBP);
         RET();
@@ -849,6 +856,7 @@ static void emit_functions() {
 
 void codegen() {
     println("    .intel_syntax noprefix");
+    println("    .file 1 \"%s\"", filepath);
 
     emit_global_variables();
     emit_functions();
