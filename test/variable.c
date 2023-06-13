@@ -8,6 +8,7 @@ static int g5 = 3;
 extern int ext1;
 extern int *ext2;
 const int g6;
+int;
 
 int main() {
     int l1 = 0;

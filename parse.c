@@ -1066,11 +1066,14 @@ static Type *declarator(Type *ty) {
         return ty;
     }
 
-    Token *tok = expect_ident();
-    VarScope *sc = look_in_cur_var_scope(tok);
-    if (sc && sc->var->has_definition) {
-        error_tok(tok, "そのような識別子はすでに存在します");
+    Token *tok = NULL;
+    if ((tok = consume_ident())) {
+        VarScope *sc = look_in_cur_var_scope(tok);
+        if (sc && sc->var->has_definition) {
+            error_tok(tok, "そのような識別子はすでに存在します");
+        }
     }
+
     ty = type_suffix(ty);
     ty->ident = tok;
     return ty;
