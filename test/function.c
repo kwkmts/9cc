@@ -2,6 +2,7 @@
 
 int ret3(){ return 3; }
 int ret5(){ return 5; }
+int ret42();
 int add(int x, int y){ return x+y; }
 int sub(int x, int y){ return x-y; }
 int add6(int a, int b, int c, int d, int e, int f){ return a+b+c+d+e+f; }
@@ -30,6 +31,7 @@ _Bool bool_fn_sub(_Bool x) { return x - 1; }
 int main() {
     ASSERT(3, ret3());
     ASSERT(5, ret5());
+    ASSERT(42, ret42());
     ASSERT(8, add(3,5));
     ASSERT(2, sub(5,3));
     ASSERT(21, add6(1,2,3,4,5,6));
@@ -61,3 +63,5 @@ int main() {
 
     return 0;
 }
+
+int ret42(){ return 42; }

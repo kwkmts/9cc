@@ -1067,7 +1067,8 @@ static Type *declarator(Type *ty) {
     }
 
     Token *tok = expect_ident();
-    if (look_in_cur_var_scope(tok)) {
+    VarScope *sc = look_in_cur_var_scope(tok);
+    if (sc && sc->var->has_definition) {
         error_tok(tok, "そのような識別子はすでに存在します");
     }
     ty = type_suffix(ty);
