@@ -2118,7 +2118,39 @@ static Node *struct_ref(Node *lhs, Token *tok) {
     return node;
 }
 
-// postfix = primary ("++" | "--" | (("." | "->") ident) | ("[" expr "]"))*
+// funcall = "(" func-args? ")"
+// func-args = assign ("," assign)*
+static Node *funcall(Node *fn) {
+    add_type(fn);
+
+    if (!is_type_of(TY_FUNC, fn->ty) &&
+        !(is_type_of(TY_PTR, fn->ty) && is_type_of(TY_FUNC, fn->ty->base))) {
+        error_tok(fn->tok, "関数ではありません");
+    }
+
+    Node head = {};
+    Node *cur = &head;
+    Type *ty = is_type_of(TY_FUNC, fn->ty) ? fn->ty : fn->ty->base;
+    Type *param_ty = ty->params;
+
+    Token *tok = expect("(");
+    while (!consume(")", TK_RESERVED)) {
+        if (cur != &head) {
+            expect(",");
+        }
+        cur = cur->next = new_node_cast(assign(), ty->params);
+        param_ty = param_ty->next;
+    }
+
+    Node *node = new_node(ND_FUNCALL, tok);
+    node->ty = ty->ret;
+    node->funcall.fn = fn;
+    node->funcall.args = head.next;
+    return node;
+}
+
+// postfix = primary postfix-tail*
+// postfix-tail = "++" | "--" | (("." | "->") ident) | ("[" expr "]") | funcall
 static Node *postfix() {
     Node *node = primary();
     Node *node_one = new_node_num(1, NULL);
@@ -2152,45 +2184,17 @@ static Node *postfix() {
         } else if (consume("[", TK_RESERVED)) {
             node = ary_elem(node, expr());
             expect("]");
+
+        } else if (equal("(", TK_RESERVED, token)) {
+            node = funcall(node);
+
         } else {
             return node;
         }
     }
 }
 
-// funcall = ident "(" func-args? ")"
-// func-args = assign ("," assign)*
-static Node *funcall(Token *tok) {
-    Obj *fn = find_func(tok);
-    if (!fn) {
-        error_tok(tok, "そのような関数は存在しません");
-    }
-
-    expect("(");
-
-    Token *start = tok;
-
-    Node head = {};
-    Node *cur = &head;
-    Type *param_ty = fn->ty->params;
-
-    while (!consume(")", TK_RESERVED)) {
-        if (cur != &head) {
-            expect(",");
-        }
-        cur = cur->next = new_node_cast(assign(), fn->ty->params);
-        param_ty = param_ty->next;
-    }
-
-    Node *node = new_node(ND_FUNCALL, tok);
-    node->ty = fn->ty->ret;
-    node->funcall.fn = fn;
-    node->funcall.args = head.next;
-    return node;
-}
-
 // primary = "(" (expr | ("{" compound-stmt)) ")"
-//         | funcall
 //         | ident
 //         | str
 //         | num
@@ -2210,11 +2214,6 @@ static Node *primary() {
     // 識別子
     Token *tok = consume_ident();
     if (tok) {
-        // 関数呼び出し
-        if (equal("(", TK_RESERVED, token)) {
-            return funcall(tok);
-        }
-
         // 変数または列挙定数
         VarScope *sc = look_in_var_scope(tok);
         if (!sc || !sc->var && !sc->enum_const) {

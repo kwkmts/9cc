@@ -266,7 +266,7 @@ static void cast(Type *from, Type *to) {
         from = pointer_to(from->base);
     }
     if (is_type_of(TY_STRUCT, from) || is_type_of(TY_UNION, from) ||
-        is_type_of(TY_VOID, to)) {
+        is_type_of(TY_FUNC, from) || is_type_of(TY_VOID, to)) {
         return;
     }
 
@@ -302,7 +302,7 @@ static void gen_lval(Node *node) {
             SUB(RAX, IMM(node->var.var->offset));
             PUSH(RAX);
         } else {
-            // グローバル変数
+            // グローバル変数・関数
             LEA(RAX, INDIRECT_LABEL(node->var.var->name, RIP));
             PUSH(RAX);
         }
@@ -360,6 +360,7 @@ static void gen_expr(Node *node) {
         PUSH(RAX);
         return;
     case ND_FUNCALL: {
+        gen_expr(node->funcall.fn);
         int nargs = 0;
         for (Node *arg = node->funcall.args; arg; arg = arg->next) {
             gen_expr(arg);
@@ -370,8 +371,8 @@ static void gen_expr(Node *node) {
             POP(argreg64[i]);
         }
 
-        MOV(RAX, IMM(0));
-        CALL(node->funcall.fn->name);
+        POP(RAX);
+        CALL(RAX);
         PUSH(RAX);
         return;
     }

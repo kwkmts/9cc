@@ -183,7 +183,7 @@ struct Node {
         } var;
 
         struct {
-            Obj *fn;
+            Node *fn;
             Node *args; // 引数リスト
         } funcall;
 
