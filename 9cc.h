@@ -291,11 +291,12 @@ struct Type {
     Member *members; // 構造体のメンバリスト
 
     int ary_len;     // 配列の要素数
-    Type *base;    // データ型がポインタや配列の場合使われる
+    Type *base;   // データ型がポインタや配列の場合使われる
 
-    Type *ret;     // 関数型の戻り値のデータ型
-    Type *params;  // 関数型のパラメータのデータ型リスト
-    Type *next;    // 次のパラメータのデータ型
+    Type *ret;    // 関数型の戻り値のデータ型
+    Type *params; // 関数型のパラメータのデータ型リスト
+    Type *next;   // 次のパラメータのデータ型
+    bool is_variadic;
 
     bool is_const; // const修飾子の有無
 };

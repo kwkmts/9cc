@@ -31,6 +31,7 @@ _Bool bool_fn_sub(_Bool x) { return x - 1; }
 int (*ret_fnptr(int (*fn)(int,int)))(int,int) { return fn; }
 int param_decay(int x()) { return x(); }
 int param_decay2(int x[]) { return x[0]; }
+int add_all(int n, ...);
 
 int main() {
     ASSERT(3, ret3());
@@ -75,6 +76,10 @@ int main() {
 
     ASSERT(3, param_decay(ret3));
     ASSERT(3, ({ int x[2]; x[0]=3; param_decay2(x); }));
+
+    ASSERT(6, add_all(3,1,2,3));
+    ASSERT(5, add_all(4,1,2,3,-1));
+    ASSERT(0, ({ char buf[100]; sprintf(buf,"%d %d %s",1,2,"foo"); strcmp("1 2 foo",buf); }));
 
     return 0;
 }

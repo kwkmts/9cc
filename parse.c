@@ -1011,16 +1011,23 @@ static Type *ary_suffix(Type *ty) {
 }
 
 // func-suffix = "(" func-params? ")"
-// func-params = declspec declarator ("," declspec declarator)*
+// func-params = declspec declarator ("," declspec declarator)* ("," "...")?
 static Type *func_suffix(Type *ty) {
     expect("(");
 
     Type head = {};
     Type *cur = &head;
+    bool is_variadic = false;
 
     while (!consume(")", TK_RESERVED)) {
         if (cur != &head) {
             expect(",");
+        }
+
+        if (consume("...", TK_RESERVED)) {
+            is_variadic = true;
+            expect(")");
+            break;
         }
 
         Type *ty2 = declarator(declspec(NULL));
@@ -1035,7 +1042,9 @@ static Type *func_suffix(Type *ty) {
         cur = cur->next = copy_type(ty2);
     }
 
-    return func_type(ty, head.next);
+    ty = func_type(ty, head.next);
+    ty->is_variadic = is_variadic;
+    return ty;
 }
 
 // type-suffix = ary-suffix | func-suffix | ε
@@ -2147,8 +2156,15 @@ static Node *funcall(Node *fn) {
         if (cur != &head) {
             expect(",");
         }
-        cur = cur->next = new_node_cast(assign(), ty->params);
-        param_ty = param_ty->next;
+
+        Node *arg = assign();
+        add_type(arg);
+        if (param_ty) {
+            cur = cur->next = new_node_cast(arg, param_ty);
+            param_ty = param_ty->next;
+        } else {
+            cur = cur->next = arg;
+        }
     }
 
     Node *node = new_node(ND_FUNCALL, tok);

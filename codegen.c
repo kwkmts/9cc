@@ -297,16 +297,28 @@ static void gen_lval(Node *node) {
     switch (node->kind) {
     case ND_VAR:
         if (node->var.var->kind == LVAR) {
-            // ローカル変数
             MOV(RAX, RBP);
             SUB(RAX, IMM(node->var.var->offset));
             PUSH(RAX);
-        } else {
-            // グローバル変数・関数
+            return;
+        }
+
+        if (node->var.var->kind == GVAR) {
             LEA(RAX, INDIRECT_LABEL(node->var.var->name, RIP));
             PUSH(RAX);
+            return;
         }
-        return;
+
+        if (node->var.var->kind == FUNC) {
+            if (node->var.var->has_definition) {
+                LEA(RAX, INDIRECT_LABEL(node->var.var->name, RIP));
+            } else {
+                LEA(RAX,
+                    INDIRECT_LABEL(format("%s@PLT", node->var.var->name), RIP));
+            }
+            PUSH(RAX);
+            return;
+        }
     case ND_MEMBER:
         gen_lval(node->member.lhs);
         POP(RAX);
