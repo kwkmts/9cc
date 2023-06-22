@@ -30,6 +30,7 @@ _Bool bool_fn_add(_Bool x) { return x + 1; }
 _Bool bool_fn_sub(_Bool x) { return x - 1; }
 int (*ret_fnptr(int (*fn)(int,int)))(int,int) { return fn; }
 int param_decay(int x()) { return x(); }
+int param_decay2(int x[]) { return x[0]; }
 
 int main() {
     ASSERT(3, ret3());
@@ -73,6 +74,7 @@ int main() {
     ASSERT(7, ret_fnptr(add)(2,5));
 
     ASSERT(3, param_decay(ret3));
+    ASSERT(3, ({ int x[2]; x[0]=3; param_decay2(x); }));
 
     return 0;
 }

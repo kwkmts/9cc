@@ -1027,8 +1027,10 @@ static Type *func_suffix(Type *ty) {
         Token *name = ty2->ident;
         if (is_type_of(TY_FUNC, ty2)) {
             ty2 = pointer_to(ty2);
-            ty2->ident = name;
+        } else if (is_type_of(TY_ARY, ty2)) {
+            ty2 = pointer_to(ty2->base);
         }
+        ty2->ident = name;
 
         cur = cur->next = copy_type(ty2);
     }
