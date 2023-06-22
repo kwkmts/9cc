@@ -1023,7 +1023,14 @@ static Type *func_suffix(Type *ty) {
             expect(",");
         }
 
-        cur = cur->next = copy_type(declarator(declspec(NULL)));
+        Type *ty2 = declarator(declspec(NULL));
+        Token *name = ty2->ident;
+        if (is_type_of(TY_FUNC, ty2)) {
+            ty2 = pointer_to(ty2);
+            ty2->ident = name;
+        }
+
+        cur = cur->next = copy_type(ty2);
     }
 
     return func_type(ty, head.next);

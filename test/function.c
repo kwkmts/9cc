@@ -29,6 +29,7 @@ int div_long(long a, long b) {
 _Bool bool_fn_add(_Bool x) { return x + 1; }
 _Bool bool_fn_sub(_Bool x) { return x - 1; }
 int (*ret_fnptr(int (*fn)(int,int)))(int,int) { return fn; }
+int param_decay(int x()) { return x(); }
 
 int main() {
     ASSERT(3, ret3());
@@ -70,6 +71,8 @@ int main() {
     ASSERT(7, ({ int (*fn)(int,int)=add; (*fn)(2,5); }));
     ASSERT(7, ({ int (*fn)(int,int)=add; (&**&fn)(2,5); }));
     ASSERT(7, ret_fnptr(add)(2,5));
+
+    ASSERT(3, param_decay(ret3));
 
     return 0;
 }
