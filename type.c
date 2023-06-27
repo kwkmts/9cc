@@ -59,6 +59,39 @@ Type *func_type(Type *ret, Type *params) {
     return ty;
 }
 
+Member *new_member(int idx, Type *ty, Token *name, int offset) {
+    Member *mem = calloc(1, sizeof(Member));
+    mem->idx = idx;
+    mem->ty = ty;
+    mem->name = name;
+    mem->offset = offset;
+    return mem;
+}
+
+// __builtin_va_list型
+// struct {
+//   unsigned int gp_offset;
+//   unsigned int fp_offset;
+//   void *overflow_arg_area;
+//   void *reg_save_area;
+// }[1];
+Type *va_list_type() {
+    static Type *ty;
+    if (!ty) {
+        ty = calloc(1, sizeof(Type));
+        ty->kind = TY_STRUCT;
+        ty->size = 24;
+        ty->align = 8;
+        ty->members = new_member(0, ty_uint, NULL, 0);
+        ty->members->next = new_member(1, ty_uint, NULL, 4);
+        ty->members->next->next = new_member(2, pointer_to(ty_void), NULL, 8);
+        ty->members->next->next->next =
+            new_member(4, pointer_to(ty_void), NULL, 16);
+        ty = array_of(ty, 1);
+    }
+    return ty;
+}
+
 void add_const(Type **ty) {
     if (is_type_of(TY_ARY, *ty)) {
         add_const(&(*ty)->base);

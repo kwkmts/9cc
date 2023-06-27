@@ -95,6 +95,7 @@ struct Obj {
     Obj *locals; // ローカル変数の連結リスト(先頭からnparams個はパラメータ)
     int stack_size;
     Token *lbrace;       // 関数定義の開始位置("{")
+    Obj *reg_save_area;  // 可変長引数関数で使われる
 
     bool is_static;      // グローバル変数・関数で使われる
     bool has_definition; // グローバル変数・関数で使われる
@@ -327,6 +328,8 @@ Type *pointer_to(Type *base);
 Type *array_of(Type *base, int len);
 Type *enum_type();
 Type *func_type(Type *ret, Type *params);
+Member *new_member(int idx, Type *ty, Token *name, int offset);
+Type *va_list_type();
 void add_const(Type **ty);
 void add_type(Node *node);
 

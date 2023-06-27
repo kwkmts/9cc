@@ -140,6 +140,16 @@ static void push_var_into_var_scope(char *name, Obj *var) {
     scope->vars = sc;
 }
 
+static void push_builtin_obj_into_var_scope() {
+    char *builtins[] = {"__builtin_va_start", "__builtin_va_end"};
+    for (int i = 0; i < sizeof(builtins) / sizeof(*builtins); i++) {
+        Obj *var = calloc(1, sizeof(Obj));
+        var->kind = FUNC;
+        var->name = builtins[i];
+        push_var_into_var_scope(builtins[i], var);
+    }
+}
+
 static void push_enum_const_into_var_scope(char *name, EnumConst *ec) {
     VarScope *sc = calloc(1, sizeof(VarScope));
     sc->name = name;
@@ -622,6 +632,8 @@ static Node *primary();
 //                    | declspec declarator ("=" initializer)? ";"
 //                    | declspec ";"
 void program() {
+    push_builtin_obj_into_var_scope();
+
     while (!at_eof()) {
         VarAttr attr = NOATTR;
         Type *basety = declspec(&attr);
@@ -686,14 +698,11 @@ static Type *struct_decl() {
     int offset = 0;
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
-        Member *mem = calloc(1, sizeof(Member));
         Type *ty2 = declarator(declspec(NULL));
         expect(";");
 
-        mem->idx = idx++;
-        mem->ty = ty2;
-        mem->name = ty2->ident;
-        mem->offset = offset = align_to(offset, mem->ty->align);
+        Member *mem = new_member(idx++, ty2, ty2->ident,
+                                 offset = align_to(offset, ty2->align));
         offset += ty2->size;
 
         if (ty->align < mem->ty->align) {
@@ -737,14 +746,10 @@ static Type *union_decl() {
     int offset = 0;
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
-        Member *mem = calloc(1, sizeof(Member));
         Type *ty2 = declarator(declspec(NULL));
         expect(";");
 
-        mem->idx = idx++;
-        mem->ty = ty2;
-        mem->name = ty2->ident;
-        mem->offset = 0;
+        Member *mem = new_member(idx++, ty2, ty2->ident, 0);
 
         if (offset < ty2->size) {
             offset = ty2->size;
@@ -820,7 +825,8 @@ static bool is_storage_class_spec() {
 static bool is_typename() {
     static char *kw[] = {"unsigned", "signed", "void", "int",
                          "char",     "short",  "long", "_Bool",
-                         "struct",   "union",  "enum", "const"};
+                         "struct",   "union",  "enum", "__builtin_va_list",
+                         "const"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD, token)) {
             return true;
@@ -833,6 +839,7 @@ static bool is_typename() {
 //             | "unsigned" | "signed"
 //             | "void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | struct-decl | union-decl | enum-specifier | typedef-name
+//             | "__builtin_va_list"
 //             | "const")*
 static Type *declspec(VarAttr *attr) {
     enum {
@@ -924,6 +931,9 @@ static Type *declspec(VarAttr *attr) {
         } else if ((tok = consume("enum", TK_KEYWORD))) {
             ty_spec_count += OTHER;
             ty = enum_specifier();
+        } else if ((tok = consume("__builtin_va_list", TK_KEYWORD))) {
+            ty_spec_count += OTHER;
+            ty = va_list_type();
 
         } else if ((ty2 = find_typedef(token))) {
             if (ty_spec_count) {
@@ -1157,6 +1167,11 @@ static Obj *function(Type *ty) {
     for (Type *param = ty->params; param; param = param->next) {
         new_lvar(get_ident(param->ident), param);
         fn->nparams++;
+    }
+
+    if (ty->is_variadic) {
+        fn->reg_save_area = new_lvar(strndup("", 0), array_of(ty_char, 176));
+        fn->reg_save_area->ty->align = 16;
     }
 
     fn->lbrace = expect("{");
@@ -2139,6 +2154,31 @@ static Node *struct_ref(Node *lhs, Token *tok) {
 // funcall = "(" func-args? ")"
 // func-args = assign ("," assign)*
 static Node *funcall(Node *fn) {
+    if (fn->kind == ND_VAR) {
+        if (!strcmp(fn->var.var->name, "__builtin_va_start")) {
+            Token *tok = expect("(");
+            if (!cur_fn->ty->is_variadic) {
+                error_tok(tok, "固定長引数関数で使うことはできません");
+            }
+            Node *node = new_node(ND_FUNCALL, tok);
+            node->funcall.fn = fn;
+            node->funcall.args = assign();
+            expect(",");
+            node->funcall.args->next = assign();
+            expect(")");
+            return node;
+        }
+
+        if (!strcmp(fn->var.var->name, "__builtin_va_end")) {
+            Token *tok = expect("(");
+            Node *node = new_node(ND_FUNCALL, tok);
+            node->funcall.fn = fn;
+            node->funcall.args = assign();
+            expect(")");
+            return node;
+        }
+    }
+
     add_type(fn);
 
     if (!is_type_of(TY_FUNC, fn->ty) &&

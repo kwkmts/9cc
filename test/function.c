@@ -32,6 +32,12 @@ int (*ret_fnptr(int (*fn)(int,int)))(int,int) { return fn; }
 int param_decay(int x()) { return x(); }
 int param_decay2(int x[]) { return x[0]; }
 int add_all(int n, ...);
+void fmt(char *buf, char *fmt, ...) {
+    __builtin_va_list ap;
+    __builtin_va_start(ap, fmt);
+    vsprintf(buf, fmt, ap);
+    __builtin_va_end(ap);
+}
 
 int main() {
     ASSERT(3, ret3());
@@ -80,6 +86,9 @@ int main() {
     ASSERT(6, add_all(3,1,2,3));
     ASSERT(5, add_all(4,1,2,3,-1));
     ASSERT(0, ({ char buf[100]; sprintf(buf,"%d %d %s",1,2,"foo"); strcmp("1 2 foo",buf); }));
+
+    { char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); printf("%s\n", buf); }
+    ASSERT(0, ({ char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); strcmp("1 2 foo", buf); }));
 
     return 0;
 }

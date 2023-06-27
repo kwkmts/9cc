@@ -39,6 +39,15 @@
 #define R8B "r8b"
 #define R9B "r9b"
 
+#define XMM0 "xmm0"
+#define XMM1 "xmm1"
+#define XMM2 "xmm2"
+#define XMM3 "xmm3"
+#define XMM4 "xmm4"
+#define XMM5 "xmm5"
+#define XMM6 "xmm6"
+#define XMM7 "xmm7"
+
 #define BYTE_PTR(memop) format("BYTE PTR %s", memop)
 #define WORD_PTR(memop) format("WORD PTR %s", memop)
 #define DWORD_PTR(memop) format("DWORD PTR %s", memop)
@@ -61,6 +70,7 @@
 #define JNE(o1) println("    jne %s", o1)
 #define LEA(o1, o2) println("    lea %s, %s", o1, o2)
 #define MOV(o1, o2) println("    mov %s, %s", o1, o2)
+#define MOVAPS(o1, o2) println("    movaps %s, %s", o1, o2)
 #define MOVSX(o1, o2) println("    movsx %s, %s", o1, o2)
 #define MOVSXD(o1, o2) println("    movsxd %s, %s", o1, o2)
 #define MOVZB(o1, o2) println("    movzb %s, %s", o1, o2)
@@ -86,6 +96,8 @@ static char *const argreg64[] = {RDI, RSI, RDX, RCX, R8, R9};
 static char *const argreg32[] = {EDI, ESI, EDX, ECX, R8D, R9D};
 static char *const argreg16[] = {DI, SI, DX, CX, R8W, R9W};
 static char *const argreg8[] = {DIL, SIL, DL, CL, R8B, R9B};
+
+static Obj *cur_fn; // 現在コード生成中の関数
 
 static void gen_expr(Node *node);
 static void gen_stmt(Node *node);
@@ -372,6 +384,35 @@ static void gen_expr(Node *node) {
         PUSH(RAX);
         return;
     case ND_FUNCALL: {
+        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_start")) {
+            // 現時点では浮動小数点に対応していないので
+            // 8*(パラメータの数) がそのまま`gp_offset`になる
+            int gp_offset = 8 * cur_fn->nparams;
+            // 現時点では浮動小数点に対応していないので 48 固定
+            int fp_offset = 48;
+
+            Node *ap = node->funcall.args;
+            int ap_offset = ap->var.var->offset;
+            int reg_save_area_offset = cur_fn->reg_save_area->offset;
+
+            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), IMM(gp_offset));
+            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)), IMM(fp_offset));
+            // 現時点では6つ以上の引数に対応していないので
+            // `overflow_arg_area`は rbp+16 固定
+            LEA(RAX, INDIRECT(RBP, 16));
+            MOV(INDIRECT(RBP, -ap_offset + 8), RAX);
+            LEA(RAX, INDIRECT(RBP, -reg_save_area_offset));
+            MOV(INDIRECT(RBP, -ap_offset + 16), RAX);
+
+            PUSH(RAX);
+            return;
+        }
+
+        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_end")) {
+            PUSH(RAX);
+            return;
+        }
+
         gen_expr(node->funcall.fn);
         int nargs = 0;
         for (Node *arg = node->funcall.args; arg; arg = arg->next) {
@@ -807,6 +848,8 @@ static void emit_functions() {
             continue;
         }
 
+        cur_fn = fn;
+
         if (fn->locals) {
             int offset = 0;
             for (Obj *var = fn->locals; var; var = var->next) {
@@ -828,6 +871,24 @@ static void emit_functions() {
         PUSH(RBP);
         MOV(RBP, RSP);
         SUB(RSP, IMM(fn->stack_size));
+
+        if (fn->ty->is_variadic) {
+            int offset = fn->reg_save_area->offset;
+            MOV(INDIRECT(RBP, -offset), RDI);
+            MOV(INDIRECT(RBP, -offset + 8), RSI);
+            MOV(INDIRECT(RBP, -offset + 16), RDX);
+            MOV(INDIRECT(RBP, -offset + 24), RCX);
+            MOV(INDIRECT(RBP, -offset + 32), R8);
+            MOV(INDIRECT(RBP, -offset + 40), R9);
+            MOVAPS(INDIRECT(RBP, -offset + 48), XMM0);
+            MOVAPS(INDIRECT(RBP, -offset + 64), XMM1);
+            MOVAPS(INDIRECT(RBP, -offset + 80), XMM2);
+            MOVAPS(INDIRECT(RBP, -offset + 96), XMM3);
+            MOVAPS(INDIRECT(RBP, -offset + 112), XMM4);
+            MOVAPS(INDIRECT(RBP, -offset + 128), XMM5);
+            MOVAPS(INDIRECT(RBP, -offset + 144), XMM6);
+            MOVAPS(INDIRECT(RBP, -offset + 160), XMM7);
+        }
 
         // レジスタによって渡された引数の値をスタックに保存する
         Obj *var = fn->locals;
