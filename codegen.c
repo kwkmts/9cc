@@ -65,6 +65,7 @@
 #define DIV(o1) println("    div %s", o1)
 #define IDIV(o1) println("    idiv %s", o1)
 #define IMUL(o1, o2) println("    imul %s, %s", o1, o2)
+#define JAE(o1) println("    jae %s", o1)
 #define JE(o1) println("    je %s", o1)
 #define JMP(o1) println("    jmp %s", o1)
 #define JNE(o1) println("    jne %s", o1)
@@ -404,6 +405,43 @@ static void gen_expr(Node *node) {
             LEA(RAX, INDIRECT(RBP, -reg_save_area_offset));
             MOV(INDIRECT(RBP, -ap_offset + 16), RAX);
 
+            PUSH(RAX);
+            return;
+        }
+
+        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_arg")) {
+            Node *ap = node->funcall.args;
+            int ap_offset = ap->var.var->offset;
+
+            // 引数レジスタを消費しきったかどうか
+            MOV(EAX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+            CMP(EAX, IMM(48));
+            int c = count();
+            JAE(format(".L%d", c));
+
+            // 引数レジスタがまだ残っている場合
+            // 次に使用可能な引数レジスタのアドレスを計算
+            MOV(RAX, INDIRECT(RBP, -ap_offset + 16));
+            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+            MOV(EDX, EDX);
+            ADD(RAX, RDX);
+
+            // gp_offsetを更新
+            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+            ADD(EDX, IMM(8));
+            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), EDX);
+            int c2 = count();
+            JMP(format(".L%d", c2));
+
+            // 引数レジスタを消費しきった場合
+            println(".L%d:", c);
+            // overflow_arg_areaを更新
+            MOV(RAX, INDIRECT(RBP, -ap_offset + 8));
+            LEA(RDX, INDIRECT(RAX, 8));
+            MOV(INDIRECT(RBP, -ap_offset + 8), RDX);
+
+            println(".L%d:", c2);
+            MOV(RAX, INDIRECT(RAX, 0));
             PUSH(RAX);
             return;
         }

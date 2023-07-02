@@ -38,6 +38,17 @@ void fmt(char *buf, char *fmt, ...) {
     vsprintf(buf, fmt, ap);
     __builtin_va_end(ap);
 }
+int sum1(int x, ...) {
+    __builtin_va_list ap;
+    __builtin_va_start(ap, x);
+
+    for (;;) {
+        int y = __builtin_va_arg(ap, int);
+        if (y == 0)
+            return x;
+        x += y;
+    }
+}
 
 int main() {
     ASSERT(3, ret3());
@@ -89,6 +100,8 @@ int main() {
 
     { char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); printf("%s\n", buf); }
     ASSERT(0, ({ char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); strcmp("1 2 foo", buf); }));
+
+    ASSERT(6, sum1(1, 2, 3, 0));
 
     return 0;
 }
