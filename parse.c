@@ -142,7 +142,7 @@ static void push_var_into_var_scope(char *name, Obj *var) {
 
 static void push_builtin_obj_into_var_scope() {
     char *builtins[] = {"__builtin_va_start", "__builtin_va_arg",
-                        "__builtin_va_end"};
+                        "__builtin_va_end", "__builtin_va_copy"};
     for (int i = 0; i < sizeof(builtins) / sizeof(*builtins); i++) {
         Obj *var = calloc(1, sizeof(Obj));
         var->kind = FUNC;
@@ -2189,6 +2189,24 @@ static Node *funcall(Node *fn) {
             Node *node = new_node(ND_FUNCALL, tok);
             node->funcall.fn = fn;
             node->funcall.args = assign();
+            expect(")");
+            return node;
+        }
+
+        if (!strcmp(fn->var.var->name, "__builtin_va_copy")) {
+            Token *tok = expect("(");
+            Node *node = new_node(ND_FUNCALL, tok);
+            node->funcall.fn = fn;
+            node->funcall.args = assign();
+            if (node->funcall.args->ty != va_list_type()) {
+                error_tok(node->funcall.args->tok, "va_list型ではありません");
+            }
+            expect(",");
+            node->funcall.args->next = assign();
+            if (node->funcall.args->next->ty != va_list_type()) {
+                error_tok(node->funcall.args->next->tok,
+                          "va_list型ではありません");
+            }
             expect(")");
             return node;
         }

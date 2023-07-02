@@ -35,8 +35,12 @@ int add_all(int n, ...);
 void fmt(char *buf, char *fmt, ...) {
     __builtin_va_list ap;
     __builtin_va_start(ap, fmt);
-    vsprintf(buf, fmt, ap);
+
+    __builtin_va_list ap2;
+    __builtin_va_copy(ap2, ap);
+    vsprintf(buf, fmt, ap2);
     __builtin_va_end(ap);
+    __builtin_va_end(ap2);
 }
 int sum1(int x, ...) {
     __builtin_va_list ap;

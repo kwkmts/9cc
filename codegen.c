@@ -451,6 +451,23 @@ static void gen_expr(Node *node) {
             return;
         }
 
+        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_copy")) {
+            Node *dst = node->funcall.args;
+            Node *src = dst->next;
+            int dst_offset = dst->var.var->offset;
+            int src_offset = src->var.var->offset;
+            LEA(RCX, INDIRECT(RBP, -dst_offset));
+            LEA(RSI, INDIRECT(RBP, -src_offset));
+            MOV(RAX, INDIRECT(RSI, 0));
+            MOV(INDIRECT(RCX, 0), RAX);
+            MOV(RAX, INDIRECT(RSI, 8));
+            MOV(INDIRECT(RCX, 8), RAX);
+            MOV(RAX, INDIRECT(RSI, 16));
+            MOV(INDIRECT(RCX, 16), RAX);
+            PUSH(RAX);
+            return;
+        }
+
         gen_expr(node->funcall.fn);
         int nargs = 0;
         for (Node *arg = node->funcall.args; arg; arg = arg->next) {
