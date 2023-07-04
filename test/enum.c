@@ -21,5 +21,9 @@ int main() {
     ASSERT(4, ({ enum {zero, one, two } x; sizeof(x); }));
     ASSERT(4, ({ enum t { zero, one, two }; enum t y; sizeof(y); }));
 
+    ASSERT(0, ({ enum {zero=(0), one=(1&1), two=(1<<1)}; zero; }));
+    ASSERT(1, ({ enum {zero=(0), one=(1&1), two=(1<<1)}; one; }));
+    ASSERT(2, ({ enum {zero=(0), one=(1&1), two=(1<<1)}; two; }));
+
     return 0;
 }

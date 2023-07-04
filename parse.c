@@ -860,7 +860,7 @@ static Type *enum_specifier() {
         }
 
         if (consume("=", TK_RESERVED)) {
-            val = (int)expect_number()->val;
+            val = (int)calc_const_expr(assign(), &(char *){NULL} /* dummy */);
         }
 
         EnumConst *ec = calloc(1, sizeof(EnumConst));
