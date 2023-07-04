@@ -1072,10 +1072,13 @@ static Type *declspec(VarAttr *attr) {
     return ty;
 }
 
-// ary-suffix = "[" num? "]" ary-suffix?
+// ary-suffix = "[" assign? "]" ary-suffix?
 static Type *ary_suffix(Type *ty) {
     if (consume("[", TK_RESERVED)) {
-        int size = token->kind == TK_NUM ? (int)expect_number()->val : -1;
+        int size =
+            !equal("]", TK_RESERVED, token)
+                ? (int)calc_const_expr(assign(), &(char *){NULL} /* dummy */)
+                : -1;
         expect("]");
         ty = ary_suffix(ty);
         return array_of(ty, size);

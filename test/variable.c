@@ -133,5 +133,9 @@ int main() {
     ASSERT(10, ({ const struct t {char a; int b;} x={10,100}; x.a; }));
     ASSERT(2, ({ const int a[4]={1,2,3,4}; a[1];}));
 
+    ASSERT(6, ({ char a[2*3]; sizeof(a); }));
+    ASSERT(16, ({ int a[(char)260]; sizeof(a); }));
+    ASSERT(8, ({ char a[sizeof(int*)]; sizeof(a); }));
+
     return 0;
 }
