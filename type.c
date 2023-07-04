@@ -43,14 +43,6 @@ Type *array_of(Type *base, int len) {
     return ty;
 }
 
-Type *enum_type() {
-    Type *ty = calloc(1, sizeof(Type));
-    ty->kind = TY_ENUM;
-    ty->size = 4;
-    ty->align = 4;
-    return ty;
-}
-
 Type *func_type(Type *ret, Type *params) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_FUNC;

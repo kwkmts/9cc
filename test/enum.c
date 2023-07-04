@@ -1,6 +1,14 @@
 #include "test.h"
 
+enum gE;
+typedef enum gE gE;
+enum gE { A, B };
+
 int main() {
+    enum E;
+    typedef enum E E;
+    enum E { C, D };
+
     ASSERT(0, ({ enum {zero, one, two}; zero; }));
     ASSERT(1, ({ enum {zero, one, two}; one; }));
     ASSERT(2, ({ enum {zero, one, two}; two; }));

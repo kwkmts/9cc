@@ -1,6 +1,20 @@
 #include "test.h"
 
+struct gT;
+union gU;
+typedef struct gT gT;
+typedef union gU gU;
+struct gT {int a; int b;};
+union gU {int a; int b;};
+
 int main() {
+    struct T;
+    union U;
+    typedef struct T T;
+    typedef union U U;
+    struct T {int a; int b;};
+    union U {int a; int b;};
+
     ASSERT(1, ({ struct {int a; int b;} x; x.a=1; x.b=2; x.a; }));
     ASSERT(2, ({ struct {int a; int b;} x; x.a=1; x.b=2; x.b; }));
     ASSERT(1, ({ struct {char a; int b; char c;} x; x.a=1; x.b=2; x.c=3; x.a; }));

@@ -9,11 +9,13 @@ extern int ext1;
 extern int *ext2;
 const int g6;
 int;
+typedef void gV;
 
 int main() {
     int l1 = 0;
     int l2 = 42;
     void *l6;
+    typedef void V;
 
     ASSERT(0, l1);
     ASSERT(42, l2);

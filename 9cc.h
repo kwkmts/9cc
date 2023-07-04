@@ -327,7 +327,6 @@ bool is_integer(Type *ty);
 Type *copy_type(Type *ty);
 Type *pointer_to(Type *base);
 Type *array_of(Type *base, int len);
-Type *enum_type();
 Type *func_type(Type *ret, Type *params);
 Member *new_member(int idx, Type *ty, Token *name, int offset);
 Type *va_list_type();

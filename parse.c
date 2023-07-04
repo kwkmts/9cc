@@ -168,6 +168,7 @@ static void push_typedef_into_var_scope(char *name, Type *td) {
 }
 
 static void push_tag_scope(Type *ty) {
+    assert(ty->name);
     TagScope *sc = calloc(1, sizeof(TagScope));
     sc->ty = ty;
     sc->next = scope->tags;
@@ -327,6 +328,16 @@ static Type *find_tag(Token *tok) {
                         tag_sc->ty->name->len)) {
                 return tag_sc->ty;
             }
+        }
+    }
+    return NULL;
+}
+
+static Type *find_tag_in_cur_scope(Token *tok) {
+    for (TagScope *tag_sc = scope->tags; tag_sc; tag_sc = tag_sc->next) {
+        if (tag_sc->ty->name->len == tok->len &&
+            !memcmp(tok->loc, tag_sc->ty->name->loc, tag_sc->ty->name->len)) {
+            return tag_sc->ty;
         }
     }
     return NULL;
@@ -647,6 +658,16 @@ void program() {
         }
 
         Type *ty = declarator(basety);
+        if (!(attr & TYPEDEF)) {
+            if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
+                error_tok(ty->ident, "void型の変数を宣言することはできません");
+            }
+            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty) ||
+                 is_type_of(TY_ENUM, ty)) &&
+                ty->size < 0) {
+                error_tok(ty->ident, "不完全な型の変数宣言です");
+            }
+        }
 
         // typedef
         if (attr & TYPEDEF) {
@@ -678,23 +699,34 @@ void program() {
 //             | ident
 static Type *struct_decl() {
     Token *tag = consume_ident();
-    if (tag && !equal("{", TK_RESERVED, token)) {
-        Type *ty = find_tag(tag);
-        if (!ty) {
-            error_tok(tag, "そのような構造体型はありません");
+    Type *ty = NULL;
+    if (tag) {
+        ty = find_tag_in_cur_scope(tag);
+    }
+    if (!ty) {
+        ty = calloc(1, sizeof(Type));
+        ty->kind = TY_STRUCT;
+        ty->size = -1;
+        ty->align = 1;
+        ty->name = tag;
+        if (tag) {
+            push_tag_scope(ty);
         }
+    }
+
+    if (!is_type_of(TY_STRUCT, ty)) {
+        error_tok(tag, "前回の宣言と型が一致しません");
+    }
+
+    if (tag && !equal("{", TK_RESERVED, token)) {
         return ty;
     }
 
-    expect("{");
-    Type *ty = calloc(1, sizeof(Type));
-    ty->kind = TY_STRUCT;
-    ty->align = 1;
-
-    if (tag) {
-        ty->name = tag;
-        push_tag_scope(ty);
+    if (ty->size > 0) {
+        error_tok(tag, "構造体の再定義はできません");
     }
+
+    expect("{");
 
     Member head = {};
     Member *cur = &head;
@@ -726,23 +758,34 @@ static Type *struct_decl() {
 //             | ident
 static Type *union_decl() {
     Token *tag = consume_ident();
-    if (tag && !equal("{", TK_RESERVED, token)) {
-        Type *ty = find_tag(tag);
-        if (!ty) {
-            error_tok(tag, "そのような共用体型はありません");
+    Type *ty = NULL;
+    if (tag) {
+        ty = find_tag_in_cur_scope(tag);
+    }
+    if (!ty) {
+        ty = calloc(1, sizeof(Type));
+        ty->kind = TY_UNION;
+        ty->size = -1;
+        ty->align = 1;
+        ty->name = tag;
+        if (tag) {
+            push_tag_scope(ty);
         }
+    }
+
+    if (!is_type_of(TY_UNION, ty)) {
+        error_tok(tag, "前回の宣言と型が一致しません");
+    }
+
+    if (tag && !equal("{", TK_RESERVED, token)) {
         return ty;
     }
 
-    expect("{");
-    Type *ty = calloc(1, sizeof(Type));
-    ty->kind = TY_UNION;
-    ty->align = 1;
-
-    if (tag) {
-        ty->name = tag;
-        push_tag_scope(ty);
+    if (ty->size > 0) {
+        error_tok(tag, "共用体の再定義はできません");
     }
+
+    expect("{");
 
     Member head = {};
     Member *cur = &head;
@@ -776,17 +819,35 @@ static Type *union_decl() {
 //                | ident
 // enum-list = ident ("=" num)? ("," ident ("=" num)?)*
 static Type *enum_specifier() {
-    Type *ty = enum_type();
-    ty->name = consume_ident();
-    if (ty->name && !equal("{", TK_RESERVED, token)) {
-        Type *ty2 = find_tag(ty->name);
-        if (!ty2) {
-            error_tok(ty->name, "そのような列挙型はありません");
+    Token *tag = consume_ident();
+    Type *ty = NULL;
+    if (tag) {
+        ty = find_tag_in_cur_scope(tag);
+    }
+    if (!ty) {
+        ty = calloc(1, sizeof(Type));
+        ty->kind = TY_ENUM;
+        ty->size = -1;
+        ty->name = tag;
+        if (tag) {
+            push_tag_scope(ty);
         }
-        return ty2;
+    }
+
+    if (!is_type_of(TY_ENUM, ty)) {
+        error_tok(tag, "前回の宣言と型が一致しません");
+    }
+
+    if (tag && !equal("{", TK_RESERVED, token)) {
+        return ty;
+    }
+
+    if (ty->size > 0) {
+        error_tok(tag, "列挙体の再定義はできません");
     }
 
     expect("{");
+
     int val = 0;
     for (int i = 0; !consume("}", TK_RESERVED); i++) {
         if (i > 0) {
@@ -809,9 +870,8 @@ static Type *enum_specifier() {
         push_enum_const_into_var_scope(get_ident(tok), ec);
     }
 
-    if (ty->name) {
-        push_tag_scope(ty);
-    }
+    ty->size = 4;
+    ty->align = 4;
 
     return ty;
 }
@@ -1430,8 +1490,15 @@ static Node *declaration() {
 
     if (!equal(";", TK_RESERVED, token)) {
         Type *ty = declarator(basety);
-        if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
-            error_tok(ty->ident, "void型の変数を宣言することはできません");
+        if (!(attr & TYPEDEF)) {
+            if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
+                error_tok(ty->ident, "void型の変数を宣言することはできません");
+            }
+            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty) ||
+                 is_type_of(TY_ENUM, ty)) &&
+                ty->size < 0) {
+                error_tok(ty->ident, "不完全な型の変数宣言です");
+            }
         }
 
         if (attr & TYPEDEF) {
