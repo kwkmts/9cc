@@ -75,5 +75,56 @@ int main() {
     ASSERT(4, tree->lhs->rhs->val);
     ASSERT(1, tree2.val);
 
+    ASSERT(4, sizeof(0));
+    ASSERT(8, sizeof(0L));
+    ASSERT(8, sizeof(0LU));
+    ASSERT(8, sizeof(0UL));
+    ASSERT(8, sizeof(0LL));
+    ASSERT(8, sizeof(0LLU));
+    ASSERT(8, sizeof(0Ull));
+    ASSERT(8, sizeof(0l));
+    ASSERT(8, sizeof(0ll));
+    ASSERT(8, sizeof(0x0L));
+    ASSERT(4, sizeof(2147483647));
+    ASSERT(8, sizeof(2147483648));
+    ASSERT(-1, 0xffffffffffffffff);
+    ASSERT(8, sizeof(0xffffffffffffffff));
+    ASSERT(4, sizeof(4294967295U));
+    ASSERT(8, sizeof(4294967296U));
+
+    ASSERT(3, -1U>>30);
+    ASSERT(3, -1Ul>>62);
+    ASSERT(3, -1ull>>62);
+
+    ASSERT(1, 0xffffffffffffffffl>>63);
+    ASSERT(1, 0xffffffffffffffffll>>63);
+
+    ASSERT(-1, 18446744073709551615);
+    ASSERT(8, sizeof(18446744073709551615));
+    ASSERT(-1, 18446744073709551615>>63);
+
+    ASSERT(-1, 0xffffffffffffffff);
+    ASSERT(8, sizeof(0xffffffffffffffff));
+    ASSERT(1, 0xffffffffffffffff>>63);
+
+    ASSERT(-1, 01777777777777777777777);
+    ASSERT(8, sizeof(01777777777777777777777));
+    ASSERT(1, 01777777777777777777777>>63);
+
+    ASSERT(8, sizeof(2147483648));
+    ASSERT(4, sizeof(2147483647));
+
+    ASSERT(8, sizeof(0x1ffffffff));
+    ASSERT(4, sizeof(0xffffffff));
+    ASSERT(1, 0xffffffff>>31);
+
+    ASSERT(8, sizeof(040000000000));
+    ASSERT(4, sizeof(037777777777));
+    ASSERT(1, 037777777777>>31);
+
+    ASSERT(-1, 1<<31>>31);
+    ASSERT(-1, 01<<31>>31);
+    ASSERT(-1, 0x1<<31>>31);
+
     return 0;
 }

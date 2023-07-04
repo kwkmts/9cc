@@ -355,6 +355,9 @@ static Node *new_node_unary(NodeKind kind, Node *expr, Token *tok) {
 static Node *new_node_num(int64_t val, Token *tok) {
     Node *node = new_node(ND_NUM, tok);
     node->num.val = val;
+    if (tok) {
+        node->ty = tok->val_ty;
+    }
     return node;
 }
 

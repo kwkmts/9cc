@@ -170,7 +170,65 @@ static char read_char(char **p) {
     }
 }
 
-static int64_t read_int_literal(char **p) {
+static Type *read_int_suffix(char **p, int64_t val, int base) {
+    char *start = *p;
+    bool is_long = false;
+    bool is_unsigned = false;
+
+    for (;;) {
+        if (!is_long) {
+            if (strncmp(*p, "LL", 2) == 0 || strncmp(*p, "ll", 2) == 0) {
+                (*p) += 2;
+                is_long = true;
+                continue;
+            } else if (strncasecmp(*p, "L", 1) == 0) {
+                (*p)++;
+                is_long = true;
+                continue;
+            }
+        }
+
+        if (!is_unsigned && strncasecmp(*p, "U", 1) == 0) {
+            (*p)++;
+            is_unsigned = true;
+            continue;
+        }
+
+        if (is_alnum(**p)) {
+            error_at(start, "不正なサフィックスです");
+        }
+
+        break;
+    }
+
+    if (base == 10) {
+        if (is_long && is_unsigned) {
+            return ty_ulong;
+        } else if (is_long) {
+            return ty_long;
+        } else if (is_unsigned) {
+            return (val >> 32) ? ty_ulong : ty_uint;
+        } else {
+            return (val >> 31) ? ty_long : ty_int;
+        }
+    } else {
+        if (is_long && is_unsigned || val >> 63) {
+            return ty_ulong;
+        } else if (is_long) {
+            return (val >> 63) ? ty_ulong : ty_long;
+        } else if (is_unsigned) {
+            return (val >> 32) ? ty_ulong : ty_uint;
+        } else if (val >> 32) {
+            return ty_long;
+        } else if (val >> 31) {
+            return ty_uint;
+        } else {
+            return ty_int;
+        }
+    }
+}
+
+static void read_int_literal(char **p, Token **tok) {
     int base;
     if (strncasecmp(*p, "0x", 2) == 0 && is_alnum(*p[2])) {
         *p += 2;
@@ -181,12 +239,8 @@ static int64_t read_int_literal(char **p) {
         base = 10;
     }
 
-    int64_t val = strtol(*p, p, base);
-    if (is_alnum(**p)) {
-        error_at(*p, "不正な数字です");
-    }
-
-    return val;
+    (*tok)->val = (int64_t)strtoul(*p, p, base);
+    (*tok)->val_ty = read_int_suffix(p, (*tok)->val, base);
 }
 
 static void add_line_no(Token *tok) {
@@ -259,7 +313,7 @@ Token *tokenize() {
         // 数値リテラル
         if (isdigit(*p)) {
             cur = cur->next = new_token(TK_NUM, p, 0);
-            cur->val = read_int_literal(&p);
+            read_int_literal(&p, &cur);
             continue;
         }
 

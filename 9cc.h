@@ -43,6 +43,7 @@ struct Token {
     TokenKind kind; // トークンの種類
     Token *next;    // 次の入力トークン
     int64_t val;    // kindがTK_NUMの場合、その数値
+    Type *val_ty;   // kindがTK_NUMの場合、その型
     char *loc;      // 入力プログラム中での位置
     char *str;      // 文字列リテラル
     int len;        // トークンの長さ
