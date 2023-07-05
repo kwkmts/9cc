@@ -662,11 +662,12 @@ void program() {
             if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
                 error_tok(ty->ident, "void型の変数を宣言することはできません");
             }
-            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty) ||
-                 is_type_of(TY_ENUM, ty)) &&
-                ty->size < 0) {
-                error_tok(ty->ident, "不完全な型の変数宣言です");
-            }
+            //            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION,
+            //            ty) ||
+            //                 is_type_of(TY_ENUM, ty)) &&
+            //                ty->size < 0) {
+            //                error_tok(ty->ident, "不完全な型の変数宣言です");
+            //            }
         }
 
         // typedef
@@ -1551,11 +1552,12 @@ static Node *declaration() {
             if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
                 error_tok(ty->ident, "void型の変数を宣言することはできません");
             }
-            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty) ||
-                 is_type_of(TY_ENUM, ty)) &&
-                ty->size < 0) {
-                error_tok(ty->ident, "不完全な型の変数宣言です");
-            }
+            //            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION,
+            //            ty) ||
+            //                 is_type_of(TY_ENUM, ty)) &&
+            //                ty->size < 0) {
+            //                error_tok(ty->ident, "不完全な型の変数宣言です");
+            //            }
         }
 
         if (attr & TYPEDEF) {

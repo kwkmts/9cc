@@ -2,6 +2,9 @@
 
 enum gE;
 typedef enum gE gE;
+
+gE extE;
+
 enum gE { A, B };
 
 int main() {

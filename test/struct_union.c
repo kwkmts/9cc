@@ -4,8 +4,13 @@ struct gT;
 union gU;
 typedef struct gT gT;
 typedef union gU gU;
+
+gT extT;
+gU extU;
+
 struct gT {int a; int b;};
 union gU {int a; int b;};
+
 
 int main() {
     struct T;
