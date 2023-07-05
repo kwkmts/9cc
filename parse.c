@@ -482,6 +482,7 @@ static Obj *new_obj(char *name, Type *ty) {
 static Obj *new_lvar(char *name, Type *ty) {
     Obj *var = new_obj(name, ty);
     var->kind = LVAR;
+    var->has_definition = true;
     push_to_obj_list(var);
     return var;
 }

@@ -99,7 +99,7 @@ struct Obj {
     Obj *reg_save_area;  // 可変長引数関数で使われる
 
     bool is_static;      // グローバル変数・関数で使われる
-    bool has_definition; // グローバル変数・関数で使われる
+    bool has_definition; // ローカル変数では常にtrue
 };
 
 // 抽象構文木のノードの種類
