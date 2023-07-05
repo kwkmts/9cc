@@ -99,6 +99,8 @@ static int read_keyword(char *c) {
         "static",
         "extern",
         "const",
+        "volatile",
+        "restrict",
     };
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = (int)strlen(kw[i]);

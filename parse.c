@@ -886,17 +886,27 @@ static bool is_storage_class_spec() {
     return false;
 }
 
-static bool is_typename() {
-    static char *kw[] = {"unsigned", "signed", "void", "int",
-                         "char",     "short",  "long", "_Bool",
-                         "struct",   "union",  "enum", "__builtin_va_list",
-                         "const"};
+static bool is_type_qualifier() {
+    static char *kw[] = {"const", "volatile", "restrict"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD, token)) {
             return true;
         }
     }
-    return find_typedef(token) || is_storage_class_spec();
+    return false;
+}
+
+static bool is_typename() {
+    static char *kw[] = {"unsigned", "signed", "void", "int",
+                         "char",     "short",  "long", "_Bool",
+                         "struct",   "union",  "enum", "__builtin_va_list"};
+    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+        if (equal(kw[i], TK_KEYWORD, token)) {
+            return true;
+        }
+    }
+    return find_typedef(token) || is_storage_class_spec() ||
+           is_type_qualifier();
 }
 
 // declspec = ("typedef" | "static" | "extern"
@@ -904,7 +914,7 @@ static bool is_typename() {
 //             | "void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | struct-decl | union-decl | enum-specifier | typedef-name
 //             | "__builtin_va_list"
-//             | "const")*
+//             | "const" | "volatile" | "restrict")*
 static Type *declspec(VarAttr *attr) {
     enum {
         VOID = 1 << 0,
@@ -922,14 +932,27 @@ static Type *declspec(VarAttr *attr) {
     Type *ty;
     int ty_spec_count = 0;
     bool is_const = false;
+    bool is_volatile = false;
 
     while (is_typename()) {
-        if ((tok = consume("const", TK_KEYWORD))) {
-            if (is_const) {
-                error_tok(tok, "constを複数指定することはできません");
+        if (is_type_qualifier()) {
+            if ((tok = consume("const", TK_KEYWORD))) {
+                if (is_const) {
+                    error_tok(tok, "constを複数指定することはできません");
+                }
+                is_const = true;
+                continue;
             }
-            is_const = true;
-            continue;
+            if ((tok = consume("volatile", TK_KEYWORD))) {
+                if (is_volatile) {
+                    error_tok(tok, "volatileを複数指定することはできません");
+                }
+                is_volatile = true;
+                continue;
+            }
+            if ((tok = consume("restrict", TK_KEYWORD))) {
+                error_tok(tok, "ここでrestrictを使うことはできません");
+            }
         }
 
         if (is_storage_class_spec()) {
@@ -1137,14 +1160,45 @@ static Type *type_suffix(Type *ty) {
     return ty;
 }
 
-// declarator = ("*" "const"?)* (ident | "(" declarator ")") type-suffix
-static Type *declarator(Type *ty) {
+// pointers = ("*" ("const" | "volatile" | "restrict")*)*
+static Type *pointers(Type *ty) {
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
-        if (consume("const", TK_KEYWORD)) {
-            ty->is_const = true;
+        Token *tok;
+        bool is_volatile = false;
+        bool is_restrict = false;
+
+        while (is_type_qualifier()) {
+            if ((tok = consume("const", TK_KEYWORD))) {
+                if (ty->is_const) {
+                    error_tok(tok, "constを複数指定することはできません");
+                }
+                ty->is_const = true;
+                continue;
+            }
+            if ((tok = consume("volatile", TK_KEYWORD))) {
+                if (is_volatile) {
+                    error_tok(tok, "volatileを複数指定することはできません");
+                }
+                is_volatile = true;
+                continue;
+            }
+            if ((tok = consume("restrict", TK_KEYWORD))) {
+                if (is_restrict) {
+                    error_tok(tok, "restrictを複数指定することはできません");
+                }
+                is_restrict = true;
+                continue;
+            }
         }
     }
+
+    return ty;
+}
+
+// declarator = pointers (ident | "("declarator ")") type-suffix
+static Type *declarator(Type *ty) {
+    ty = pointers(ty);
 
     if (consume("(", TK_RESERVED)) {
         Token *start = token;
