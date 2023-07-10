@@ -53,6 +53,8 @@ int sum1(int x, ...) {
         x += y;
     }
 }
+void a(){}
+void b(int a){}
 
 int main() {
     ASSERT(3, ret3());

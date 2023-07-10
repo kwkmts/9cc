@@ -132,12 +132,26 @@ static char *get_ident(Token *tok) {
 
 static bool at_eof() { return token->kind == TK_EOF; }
 
-static void push_var_into_var_scope(char *name, Obj *var) {
+static VarScope *look_in_cur_var_scope(Token *tok);
+
+// 名前の重複がある場合はエラーを報告
+static VarScope *new_var_scope(Token *tok) {
+    char *name = get_ident(tok);
+    if (look_in_cur_var_scope(tok)) {
+        error_tok(tok, "そのような識別子はすでに存在します");
+    }
+
     VarScope *sc = calloc(1, sizeof(VarScope));
     sc->name = name;
-    sc->var = var;
     sc->next = scope->vars;
     scope->vars = sc;
+    return sc;
+}
+
+static VarScope *push_var_into_var_scope(Token *tok, Obj *var) {
+    VarScope *sc = new_var_scope(tok);
+    sc->var = var;
+    return sc;
 }
 
 static void push_builtin_obj_into_var_scope() {
@@ -147,24 +161,25 @@ static void push_builtin_obj_into_var_scope() {
         Obj *var = calloc(1, sizeof(Obj));
         var->kind = FUNC;
         var->name = builtins[i];
-        push_var_into_var_scope(builtins[i], var);
+
+        VarScope *sc = calloc(1, sizeof(VarScope));
+        sc->name = var->name;
+        sc->next = scope->vars;
+        scope->vars = sc;
+        sc->var = var;
     }
 }
 
-static void push_enum_const_into_var_scope(char *name, EnumConst *ec) {
-    VarScope *sc = calloc(1, sizeof(VarScope));
-    sc->name = name;
+static VarScope *push_enum_const_into_var_scope(Token *tok, EnumConst *ec) {
+    VarScope *sc = new_var_scope(tok);
     sc->enum_const = ec;
-    sc->next = scope->vars;
-    scope->vars = sc;
+    return sc;
 }
 
-static void push_typedef_into_var_scope(char *name, Type *td) {
-    VarScope *sc = calloc(1, sizeof(VarScope));
-    sc->name = name;
+static VarScope *push_typedef_into_var_scope(Token *tok, Type *td) {
+    VarScope *sc = new_var_scope(tok);
     sc->typedef_ = td;
-    sc->next = scope->vars;
-    scope->vars = sc;
+    return sc;
 }
 
 static void push_tag_scope(Type *ty) {
@@ -471,32 +486,36 @@ static void push_to_obj_list(Obj *obj) {
     }
 }
 
-static Obj *new_obj(char *name, Type *ty) {
+static Obj *new_obj(Token *tok, char *name, Type *ty) {
     Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
     var->ty = ty;
-    push_var_into_var_scope(var->name, var);
+
+    // 入力プログラム中に書かれた変数のみを変数スコープに登録する
+    if (tok) {
+        push_var_into_var_scope(tok, var);
+    }
     return var;
 }
 
-static Obj *new_lvar(char *name, Type *ty) {
-    Obj *var = new_obj(name, ty);
+static Obj *new_lvar(Token *tok, char *name, Type *ty) {
+    Obj *var = new_obj(tok, name, ty);
     var->kind = LVAR;
     var->has_definition = true;
     push_to_obj_list(var);
     return var;
 }
 
-static Obj *new_gvar(char *name, Type *ty) {
-    Obj *var = new_obj(name, ty);
+static Obj *new_gvar(Token *tok, char *name, Type *ty) {
+    Obj *var = new_obj(tok, name, ty);
     var->kind = GVAR;
     var->has_definition = true;
     push_to_obj_list(var);
     return var;
 }
 
-static Obj *new_func(char *name, Type *ty) {
-    Obj *fn = new_obj(name, ty);
+static Obj *new_func(Token *tok, char *name, Type *ty) {
+    Obj *fn = new_obj(tok, name, ty);
     fn->kind = FUNC;
     fn->name = name;
     fn->ty = ty;
@@ -556,7 +575,7 @@ static char *to_init_data(char *str) {
 
 static Obj *new_str_literal(Token *tok) {
     static int str_count = 0;
-    Obj *var = new_gvar(format(".Lstr%d", str_count++),
+    Obj *var = new_gvar(NULL, format(".Lstr%d", str_count++),
                         array_of(ty_char, tok->len + 1));
     var->init_data_str = to_init_data(tok->str);
     return var;
@@ -568,7 +587,7 @@ static Node *to_assign(Node *binary) {
     add_type(binary->binop.rhs);
 
     Node *var = new_node_var(
-        new_lvar(strndup("", 0), pointer_to(binary->binop.lhs->ty)), NULL);
+        new_lvar(NULL, "", pointer_to(binary->binop.lhs->ty)), NULL);
 
     Node *expr1 = new_node_binary(
         ND_ASSIGN, var, new_node_unary(ND_ADDR, binary->binop.lhs, NULL), NULL);
@@ -675,7 +694,7 @@ void program() {
         if (attr & TYPEDEF) {
             expect(";");
             ty->name = ty->ident;
-            push_typedef_into_var_scope(get_ident(ty->name), ty);
+            push_typedef_into_var_scope(ty->name, ty);
             continue;
         }
 
@@ -687,7 +706,7 @@ void program() {
         }
 
         // グローバル変数
-        Obj *var = new_gvar(get_ident(ty->ident), ty);
+        Obj *var = new_gvar(ty->ident, get_ident(ty->ident), ty);
         var->is_static = attr & STATIC;
         var->has_definition = !(attr & EXTERN);
         if (consume("=", TK_RESERVED)) {
@@ -869,7 +888,7 @@ static Type *enum_specifier() {
         ec->name = tok;
         ec->val = val++;
         ec->ty = ty;
-        push_enum_const_into_var_scope(get_ident(tok), ec);
+        push_enum_const_into_var_scope(tok, ec);
     }
 
     ty->size = 4;
@@ -1217,14 +1236,7 @@ static Type *declarator(Type *ty) {
         return ty;
     }
 
-    Token *tok = NULL;
-    if ((tok = consume_ident())) {
-        VarScope *sc = look_in_cur_var_scope(tok);
-        if (sc && sc->var->has_definition) {
-            error_tok(tok, "そのような識別子はすでに存在します");
-        }
-    }
-
+    Token *tok = consume_ident();
     ty = type_suffix(ty);
     ty->ident = tok;
     return ty;
@@ -1277,7 +1289,7 @@ static void resolve_goto_labels() {
 static Obj *function(Type *ty) {
     Obj *fn = find_func(ty->ident);
     if (!fn) {
-        fn = new_func(get_ident(ty->ident), ty);
+        fn = new_func(ty->ident, get_ident(ty->ident), ty);
     }
 
     if (consume(";", TK_RESERVED)) {
@@ -1288,12 +1300,12 @@ static Obj *function(Type *ty) {
     locals.next = NULL;
     enter_scope();
     for (Type *param = ty->params; param; param = param->next) {
-        new_lvar(get_ident(param->ident), param);
+        new_lvar(param->ident, get_ident(param->ident), param);
         fn->nparams++;
     }
 
     if (ty->is_variadic) {
-        fn->reg_save_area = new_lvar(strndup("", 0), array_of(ty_char, 176));
+        fn->reg_save_area = new_lvar(NULL, "", array_of(ty_char, 176));
         fn->reg_save_area->ty->align = 16;
     }
 
@@ -1563,20 +1575,19 @@ static Node *declaration() {
 
         if (attr & TYPEDEF) {
             ty->name = ty->ident;
-            push_typedef_into_var_scope(get_ident(ty->name), ty);
+            push_typedef_into_var_scope(ty->name, ty);
 
         } else if (attr & STATIC) {
             static int static_count = 0;
             char *name = get_ident(ty->ident);
             char *unique_name =
                 format("%s.%s.%d", cur_fn->name, name, static_count++);
-            Obj *var = new_gvar(unique_name, ty);
-            push_var_into_var_scope(name, var);
+            Obj *var = new_gvar(ty->ident, unique_name, ty);
             if (consume("=", TK_RESERVED)) {
                 gvar_initializer(var);
             }
         } else {
-            Obj *var = new_lvar(get_ident(ty->ident), ty);
+            Obj *var = new_lvar(ty->ident, get_ident(ty->ident), ty);
 
             if (consume("=", TK_RESERVED)) {
                 Node *node = new_node(ND_INIT, NULL);
@@ -2162,13 +2173,14 @@ static Node *cast() {
             // 複合リテラル
             if (equal("{", TK_RESERVED, token)) {
                 if (scope->parent) {
-                    Obj *var = new_lvar(strndup("", 0), ty);
+                    Obj *var = new_lvar(NULL, "", ty);
                     return new_node_binary(ND_COMMA, lvar_initializer(var),
                                            new_node_var(var, NULL), NULL);
                 }
 
                 static int count = 0;
-                Obj *var = new_gvar(format(".Lcompoundliteral%d", count++), ty);
+                Obj *var =
+                    new_gvar(NULL, format(".Lcompoundliteral%d", count++), ty);
                 var->is_static = true;
                 gvar_initializer(var);
                 return new_node_var(var, NULL);
