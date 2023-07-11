@@ -573,11 +573,11 @@ static char *to_init_data(char *str) {
     return buf;
 }
 
-static Obj *new_str_literal(Token *tok) {
+static Obj *new_str_literal(char *name) {
     static int str_count = 0;
     Obj *var = new_gvar(NULL, format(".Lstr%d", str_count++),
-                        array_of(ty_char, tok->len + 1));
-    var->init_data_str = to_init_data(tok->str);
+                        array_of(ty_char, (int)strlen(name) + 1));
+    var->init_data_str = to_init_data(name);
     return var;
 }
 
@@ -1299,6 +1299,13 @@ static Obj *function(Type *ty) {
     cur_fn = fn;
     locals.next = NULL;
     enter_scope();
+
+    VarScope *sc = calloc(1, sizeof(VarScope));
+    sc->name = "__func__";
+    sc->var = new_str_literal(fn->name);
+    sc->next = scope->vars;
+    scope->vars = sc;
+
     for (Type *param = ty->params; param; param = param->next) {
         new_lvar(param->ident, get_ident(param->ident), param);
         fn->nparams++;
@@ -2469,7 +2476,7 @@ static Node *primary() {
 
     // 文字列リテラル
     if (token->kind == TK_STR) {
-        Obj *var = new_str_literal(token);
+        Obj *var = new_str_literal(token->str);
         Node *node = new_node_var(var, token);
         token = token->next;
         return node;

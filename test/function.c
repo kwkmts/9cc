@@ -55,6 +55,7 @@ int sum1(int x, ...) {
 }
 void a(){}
 void b(int a){}
+const char *func_fn() { return __func__; }
 
 int main() {
     ASSERT(3, ret3());
@@ -108,6 +109,10 @@ int main() {
     ASSERT(0, ({ char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); strcmp("1 2 foo", buf); }));
 
     ASSERT(6, sum1(1, 2, 3, 0));
+
+    ASSERT(5, sizeof(__func__));
+    ASSERT(0, strcmp("main", __func__));
+    ASSERT(0, strcmp("func_fn", func_fn()));
 
     return 0;
 }
