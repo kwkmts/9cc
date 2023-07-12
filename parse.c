@@ -1808,14 +1808,29 @@ static Node *continue_stmt() {
     return node;
 }
 
-// return-stmt = "return" expr ";"
+// return-stmt = "return" expr? ";"
 static Node *return_stmt() {
-    Node *node = new_node(ND_RETURN, consume("return", TK_KEYWORD));
-    Node *exp = node->return_.expr = expr();
+    Token *tok = consume("return", TK_KEYWORD);
+    Node *node = new_node(ND_RETURN, tok);
+    bool in_void_fn = is_type_of(TY_VOID, cur_fn->ty->ret);
+    Node *exp;
+
+    if (equal(";", TK_RESERVED, token)) {
+        if (!in_void_fn) {
+            error_tok(tok, "非void関数では値を返す必要があります");
+        }
+        exp = new_node(ND_NULL_EXPR, NULL);
+    } else {
+        if (in_void_fn) {
+            error_tok(tok, "void関数から値を返すことはできません");
+        }
+        exp = expr();
+        add_type(exp);
+        exp = new_node_cast(exp, cur_fn->ty->ret);
+    }
     expect(";");
 
-    add_type(exp);
-    node->return_.expr = new_node_cast(exp, cur_fn->ty->ret);
+    node->return_.expr = exp;
     return node;
 }
 
