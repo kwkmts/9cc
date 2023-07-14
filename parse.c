@@ -1661,10 +1661,10 @@ static Node *switch_stmt() {
     return node;
 }
 
-// case-stmt = "case" num ":" stmt
+// case-stmt = "case" assign ":" stmt
 static Node *case_stmt() {
     Token *tok = consume("case", TK_KEYWORD);
-    int64_t val = expect_number()->val;
+    int64_t val = calc_const_expr(assign(), &(char *){NULL} /* dummy */);
 
     if (!cur_switch) {
         error_tok(tok, "ここでcase文を使用することはできません");
