@@ -2292,13 +2292,20 @@ static Node *ary_elem(Node *var, Node *idx) {
 
 static Member *struct_member(Type *ty) {
     for (Member *cur = ty->members; cur; cur = cur->next) {
+        if (!cur->name &&
+            (is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty))) {
+            if (struct_member(cur->ty)) {
+                return cur;
+            }
+            continue;
+        }
         if (cur->name->len == token->len &&
             !memcmp(cur->name->loc, token->loc, token->len)) {
             return cur;
         }
     }
 
-    error_tok(token, "そのようなメンバは存在しません");
+    return NULL;
 }
 
 static Node *struct_ref(Node *lhs, Token *tok) {
@@ -2307,13 +2314,22 @@ static Node *struct_ref(Node *lhs, Token *tok) {
         error_tok(lhs->tok, "構造体/共用体ではありません");
     }
 
-    Member *mem = struct_member(lhs->ty);
-    if (lhs->ty->is_const) {
-        add_const(&mem->ty);
-    }
+    Type *ty = lhs->ty;
 
-    Node *node = new_node_member(lhs, mem, tok);
-    return node;
+    for (;;) {
+        Member *mem = struct_member(ty);
+        if (!mem) {
+            error_tok(token, "そのようなメンバは存在しません");
+        }
+        if (ty->is_const) {
+            add_const(&mem->ty);
+        }
+        if (mem->name) {
+            return new_node_member(lhs, mem, tok);;
+        }
+
+        ty = mem->ty;
+    }
 }
 
 // funcall = "(" func-args? ")"

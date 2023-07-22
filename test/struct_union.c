@@ -73,5 +73,11 @@ int main() {
 
     ASSERT(8, ({ struct t {const int a; int const b;} x={1,2}; sizeof(x); }));
 
+    ASSERT(0xef, ({ union {struct {unsigned char a; unsigned char b;}; long c;} x; x.c=0xbeef; x.a; }));
+    ASSERT(0xbe, ({ union {struct {unsigned char a; unsigned char b;}; long c;} x; x.c=0xbeef; x.b; }));
+
+    ASSERT(3, ({ struct {union {int a; int b;}; union {int c; int d;};} x; x.a=3; x.b; }));
+    ASSERT(5, ({ struct {union {int a; int b;}; union {int c; int d;};} x; x.d=5; x.c; }));
+
     return 0;
 }
