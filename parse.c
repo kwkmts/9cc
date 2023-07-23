@@ -1447,9 +1447,19 @@ static void str_initializer(Initializer *init) {
 // initializer = str-initializer | ary-initializer
 //             | struct-initializer | union-initializer | assign
 static void initializer2(Initializer *init) {
-    if (is_type_of(TY_ARY, init->ty) && token->kind == TK_STR) {
-        str_initializer(init);
-        return;
+    if (token->kind == TK_STR) {
+        if (is_type_of(TY_ARY, init->ty)) {
+            str_initializer(init);
+            return;
+        } else if (is_type_of(TY_PTR, init->ty)) {
+            Obj *var = new_str_literal(token->str);
+            init->expr =
+                new_node_unary(ND_ADDR, new_node_var(var, token), token);
+            token = token->next;
+            return;
+        } else {
+            error_tok(token, "初期化子の型が不正です");
+        }
     }
 
     if (is_type_of(TY_ARY, init->ty)) {
@@ -2325,7 +2335,8 @@ static Node *struct_ref(Node *lhs, Token *tok) {
             add_const(&mem->ty);
         }
         if (mem->name) {
-            return new_node_member(lhs, mem, tok);;
+            return new_node_member(lhs, mem, tok);
+            ;
         }
 
         ty = mem->ty;
