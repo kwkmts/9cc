@@ -20,7 +20,10 @@ test: $(TESTS)
 		echo; echo "OK"; echo; \
 	done
 
+err-test: 9cc
+	test/err_test.sh
+
 clean:
 	rm -f 9cc *.o *~ test/*.s test/*.out
 
-.PHONY: test clean
+.PHONY: test err-test clean

@@ -14,8 +14,15 @@ void error(char *fmt, ...) {
 
 // エラー箇所を報告
 void error_at(char *loc, char *fmt, ...) {
+    char *msg;
+    size_t buflen;
+    FILE *out = open_memstream(&msg, &buflen);
+
     va_list ap;
     va_start(ap, fmt);
+    vfprintf(out, fmt, ap);
+    va_end(ap);
+    fclose(out);
 
     char *line = loc;
     while (line > user_input && line[-1] != '\n') {
@@ -42,8 +49,16 @@ void error_at(char *loc, char *fmt, ...) {
     int pos = (int)(loc - line + indent);
     fprintf(stderr, "%*s", pos, "");
     fprintf(stderr, "^ ");
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    fprintf(stderr, "%s\n", msg);
+
+    FILE *fp = fopen("/tmp/9cc_err_info", "w");
+    if (fp) {
+        fprintf(fp, "%d\n", line_no);
+        fprintf(fp, "%d\n", column_no);
+        fprintf(fp, "%s\n", msg);
+        fclose(fp);
+    }
+
     exit(1);
 }
 
