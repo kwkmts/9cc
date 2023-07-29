@@ -27,14 +27,16 @@ void error_at(char *loc, char *fmt, ...) {
         end++;
     }
 
-    int line_num = 1;
+    int line_no = 1;
     for (char *p = user_input; p < line; p++) {
         if (*p == '\n') {
-            line_num++;
+            line_no++;
         }
     }
 
-    int indent = fprintf(stderr, "%s:%d: ", filepath, line_num);
+    int column_no = (int)(loc - line + 1);
+
+    int indent = fprintf(stderr, "%s:%d:%d: ", filepath, line_no, column_no);
     fprintf(stderr, "%.*s\n", (int)(end - line), line);
 
     int pos = (int)(loc - line + indent);
