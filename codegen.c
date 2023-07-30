@@ -136,8 +136,7 @@ int align_to(int n, int align) {
 }
 
 static void load(Type *ty) {
-    if (is_type_of(TY_ARY, ty) || is_type_of(TY_STRUCT, ty) ||
-        is_type_of(TY_UNION, ty)) {
+    if (is_any_type_of(ty, 3, TY_ARY, TY_STRUCT, TY_UNION)) {
         return;
     }
 
@@ -148,22 +147,26 @@ static void load(Type *ty) {
         } else {
             MOVSX(EAX, BYTE_PTR(INDIRECT(RAX, 0)));
         }
-        break;
+        return;
     case 2:
         if (ty->is_unsigned) {
             MOVZX(EAX, WORD_PTR(INDIRECT(RAX, 0)));
         } else {
             MOVSX(EAX, WORD_PTR(INDIRECT(RAX, 0)));
         }
-        break;
+        return;
     case 4:
         MOV(EAX, DWORD_PTR(INDIRECT(RAX, 0)));
-        break;
+        return;
     case 8:
         MOV(RAX, INDIRECT(RAX, 0));
-        break;
-    default:;
+        return;
     }
+
+    // TODO: TY_FUNCは来ないはず(後で実装)
+    //    fprintf(stderr, "#size: %d\n", ty->size);
+    //    fprintf(stderr, "#kind: %d\n", ty->kind);
+    //    unreachable();
 }
 
 static void store2(int size, int offset) {
@@ -184,15 +187,15 @@ static void store2(int size, int offset) {
         MOV(RDX, INDIRECT(RDI, offset));
         MOV(INDIRECT(RAX, offset), RDX);
         return;
-    default:;
+    default:
+        unreachable();
     }
 }
 
 static void store(Type *ty, int offset) {
-    if (is_type_of(TY_STRUCT, ty)) {
+    if (is_any_type_of(ty, 1, TY_STRUCT)) {
         for (Member *mem = ty->members; mem; mem = mem->next) {
-            if (is_type_of(TY_STRUCT, mem->ty) ||
-                is_type_of(TY_UNION, mem->ty) || is_type_of(TY_ARY, mem->ty)) {
+            if (is_any_type_of(mem->ty, 3, TY_STRUCT, TY_UNION, TY_ARY)) {
                 store(mem->ty, offset + mem->offset);
                 continue;
             }
@@ -202,10 +205,8 @@ static void store(Type *ty, int offset) {
         return;
     }
 
-    if (is_type_of(TY_UNION, ty)) {
-        if (is_type_of(TY_STRUCT, ty->members->ty) ||
-            is_type_of(TY_UNION, ty->members->ty) ||
-            is_type_of(TY_ARY, ty->members->ty)) {
+    if (is_any_type_of(ty, 1, TY_UNION)) {
+        if (is_any_type_of(ty->members->ty, 3, TY_STRUCT, TY_UNION, TY_ARY)) {
             store(ty->members->ty, offset);
             return;
         }
@@ -214,7 +215,7 @@ static void store(Type *ty, int offset) {
         return;
     }
 
-    if (is_type_of(TY_ARY, ty)) {
+    if (is_any_type_of(ty, 1, TY_ARY)) {
         for (int i = 0; i < ty->ary_len; i++) {
             store2(ty->base->size, offset + ty->base->size * i);
         }
@@ -224,18 +225,19 @@ static void store(Type *ty, int offset) {
     switch (ty->size) {
     case 1:
         MOV(INDIRECT(RAX, 0), DIL);
-        break;
+        return;
     case 2:
         MOV(INDIRECT(RAX, 0), DI);
-        break;
+        return;
     case 4:
         MOV(INDIRECT(RAX, 0), EDI);
-        break;
+        return;
     case 8:
         MOV(INDIRECT(RAX, 0), RDI);
-        break;
-    default:;
+        return;
     }
+
+    unreachable();
 }
 
 static void s_8_32() { MOVSX(EAX, AL); }
@@ -258,7 +260,7 @@ static void (*cast_fn_table[][8])() = {
 };
 
 static int type_id(Type *ty) {
-    assert(is_integer(ty) || is_type_of(TY_PTR, ty));
+    assert(is_integer(ty) || is_any_type_of(ty, 1, TY_PTR));
 
     enum { I8, I16, I32, I64, U8, U16, U32, U64 };
 
@@ -272,18 +274,20 @@ static int type_id(Type *ty) {
     case 8:
         return ty->is_unsigned ? U64 : I64;
     }
+
+    unreachable();
 }
 
 static void cast(Type *from, Type *to) {
-    if (is_type_of(TY_ARY, from)) {
+    if (is_any_type_of(from, 1, TY_ARY)) {
         from = pointer_to(from->base);
     }
-    if (is_type_of(TY_STRUCT, from) || is_type_of(TY_UNION, from) ||
-        is_type_of(TY_FUNC, from) || is_type_of(TY_VOID, to)) {
+    if (is_any_type_of(from, 3, TY_STRUCT, TY_UNION, TY_FUNC) ||
+        is_any_type_of(to, 1, TY_VOID)) {
         return;
     }
 
-    if (is_integer(from) && is_type_of(TY_BOOL, to)) {
+    if (is_integer(from) && is_any_type_of(to, 1, TY_BOOL)) {
         switch (from->size) {
         case 1:
         case 2:
@@ -293,7 +297,8 @@ static void cast(Type *from, Type *to) {
         case 8:
             CMP(RAX, IMM(0));
             break;
-        default:;
+        default:
+            unreachable();
         }
 
         SETNE(AL);
@@ -346,10 +351,96 @@ static void gen_lval(Node *node) {
         POP(RAX);
         gen_lval(node->binop.rhs);
         return;
-    default:;
+    default:
+        error_tok(node->tok, "代入の左辺値が変数ではありません");
+    }
+}
+
+static void gen_builtin_funcall(Node *node) {
+    if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_start")) {
+        // 現時点では浮動小数点に対応していないので
+        // 8*(パラメータの数) がそのまま`gp_offset`になる
+        int gp_offset = 8 * cur_fn->nparams;
+        // 現時点では浮動小数点に対応していないので 48 固定
+        int fp_offset = 48;
+
+        Node *ap = node->funcall.args;
+        int ap_offset = ap->var.var->offset;
+        int reg_save_area_offset = cur_fn->reg_save_area->offset;
+
+        MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), IMM(gp_offset));
+        MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)), IMM(fp_offset));
+        // 現時点では6つ以上の引数に対応していないので
+        // `overflow_arg_area`は rbp+16 固定
+        LEA(RAX, INDIRECT(RBP, 16));
+        MOV(INDIRECT(RBP, -ap_offset + 8), RAX);
+        LEA(RAX, INDIRECT(RBP, -reg_save_area_offset));
+        MOV(INDIRECT(RBP, -ap_offset + 16), RAX);
+
+        PUSH(RAX);
+        return;
     }
 
-    error_tok(node->tok, "代入の左辺値が変数ではありません");
+    if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_arg")) {
+        Node *ap = node->funcall.args;
+        int ap_offset = ap->var.var->offset;
+
+        // 引数レジスタを消費しきったかどうか
+        MOV(EAX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+        CMP(EAX, IMM(48));
+        int c = count();
+        JAE(format(".L%d", c));
+
+        // 引数レジスタがまだ残っている場合
+        // 次に使用可能な引数レジスタのアドレスを計算
+        MOV(RAX, INDIRECT(RBP, -ap_offset + 16));
+        MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+        MOV(EDX, EDX);
+        ADD(RAX, RDX);
+
+        // gp_offsetを更新
+        MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+        ADD(EDX, IMM(8));
+        MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), EDX);
+        int c2 = count();
+        JMP(format(".L%d", c2));
+
+        // 引数レジスタを消費しきった場合
+        println(".L%d:", c);
+        // overflow_arg_areaを更新
+        MOV(RAX, INDIRECT(RBP, -ap_offset + 8));
+        LEA(RDX, INDIRECT(RAX, 8));
+        MOV(INDIRECT(RBP, -ap_offset + 8), RDX);
+
+        println(".L%d:", c2);
+        MOV(RAX, INDIRECT(RAX, 0));
+        PUSH(RAX);
+        return;
+    }
+
+    if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_end")) {
+        PUSH(RAX);
+        return;
+    }
+
+    if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_copy")) {
+        Node *dst = node->funcall.args;
+        Node *src = dst->next;
+        int dst_offset = dst->var.var->offset;
+        int src_offset = src->var.var->offset;
+        LEA(RCX, INDIRECT(RBP, -dst_offset));
+        LEA(RSI, INDIRECT(RBP, -src_offset));
+        MOV(RAX, INDIRECT(RSI, 0));
+        MOV(INDIRECT(RCX, 0), RAX);
+        MOV(RAX, INDIRECT(RSI, 8));
+        MOV(INDIRECT(RCX, 8), RAX);
+        MOV(RAX, INDIRECT(RSI, 16));
+        MOV(INDIRECT(RCX, 16), RAX);
+        PUSH(RAX);
+        return;
+    }
+
+    unreachable();
 }
 
 static void gen_expr(Node *node) {
@@ -385,86 +476,9 @@ static void gen_expr(Node *node) {
         PUSH(RAX);
         return;
     case ND_FUNCALL: {
-        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_start")) {
-            // 現時点では浮動小数点に対応していないので
-            // 8*(パラメータの数) がそのまま`gp_offset`になる
-            int gp_offset = 8 * cur_fn->nparams;
-            // 現時点では浮動小数点に対応していないので 48 固定
-            int fp_offset = 48;
-
-            Node *ap = node->funcall.args;
-            int ap_offset = ap->var.var->offset;
-            int reg_save_area_offset = cur_fn->reg_save_area->offset;
-
-            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), IMM(gp_offset));
-            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)), IMM(fp_offset));
-            // 現時点では6つ以上の引数に対応していないので
-            // `overflow_arg_area`は rbp+16 固定
-            LEA(RAX, INDIRECT(RBP, 16));
-            MOV(INDIRECT(RBP, -ap_offset + 8), RAX);
-            LEA(RAX, INDIRECT(RBP, -reg_save_area_offset));
-            MOV(INDIRECT(RBP, -ap_offset + 16), RAX);
-
-            PUSH(RAX);
-            return;
-        }
-
-        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_arg")) {
-            Node *ap = node->funcall.args;
-            int ap_offset = ap->var.var->offset;
-
-            // 引数レジスタを消費しきったかどうか
-            MOV(EAX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
-            CMP(EAX, IMM(48));
-            int c = count();
-            JAE(format(".L%d", c));
-
-            // 引数レジスタがまだ残っている場合
-            // 次に使用可能な引数レジスタのアドレスを計算
-            MOV(RAX, INDIRECT(RBP, -ap_offset + 16));
-            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
-            MOV(EDX, EDX);
-            ADD(RAX, RDX);
-
-            // gp_offsetを更新
-            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
-            ADD(EDX, IMM(8));
-            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), EDX);
-            int c2 = count();
-            JMP(format(".L%d", c2));
-
-            // 引数レジスタを消費しきった場合
-            println(".L%d:", c);
-            // overflow_arg_areaを更新
-            MOV(RAX, INDIRECT(RBP, -ap_offset + 8));
-            LEA(RDX, INDIRECT(RAX, 8));
-            MOV(INDIRECT(RBP, -ap_offset + 8), RDX);
-
-            println(".L%d:", c2);
-            MOV(RAX, INDIRECT(RAX, 0));
-            PUSH(RAX);
-            return;
-        }
-
-        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_end")) {
-            PUSH(RAX);
-            return;
-        }
-
-        if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_copy")) {
-            Node *dst = node->funcall.args;
-            Node *src = dst->next;
-            int dst_offset = dst->var.var->offset;
-            int src_offset = src->var.var->offset;
-            LEA(RCX, INDIRECT(RBP, -dst_offset));
-            LEA(RSI, INDIRECT(RBP, -src_offset));
-            MOV(RAX, INDIRECT(RSI, 0));
-            MOV(INDIRECT(RCX, 0), RAX);
-            MOV(RAX, INDIRECT(RSI, 8));
-            MOV(INDIRECT(RCX, 8), RAX);
-            MOV(RAX, INDIRECT(RSI, 16));
-            MOV(INDIRECT(RCX, 16), RAX);
-            PUSH(RAX);
+        if (node->funcall.fn->kind == ND_VAR &&
+            is_builtin(node->funcall.fn->var.var->name)) {
+            gen_builtin_funcall(node);
             return;
         }
 
@@ -582,15 +596,11 @@ static void gen_expr(Node *node) {
     POP(RDI);
     POP(RAX);
 
-    char *ax = node->binop.lhs->ty->kind == TY_LONG || node->binop.lhs->ty->base
-                   ? RAX
-                   : EAX;
-    char *di = node->binop.lhs->ty->kind == TY_LONG || node->binop.lhs->ty->base
-                   ? RDI
-                   : EDI;
-    char *dx = node->binop.lhs->ty->kind == TY_LONG || node->binop.lhs->ty->base
-                   ? RDX
-                   : EDX;
+    bool _64 =
+        node->binop.lhs->ty->kind == TY_LONG || node->binop.lhs->ty->base;
+    char *ax = _64 ? RAX : EAX;
+    char *di = _64 ? RDI : EDI;
+    char *dx = _64 ? RDX : EDX;
 
     switch (node->kind) {
     case ND_ADD:
@@ -653,7 +663,8 @@ static void gen_expr(Node *node) {
         MOV(ECX, EDI);
         node->ty->is_unsigned ? SHR(ax, CL) : SAR(ax, CL);
         break;
-    default:;
+    default:
+        unreachable();
     }
 
     PUSH(RAX);
@@ -819,8 +830,8 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         case 8:
             println("    .quad %ld", val);
             return;
-        default:;
         }
+        unreachable();
     }
 
     switch (cur->ty->kind) {
@@ -829,7 +840,7 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         for (int i = 1; i < cur->ty->ary_len; i++) {
             emit_gvar_init(cur->children[i], cur->children[i - 1]);
         }
-        break;
+        return;
     case TY_STRUCT: {
         Member *mem = cur->ty->members;
         emit_gvar_init(cur->children[mem->idx], NULL);
@@ -842,7 +853,7 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         if (padding > 0) {
             println("    .zero %d", padding);
         }
-        break;
+        return;
     }
     case TY_UNION: {
         emit_gvar_init(cur->children[0], NULL);
@@ -850,9 +861,10 @@ static void emit_gvar_init(Initializer *cur, Initializer *pre) {
         if (padding > 0) {
             println("    .zero %d", padding);
         }
-        break;
+        return;
     }
-    default:;
+    default:
+        unreachable();
     }
 }
 

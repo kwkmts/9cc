@@ -262,7 +262,7 @@ static void read_int_literal(char **p, Token **tok) {
     (*tok)->val_ty = read_int_suffix(p, (*tok)->val, base);
 }
 
-static void add_line_no(Token *tok) {
+static void add_line_column_no(Token *tok) {
     int line_no = 1;
     int column_no = 1;
     for (char *p = user_input; *p; p++) {
@@ -378,6 +378,6 @@ Token *tokenize() {
 
     cur->next = new_token(TK_EOF, p, 0);
 
-    add_line_no(head.next);
+    add_line_column_no(head.next);
     return head.next;
 }

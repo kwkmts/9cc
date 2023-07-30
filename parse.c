@@ -106,7 +106,7 @@ static Token *expect(char *op) {
 // それ以外の場合にはエラーを報告
 static Token *expect_number() {
     if (token->kind != TK_NUM) {
-        error_at(token->loc, "数ではありません");
+        error_tok(token, "数ではありません");
     }
     Token *tok = token;
     token = token->next;
@@ -118,7 +118,7 @@ static Token *expect_number() {
 static Token *expect_ident() {
     Token *ident = consume_ident();
     if (!ident) {
-        error_at(token->loc, "識別子ではありません");
+        error_tok(token, "識別子ではありません");
     }
     return ident;
 }
@@ -203,7 +203,8 @@ static int64_t calc_const_expr2(Node *node, char **label) {
     case ND_VAR:
         *label = node->var.var->name;
         return 0;
-    default:;
+    default:
+        unreachable();
     }
 }
 
@@ -420,7 +421,7 @@ static Node *new_node_add(Node *lhs, Node *rhs, Token *tok) {
     }
 
     if (lhs->ty->base && rhs->ty->base) {
-        error_at(tok->loc, "ポインタ同士の加算はできません");
+        error_tok(tok, "ポインタ同士の加算はできません");
     }
 
     // num + ptr => ptr + num
@@ -460,7 +461,7 @@ static Node *new_node_sub(Node *lhs, Node *rhs, Token *tok) {
                                new_node_num(lhs->ty->base->size, NULL), NULL);
     }
 
-    error_at(tok->loc, "数値からポインタ値を引くことはできません");
+    error_tok(tok, "数値からポインタ値を引くことはできません");
 }
 
 static void push_to_obj_list(Obj *obj) {
@@ -517,8 +518,6 @@ static Obj *new_gvar(Token *tok, char *name, Type *ty) {
 static Obj *new_func(Token *tok, char *name, Type *ty) {
     Obj *fn = new_obj(tok, name, ty);
     fn->kind = FUNC;
-    fn->name = name;
-    fn->ty = ty;
     fn->has_definition = false;
     push_to_obj_list(fn);
     return fn;
@@ -605,7 +604,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
     Initializer *init = calloc(1, sizeof(Initializer));
     init->ty = ty;
 
-    if (is_type_of(TY_ARY, ty)) {
+    if (is_any_type_of(ty, 1, TY_ARY)) {
         if (is_flexible && ty->ary_len < 0) {
             init->is_flexible = true;
             return init;
@@ -619,7 +618,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
         return init;
     }
 
-    if (is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty)) {
+    if (is_any_type_of(ty, 2, TY_STRUCT, TY_UNION)) {
         int len = 0;
         for (Member *mem = ty->members; mem; mem = mem->next) {
             len++;
@@ -662,61 +661,50 @@ static Node *unary();
 static Node *postfix();
 static Node *primary();
 
-// program = global-declaration*
-// global-declaration = declspec declarator function-decl
-//                    | declspec declarator ("=" initializer)? ";"
-//                    | declspec ";"
+// program = declaration*
 void program() {
     push_builtin_obj_into_var_scope();
 
     while (!at_eof()) {
-        VarAttr attr = NOATTR;
-        Type *basety = declspec(&attr);
-
-        if (consume(";", TK_RESERVED)) {
-            continue;
-        }
-
-        Type *ty = declarator(basety);
-        if (!(attr & TYPEDEF)) {
-            if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
-                error_tok(ty->ident, "void型の変数を宣言することはできません");
-            }
-            //            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION,
-            //            ty) ||
-            //                 is_type_of(TY_ENUM, ty)) &&
-            //                ty->size < 0) {
-            //                error_tok(ty->ident, "不完全な型の変数宣言です");
-            //            }
-        }
-
-        // typedef
-        if (attr & TYPEDEF) {
-            expect(";");
-            ty->name = ty->ident;
-            push_typedef_into_var_scope(ty->name, ty);
-            continue;
-        }
-
-        // 関数定義
-        if (is_type_of(TY_FUNC, ty)) {
-            Obj *fn = function(ty);
-            fn->is_static = attr & STATIC;
-            continue;
-        }
-
-        // グローバル変数
-        Obj *var = new_gvar(ty->ident, get_ident(ty->ident), ty);
-        var->is_static = attr & STATIC;
-        var->has_definition = !(attr & EXTERN);
-        if (consume("=", TK_RESERVED)) {
-            gvar_initializer(var);
-        }
-        expect(";");
+        declaration();
     }
 }
 
-// struct-decl = ident? "{" (declspec declarator ";")* "}"
+static Type *tag_type_decl(Token *tag) {
+    Type *ty = calloc(1, sizeof(Type));
+    ty->size = -1;
+    ty->align = 1;
+    ty->name = tag;
+    if (tag) {
+        push_tag_scope(ty);
+    }
+    return ty;
+}
+
+// member = declspec declarator ";"
+// member-list = member* "}"
+static Member *member_list(Type *ty) {
+    Member head = {};
+    Member *cur = &head;
+
+    int idx = 0;
+    while (!consume("}", TK_RESERVED)) {
+        Type *mem_ty = declarator(declspec(NULL));
+        expect(";");
+
+        Member *mem = new_member(idx++, mem_ty, mem_ty->ident, 0);
+
+        if (ty->align < mem->ty->align) {
+            ty->align = mem->ty->align;
+        }
+
+        cur = cur->next = mem;
+    }
+
+    return head.next;
+}
+
+// struct-decl = ident? "{" member-list
 //             | ident
 static Type *struct_decl() {
     Token *tag = consume_ident();
@@ -725,17 +713,11 @@ static Type *struct_decl() {
         ty = find_tag_in_cur_scope(tag);
     }
     if (!ty) {
-        ty = calloc(1, sizeof(Type));
+        ty = tag_type_decl(tag);
         ty->kind = TY_STRUCT;
-        ty->size = -1;
-        ty->align = 1;
-        ty->name = tag;
-        if (tag) {
-            push_tag_scope(ty);
-        }
     }
 
-    if (!is_type_of(TY_STRUCT, ty)) {
+    if (!is_any_type_of(ty, 1, TY_STRUCT)) {
         error_tok(tag, "前回の宣言と型が一致しません");
     }
 
@@ -749,27 +731,14 @@ static Type *struct_decl() {
 
     expect("{");
 
-    Member head = {};
-    Member *cur = &head;
-
     int offset = 0;
-    int idx = 0;
-    while (!consume("}", TK_RESERVED)) {
-        Type *ty2 = declarator(declspec(NULL));
-        expect(";");
-
-        Member *mem = new_member(idx++, ty2, ty2->ident,
-                                 offset = align_to(offset, ty2->align));
-        offset += ty2->size;
-
-        if (ty->align < mem->ty->align) {
-            ty->align = mem->ty->align;
-        }
-
-        cur = cur->next = mem;
+    Member *mems = member_list(ty);
+    for (Member *mem = mems; mem; mem = mem->next) {
+        mem->offset = offset = align_to(offset, mem->ty->align);
+        offset += mem->ty->size;
     }
 
-    ty->members = head.next;
+    ty->members = mems;
     ty->size = align_to(offset, ty->align);
 
     return ty;
@@ -784,17 +753,11 @@ static Type *union_decl() {
         ty = find_tag_in_cur_scope(tag);
     }
     if (!ty) {
-        ty = calloc(1, sizeof(Type));
+        ty = tag_type_decl(tag);
         ty->kind = TY_UNION;
-        ty->size = -1;
-        ty->align = 1;
-        ty->name = tag;
-        if (tag) {
-            push_tag_scope(ty);
-        }
     }
 
-    if (!is_type_of(TY_UNION, ty)) {
+    if (!is_any_type_of(ty, 1, TY_UNION)) {
         error_tok(tag, "前回の宣言と型が一致しません");
     }
 
@@ -808,29 +771,15 @@ static Type *union_decl() {
 
     expect("{");
 
-    Member head = {};
-    Member *cur = &head;
-
     int offset = 0;
-    int idx = 0;
-    while (!consume("}", TK_RESERVED)) {
-        Type *ty2 = declarator(declspec(NULL));
-        expect(";");
-
-        Member *mem = new_member(idx++, ty2, ty2->ident, 0);
-
-        if (offset < ty2->size) {
-            offset = ty2->size;
+    Member *mems = member_list(ty);
+    for (Member *mem = mems; mem; mem = mem->next) {
+        if (offset < mem->ty->size) {
+            offset = mem->ty->size;
         }
-
-        if (ty->align < mem->ty->align) {
-            ty->align = mem->ty->align;
-        }
-
-        cur = cur->next = mem;
     }
 
-    ty->members = head.next;
+    ty->members = mems;
     ty->size = align_to(offset, ty->align);
 
     return ty;
@@ -846,16 +795,11 @@ static Type *enum_specifier() {
         ty = find_tag_in_cur_scope(tag);
     }
     if (!ty) {
-        ty = calloc(1, sizeof(Type));
+        ty = tag_type_decl(tag);
         ty->kind = TY_ENUM;
-        ty->size = -1;
-        ty->name = tag;
-        if (tag) {
-            push_tag_scope(ty);
-        }
     }
 
-    if (!is_type_of(TY_ENUM, ty)) {
+    if (!is_any_type_of(ty, 1, TY_ENUM)) {
         error_tok(tag, "前回の宣言と型が一致しません");
     }
 
@@ -1153,9 +1097,9 @@ static Type *func_suffix(Type *ty) {
 
         Type *ty2 = declarator(declspec(NULL));
         Token *name = ty2->ident;
-        if (is_type_of(TY_FUNC, ty2)) {
+        if (is_any_type_of(ty2, 1, TY_FUNC)) {
             ty2 = pointer_to(ty2);
-        } else if (is_type_of(TY_ARY, ty2)) {
+        } else if (is_any_type_of(ty2, 1, TY_ARY)) {
             ty2 = pointer_to(ty2->base);
         }
         ty2->ident = name;
@@ -1285,14 +1229,14 @@ static void resolve_goto_labels() {
     }
 }
 
-// function-decl = ("{" compound-stmt) | ";"
+// function-decl = ("{" compound-stmt)?
 static Obj *function(Type *ty) {
     Obj *fn = find_func(ty->ident);
     if (!fn) {
         fn = new_func(ty->ident, get_ident(ty->ident), ty);
     }
 
-    if (consume(";", TK_RESERVED)) {
+    if (!equal("{", TK_RESERVED, token)) {
         return fn;
     }
 
@@ -1345,14 +1289,14 @@ static int count_ary_init_elems(Type *ty) {
 }
 
 static void initialize_with_zero(Initializer *init) {
-    if (is_type_of(TY_ARY, init->ty)) {
+    if (is_any_type_of(init->ty, 1, TY_ARY)) {
         for (int i = 0; i < init->ty->ary_len; i++) {
             initialize_with_zero(init->children[i]);
         }
         return;
     }
 
-    if (is_type_of(TY_STRUCT, init->ty) || is_type_of(TY_UNION, init->ty)) {
+    if (is_any_type_of(init->ty, 2, TY_STRUCT, TY_UNION)) {
         for (Member *mem = init->ty->members; mem; mem = mem->next) {
             initialize_with_zero(init->children[mem->idx]);
         }
@@ -1392,7 +1336,7 @@ static void struct_initializer(Initializer *init) {
     if (!consume("{", TK_RESERVED)) {
         Node *expr = assign();
         add_type(expr);
-        if (is_type_of(TY_STRUCT, expr->ty)) {
+        if (is_any_type_of(expr->ty, 1, TY_STRUCT)) {
             init->expr = expr;
             return;
         }
@@ -1417,7 +1361,7 @@ static void union_initializer(Initializer *init) {
     if (!consume("{", TK_RESERVED)) {
         Node *expr = assign();
         add_type(expr);
-        if (is_type_of(TY_UNION, expr->ty)) {
+        if (is_any_type_of(expr->ty, 1, TY_UNION)) {
             init->expr = expr;
             return;
         }
@@ -1448,10 +1392,10 @@ static void str_initializer(Initializer *init) {
 //             | struct-initializer | union-initializer | assign
 static void initializer2(Initializer *init) {
     if (token->kind == TK_STR) {
-        if (is_type_of(TY_ARY, init->ty)) {
+        if (is_any_type_of(init->ty, 1, TY_ARY)) {
             str_initializer(init);
             return;
-        } else if (is_type_of(TY_PTR, init->ty)) {
+        } else if (is_any_type_of(init->ty, 1, TY_PTR)) {
             Obj *var = new_str_literal(token->str);
             init->expr =
                 new_node_unary(ND_ADDR, new_node_var(var, token), token);
@@ -1462,17 +1406,17 @@ static void initializer2(Initializer *init) {
         }
     }
 
-    if (is_type_of(TY_ARY, init->ty)) {
+    if (is_any_type_of(init->ty, 1, TY_ARY)) {
         ary_initializer(init);
         return;
     }
 
-    if (is_type_of(TY_STRUCT, init->ty)) {
+    if (is_any_type_of(init->ty, 1, TY_STRUCT)) {
         struct_initializer(init);
         return;
     }
 
-    if (is_type_of(TY_UNION, init->ty)) {
+    if (is_any_type_of(init->ty, 1, TY_UNION)) {
         union_initializer(init);
         return;
     }
@@ -1513,7 +1457,7 @@ static Node *init_target_elem_mem(InitDesg *desg) {
 
 // 配列の各要素や構造体の各メンバに対して初期化が適用されるように木構造(ND_ASSIGNをND_COMMAでつなげたもの)を返す
 static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
-    if (is_type_of(TY_ARY, init->ty)) {
+    if (is_any_type_of(init->ty, 1, TY_ARY)) {
         Node *node = new_node(ND_NULL_EXPR, NULL);
         for (int i = 0; i < init->ty->ary_len; i++) {
             InitDesg desg2 = {desg, i};
@@ -1525,7 +1469,7 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
         return node;
     }
 
-    if (is_type_of(TY_STRUCT, init->ty) && !init->expr) {
+    if (is_any_type_of(init->ty, 1, TY_STRUCT) && !init->expr) {
         Node *node = new_node(ND_NULL_EXPR, NULL);
         for (Member *mem = init->ty->members; mem; mem = mem->next) {
             InitDesg desg2 = {desg, 0, mem};
@@ -1537,7 +1481,7 @@ static Node *create_lvar_init(Initializer *init, InitDesg *desg) {
         return node;
     }
 
-    if (is_type_of(TY_UNION, init->ty) && !init->expr) {
+    if (is_any_type_of(init->ty, 1, TY_UNION) && !init->expr) {
         InitDesg desg2 = {desg, 0, init->ty->members};
         return new_node_binary(ND_COMMA, new_node(ND_NULL_EXPR, NULL),
                                create_lvar_init(init->children[0], &desg2),
@@ -1568,6 +1512,7 @@ static void gvar_initializer(Obj *var) {
 }
 
 // declaration = declspec declarator ("=" initializer)? ";"
+//             | declspec declarator function-definition
 //             | declspec ";"
 static Node *declaration() {
     Node head = {};
@@ -1579,7 +1524,8 @@ static Node *declaration() {
     if (!equal(";", TK_RESERVED, token)) {
         Type *ty = declarator(basety);
         if (!(attr & TYPEDEF)) {
-            if (is_type_of(TY_VOID, ty) && !is_type_of(TY_FUNC, ty)) {
+            if (is_any_type_of(ty, 1, TY_VOID) &&
+                !is_any_type_of(ty, 1, TY_FUNC)) {
                 error_tok(ty->ident, "void型の変数を宣言することはできません");
             }
             //            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION,
@@ -1594,26 +1540,43 @@ static Node *declaration() {
             ty->name = ty->ident;
             push_typedef_into_var_scope(ty->name, ty);
 
-        } else if (attr & STATIC) {
-            static int static_count = 0;
-            char *name = get_ident(ty->ident);
-            char *unique_name =
-                format("%s.%s.%d", cur_fn->name, name, static_count++);
-            Obj *var = new_gvar(ty->ident, unique_name, ty);
-            if (consume("=", TK_RESERVED)) {
-                gvar_initializer(var);
-            }
+        } else if (is_any_type_of(ty, 1, TY_FUNC)) {
+            Obj *fn = function(ty);
+            fn->is_static = attr & STATIC;
+            return NULL;
+
         } else {
-            Obj *var = new_lvar(ty->ident, get_ident(ty->ident), ty);
+            if (scope->parent) {
+                if (attr & STATIC) {
+                    static int static_count = 0;
+                    char *name = get_ident(ty->ident);
+                    char *unique_name =
+                        format("%s.%s.%d", cur_fn->name, name, static_count++);
+                    Obj *var = new_gvar(ty->ident, unique_name, ty);
+                    if (consume("=", TK_RESERVED)) {
+                        gvar_initializer(var);
+                    }
+                } else {
+                    Obj *var = new_lvar(ty->ident, get_ident(ty->ident), ty);
 
-            if (consume("=", TK_RESERVED)) {
-                Node *node = new_node(ND_INIT, NULL);
-                node->init.assigns = lvar_initializer(var);
-                cur->next = node;
-            }
+                    if (consume("=", TK_RESERVED)) {
+                        Node *node = new_node(ND_INIT, NULL);
+                        node->init.assigns = lvar_initializer(var);
+                        cur->next = node;
+                    }
 
-            if (var->ty->ary_len < 0) {
-                error_at(ty->ident->loc, "配列の要素数が指定されていません");
+                    if (var->ty->ary_len < 0) {
+                        error_tok(ty->ident,
+                                  "配列の要素数が指定されていません");
+                    }
+                }
+            } else {
+                Obj *var = new_gvar(ty->ident, get_ident(ty->ident), ty);
+                var->is_static = attr & STATIC;
+                var->has_definition = !(attr & EXTERN);
+                if (consume("=", TK_RESERVED)) {
+                    gvar_initializer(var);
+                }
             }
         }
     }
@@ -1822,7 +1785,7 @@ static Node *continue_stmt() {
 static Node *return_stmt() {
     Token *tok = consume("return", TK_KEYWORD);
     Node *node = new_node(ND_RETURN, tok);
-    bool in_void_fn = is_type_of(TY_VOID, cur_fn->ty->ret);
+    bool in_void_fn = is_any_type_of(cur_fn->ty->ret, 1, TY_VOID);
     Node *exp;
 
     if (equal(";", TK_RESERVED, token)) {
@@ -1902,7 +1865,7 @@ static Node *stmt() {
     return expr_stmt();
 }
 
-// compound-stmt = (stmt | declaration | typedef)* "}"
+// compound-stmt = (stmt | declaration)* "}"
 static Node *compound_stmt() {
     enter_scope();
 
@@ -2296,15 +2259,14 @@ static Node *unary() {
     return postfix();
 }
 
-static Node *ary_elem(Node *var, Node *idx) {
+static Node *get_ary_elem(Node *var, Node *idx) {
     return new_node_unary(ND_DEREF, new_node_add(var, idx, NULL), var->tok);
 }
 
-static Member *struct_member(Type *ty) {
+static Member *get_member(Type *ty) {
     for (Member *cur = ty->members; cur; cur = cur->next) {
-        if (!cur->name &&
-            (is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION, ty))) {
-            if (struct_member(cur->ty)) {
+        if (!cur->name && (is_any_type_of(ty, 2, TY_STRUCT, TY_UNION))) {
+            if (get_member(cur->ty)) {
                 return cur;
             }
             continue;
@@ -2320,14 +2282,14 @@ static Member *struct_member(Type *ty) {
 
 static Node *struct_ref(Node *lhs, Token *tok) {
     add_type(lhs);
-    if (!is_type_of(TY_STRUCT, lhs->ty) && !is_type_of(TY_UNION, lhs->ty)) {
+    if (!is_any_type_of(lhs->ty, 2, TY_STRUCT, TY_UNION)) {
         error_tok(lhs->tok, "構造体/共用体ではありません");
     }
 
     Type *ty = lhs->ty;
 
     for (;;) {
-        Member *mem = struct_member(ty);
+        Member *mem = get_member(ty);
         if (!mem) {
             error_tok(token, "そのようなメンバは存在しません");
         }
@@ -2343,76 +2305,98 @@ static Node *struct_ref(Node *lhs, Token *tok) {
     }
 }
 
+bool is_builtin(char *name) {
+    char *kw[] = {
+        "__builtin_va_start",
+        "__builtin_va_arg",
+        "__builtin_va_end",
+        "__builtin_va_copy",
+    };
+
+    for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+        if (!strcmp(name, kw[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static Node *builtin_funcall(Node *fn) {
+    if (!strcmp(fn->var.var->name, "__builtin_va_start")) {
+        Token *tok = expect("(");
+        if (!cur_fn->ty->is_variadic) {
+            error_tok(tok, "固定長引数関数で使うことはできません");
+        }
+        Node *node = new_node(ND_FUNCALL, tok);
+        node->funcall.fn = fn;
+        node->funcall.args = assign();
+        expect(",");
+        node->funcall.args->next = assign();
+        expect(")");
+        return node;
+    }
+
+    if (!strcmp(fn->var.var->name, "__builtin_va_arg")) {
+        Token *tok = expect("(");
+        Node *node = new_node(ND_FUNCALL, tok);
+        node->funcall.fn = fn;
+        node->funcall.args = assign();
+        if (node->funcall.args->ty != va_list_type()) {
+            error_tok(node->funcall.args->tok, "va_list型ではありません");
+        }
+        expect(",");
+        node->ty = abstract_declarator(declspec(NULL));
+        expect(")");
+        return node;
+    }
+
+    if (!strcmp(fn->var.var->name, "__builtin_va_end")) {
+        Token *tok = expect("(");
+        Node *node = new_node(ND_FUNCALL, tok);
+        node->funcall.fn = fn;
+        node->funcall.args = assign();
+        expect(")");
+        return node;
+    }
+
+    if (!strcmp(fn->var.var->name, "__builtin_va_copy")) {
+        Token *tok = expect("(");
+        Node *node = new_node(ND_FUNCALL, tok);
+        node->funcall.fn = fn;
+        node->funcall.args = assign();
+        if (node->funcall.args->ty != va_list_type()) {
+            error_tok(node->funcall.args->tok, "va_list型ではありません");
+        }
+        expect(",");
+        node->funcall.args->next = assign();
+        if (node->funcall.args->next->ty != va_list_type()) {
+            error_tok(node->funcall.args->next->tok, "va_list型ではありません");
+        }
+        expect(")");
+        return node;
+    }
+
+    unreachable();
+}
+
 // funcall = "(" func-args? ")"
 // func-args = assign ("," assign)*
 static Node *funcall(Node *fn) {
-    if (fn->kind == ND_VAR) {
-        if (!strcmp(fn->var.var->name, "__builtin_va_start")) {
-            Token *tok = expect("(");
-            if (!cur_fn->ty->is_variadic) {
-                error_tok(tok, "固定長引数関数で使うことはできません");
-            }
-            Node *node = new_node(ND_FUNCALL, tok);
-            node->funcall.fn = fn;
-            node->funcall.args = assign();
-            expect(",");
-            node->funcall.args->next = assign();
-            expect(")");
-            return node;
-        }
-
-        if (!strcmp(fn->var.var->name, "__builtin_va_arg")) {
-            Token *tok = expect("(");
-            Node *node = new_node(ND_FUNCALL, tok);
-            node->funcall.fn = fn;
-            node->funcall.args = assign();
-            if (node->funcall.args->ty != va_list_type()) {
-                error_tok(node->funcall.args->tok, "va_list型ではありません");
-            }
-            expect(",");
-            node->ty = abstract_declarator(declspec(NULL));
-            expect(")");
-            return node;
-        }
-
-        if (!strcmp(fn->var.var->name, "__builtin_va_end")) {
-            Token *tok = expect("(");
-            Node *node = new_node(ND_FUNCALL, tok);
-            node->funcall.fn = fn;
-            node->funcall.args = assign();
-            expect(")");
-            return node;
-        }
-
-        if (!strcmp(fn->var.var->name, "__builtin_va_copy")) {
-            Token *tok = expect("(");
-            Node *node = new_node(ND_FUNCALL, tok);
-            node->funcall.fn = fn;
-            node->funcall.args = assign();
-            if (node->funcall.args->ty != va_list_type()) {
-                error_tok(node->funcall.args->tok, "va_list型ではありません");
-            }
-            expect(",");
-            node->funcall.args->next = assign();
-            if (node->funcall.args->next->ty != va_list_type()) {
-                error_tok(node->funcall.args->next->tok,
-                          "va_list型ではありません");
-            }
-            expect(")");
-            return node;
-        }
+    if (fn->kind == ND_VAR && is_builtin(fn->var.var->name)) {
+        return builtin_funcall(fn);
     }
 
     add_type(fn);
 
-    if (!is_type_of(TY_FUNC, fn->ty) &&
-        !(is_type_of(TY_PTR, fn->ty) && is_type_of(TY_FUNC, fn->ty->base))) {
+    if (!is_any_type_of(fn->ty, 1, TY_FUNC) &&
+        !(is_any_type_of(fn->ty, 1, TY_PTR) &&
+          is_any_type_of(fn->ty->base, 1, TY_FUNC))) {
         error_tok(fn->tok, "関数ではありません");
     }
 
     Node head = {};
     Node *cur = &head;
-    Type *ty = is_type_of(TY_FUNC, fn->ty) ? fn->ty : fn->ty->base;
+    Type *ty = is_any_type_of(fn->ty, 1, TY_FUNC) ? fn->ty : fn->ty->base;
     Type *param_ty = ty->params;
 
     Token *tok = expect("(");
@@ -2471,7 +2455,7 @@ static Node *postfix() {
             token = token->next;
 
         } else if (consume("[", TK_RESERVED)) {
-            node = ary_elem(node, expr());
+            node = get_ary_elem(node, expr());
             expect("]");
 
         } else if (equal("(", TK_RESERVED, token)) {
@@ -2506,7 +2490,7 @@ static Node *primary() {
         // 変数または列挙定数
         VarScope *sc = look_in_var_scope(tok);
         if (!sc || !sc->var && !sc->enum_const) {
-            error_at(tok->loc, "定義されていない変数です");
+            error_tok(tok, "定義されていない変数です");
         }
 
         if (sc->var) {

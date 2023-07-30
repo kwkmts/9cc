@@ -10,9 +10,9 @@
 #include <string.h>
 #include <strings.h>
 
+#define unreachable() error("internal error at %s:%d", __FILE__, __LINE__)
+
 typedef struct Token Token;
-typedef struct Var Var;
-typedef struct Function Function;
 typedef struct Obj Obj;
 typedef struct Node Node;
 typedef struct Type Type;
@@ -86,17 +86,17 @@ struct Obj {
     char *name; // 識別子名
     Type *ty;
 
-    int offset;          // RBPからのオフセット
+    int offset; // RBPからのオフセット
 
     Initializer *init;   // 初期値
     char *init_data_str; // 文字列リテラル
 
-    Node *body;          // {}内
-    int nparams;         // パラメータの個数
+    Node *body;  // {}内
+    int nparams; // パラメータの個数
     Obj *locals; // ローカル変数の連結リスト(先頭からnparams個はパラメータ)
     int stack_size;
-    Token *lbrace;       // 関数定義の開始位置("{")
-    Obj *reg_save_area;  // 可変長引数関数で使われる
+    Token *lbrace;      // 関数定義の開始位置("{")
+    Obj *reg_save_area; // 可変長引数関数で使われる
 
     bool is_static;      // グローバル変数・関数で使われる
     bool has_definition; // ローカル変数では常にtrue
@@ -260,6 +260,7 @@ struct Node {
 };
 
 void program();
+bool is_builtin(char *name);
 
 //
 // type.c
@@ -283,17 +284,17 @@ typedef enum {
 
 // データ型の型
 struct Type {
-    TypeKind kind;   // データ型の種類
-    int size;        // サイズ
-    int align;       // アライメント
+    TypeKind kind; // データ型の種類
+    int size;      // サイズ
+    int align;     // アライメント
     bool is_unsigned;
-    Token *ident;    // 識別子名
+    Token *ident; // 識別子名
 
     Token *name;     // タグ名またはtypedef名
     Member *members; // 構造体のメンバリスト
 
-    int ary_len;     // 配列の要素数
-    Type *base;   // データ型がポインタや配列の場合使われる
+    int ary_len; // 配列の要素数
+    Type *base;  // データ型がポインタや配列の場合使われる
 
     Type *ret;    // 関数型の戻り値のデータ型
     Type *params; // 関数型のパラメータのデータ型リスト
@@ -322,7 +323,7 @@ extern Type *ty_ushort;
 extern Type *ty_uint;
 extern Type *ty_ulong;
 
-bool is_type_of(TypeKind kind, Type *ty);
+bool is_any_type_of(Type *ty, int n, ...);
 bool is_integer(Type *ty);
 Type *copy_type(Type *ty);
 Type *pointer_to(Type *base);

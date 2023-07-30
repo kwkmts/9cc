@@ -1,9 +1,6 @@
 *~
 *.o
-tmp*
 a.out
 9cc
-.devcontainer/
-.vscode/
 test/*.s
 test/*.out
