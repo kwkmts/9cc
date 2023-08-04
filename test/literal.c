@@ -126,5 +126,12 @@ int main() {
     ASSERT(-1, 01<<31>>31);
     ASSERT(-1, 0x1<<31>>31);
 
+    ASSERT(4, sizeof(8.f));
+    ASSERT(4, sizeof(0.3F));
+    ASSERT(8, sizeof(0.));
+    ASSERT(8, sizeof(.0));
+    ASSERT(8, sizeof(5.l));
+    ASSERT(8, sizeof(2.0L));
+
     return 0;
 }

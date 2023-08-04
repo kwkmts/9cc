@@ -26,7 +26,10 @@ assert() {
 }
 
 assert 'int main() { return 0 }' 1 23 "';'ではありません"
+assert 'int main() { 12.3.4; }' 1 18 '小数点が多すぎます'
+assert 'int main() { 0x12.3; }' 1 16 '浮動小数点数で10進数以外の表記はできません'
 assert 'int main() { 42lL; }' 1 16 '不正なサフィックスです'
+assert 'int main() { 12.3fl; }' 1 18 '不正なサフィックスです'
 assert 'int main() { "foo; }' 1 21 \''"'\''がありません'
 assert '/* comment' 1 1 'コメントが閉じられていません'
 assert 'int main() { '\''a" }' 1 16 \'\'\''ではありません'

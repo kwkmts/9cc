@@ -10,6 +10,8 @@ Type *ty_uchar = &(Type){TY_CHAR, 1, 1, true};
 Type *ty_ushort = &(Type){TY_SHORT, 2, 2, true};
 Type *ty_uint = &(Type){TY_INT, 4, 4, true};
 Type *ty_ulong = &(Type){TY_LONG, 8, 8, true};
+Type *ty_float = &(Type){TY_FLOAT, 4, 4};
+Type *ty_double = &(Type){TY_DOUBLE, 8, 8};
 
 // ty->kindが指定したTypeKind(n個)のいずれかと一致するかどうか
 bool is_any_type_of(Type *ty, int n, ...) {
@@ -30,6 +32,8 @@ bool is_integer(Type *ty) {
     return is_any_type_of(ty, 6, TY_BOOL, TY_CHAR, TY_SHORT, TY_INT, TY_LONG,
                           TY_ENUM);
 }
+
+bool is_flonum(Type *ty) { return is_any_type_of(ty, 2, TY_FLOAT, TY_DOUBLE); }
 
 Type *copy_type(Type *ty) {
     Type *ret = calloc(1, sizeof(Type));
@@ -208,11 +212,7 @@ void add_type(Node *node) {
         node->ty = ty_int;
         return;
     case ND_NUM:
-        if (node->num.val < INT32_MIN || INT32_MAX < node->num.val) {
-            node->ty = ty_long;
-        } else {
-            node->ty = ty_int;
-        }
+        node->ty = ty_int;
         return;
     case ND_FUNCALL:
         node->ty = ty_long;

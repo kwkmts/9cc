@@ -42,7 +42,8 @@ typedef enum {
 struct Token {
     TokenKind kind; // トークンの種類
     Token *next;    // 次の入力トークン
-    int64_t val;    // kindがTK_NUMの場合、その数値
+    int64_t ival;   // kindがTK_NUMの場合、整数
+    double fval;    // kindがTK_NUMの場合、浮動小数点数
     Type *val_ty;   // kindがTK_NUMの場合、その型
     char *loc;      // 入力プログラム中での位置
     char *str;      // 文字列リテラル
@@ -177,7 +178,8 @@ struct Node {
         } member;
 
         struct {
-            int64_t val;
+            int64_t ival;
+            double fval;
         } num;
 
         struct {
@@ -274,6 +276,8 @@ typedef enum {
     TY_SHORT,
     TY_INT,
     TY_LONG,
+    TY_FLOAT,
+    TY_DOUBLE,
     TY_PTR,
     TY_ARY,
     TY_STRUCT,
@@ -322,9 +326,12 @@ extern Type *ty_uchar;
 extern Type *ty_ushort;
 extern Type *ty_uint;
 extern Type *ty_ulong;
+extern Type *ty_float;
+extern Type *ty_double;
 
 bool is_any_type_of(Type *ty, int n, ...);
 bool is_integer(Type *ty);
+bool is_flonum(Type *ty);
 Type *copy_type(Type *ty);
 Type *pointer_to(Type *base);
 Type *array_of(Type *base, int len);

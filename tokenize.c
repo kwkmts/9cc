@@ -247,7 +247,27 @@ static Type *read_int_suffix(char **p, int64_t val, int base) {
     }
 }
 
-static void read_int_literal(char **p, Token **tok) {
+static Type *read_float_suffix(char **p) {
+    char *start = *p;
+    Type *ty;
+    if (strncasecmp(*p, "f", 1) == 0) {
+        (*p)++;
+        ty = ty_float;
+    } else if (strncasecmp(*p, "l", 1) == 0) {
+        (*p)++;
+        ty = ty_double;
+    } else {
+        ty = ty_double;
+    }
+
+    if (is_alnum(**p)) {
+        error_at(start, "不正なサフィックスです");
+    }
+
+    return ty;
+}
+
+static void read_num_literal(char **p, Token **tok) {
     int base;
     if (strncasecmp(*p, "0x", 2) == 0 && is_alnum(*p[2])) {
         *p += 2;
@@ -258,8 +278,30 @@ static void read_int_literal(char **p, Token **tok) {
         base = 10;
     }
 
-    (*tok)->val = (int64_t)strtoul(*p, p, base);
-    (*tok)->val_ty = read_int_suffix(p, (*tok)->val, base);
+    char *start = *p;
+    int64_t i = (int64_t)strtoul(*p, p, base);
+    if (**p == '.') {
+        // ピリオドを読んだなら数値リテラルの最初の'0'は8進数の'0'ではなく
+        // 浮動小数点数リテラルの一部としての'0'
+        if (base == 8) {
+            base = 10;
+        }
+
+        if (base != 10) {
+            error_at(start, "浮動小数点数で10進数以外の表記はできません");
+        }
+
+        *p = start;
+        (*tok)->fval = strtod(*p, p);
+        if (**p == '.') {
+            error_at(*p, "小数点が多すぎます");
+        }
+
+        (*tok)->val_ty = read_float_suffix(p);
+    } else {
+        (*tok)->ival = i;
+        (*tok)->val_ty = read_int_suffix(p, (*tok)->ival, base);
+    }
 }
 
 static void add_line_column_no(Token *tok) {
@@ -321,6 +363,13 @@ Token *tokenize() {
             continue;
         }
 
+        // 数値リテラル
+        if (isdigit(*p) || (*p == '.' && isdigit(p[1]))) {
+            cur = cur->next = new_token(TK_NUM, p, 0);
+            read_num_literal(&p, &cur);
+            continue;
+        }
+
         // 区切り文字
         length = read_punct(p);
         if (length) {
@@ -329,17 +378,11 @@ Token *tokenize() {
             continue;
         }
 
-        // 数値リテラル
-        if (isdigit(*p)) {
-            cur = cur->next = new_token(TK_NUM, p, 0);
-            read_int_literal(&p, &cur);
-            continue;
-        }
-
         // 文字リテラル
         if (*p == '\'') {
             cur = cur->next = new_token(TK_NUM, p++, 0);
-            cur->val = (int64_t)read_char(&p);
+            cur->ival = (int64_t)read_char(&p);
+            cur->val_ty = ty_int;
             if (*p != '\'') {
                 error_at(p, "'''ではありません");
             }

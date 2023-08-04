@@ -72,6 +72,8 @@
 #define LEA(o1, o2) println("    lea %s, %s", o1, o2)
 #define MOV(o1, o2) println("    mov %s, %s", o1, o2)
 #define MOVAPS(o1, o2) println("    movaps %s, %s", o1, o2)
+#define MOVSD(o1, o2) println("    movsd %s, %s", o1, o2)
+#define MOVSS(o1, o2) println("    movss %s, %s", o1, o2)
 #define MOVSX(o1, o2) println("    movsx %s, %s", o1, o2)
 #define MOVSXD(o1, o2) println("    movsxd %s, %s", o1, o2)
 #define MOVZB(o1, o2) println("    movzb %s, %s", o1, o2)
@@ -445,14 +447,35 @@ static void gen_builtin_funcall(Node *node) {
 
 static void gen_expr(Node *node) {
     switch (node->kind) {
-    case ND_NUM:
-        if (node->num.val < INT32_MIN || INT32_MAX < node->num.val) {
-            MOV(RAX, IMM(node->num.val));
-            PUSH(RAX);
-        } else {
-            PUSH(IMM(node->num.val));
+    case ND_NUM: {
+        union {
+            float f32;
+            double f64;
+            uint32_t u32;
+            uint64_t u64;
+        } u;
+
+        switch (node->ty->kind) {
+        case TY_FLOAT:
+            u.f32 = (float)node->num.fval;
+            MOV(EAX, format("%u", u.u32));
+            MOVSS(XMM0, RAX);
+            return;
+        case TY_DOUBLE:
+            u.f64 = node->num.fval;
+            MOV(RAX, format("%lu", u.u64));
+            MOVSD(XMM0, RAX);
+            return;
+        default:
+            if (node->num.ival < INT32_MIN || INT32_MAX < node->num.ival) {
+                MOV(RAX, IMM(node->num.ival));
+                PUSH(RAX);
+            } else {
+                PUSH(IMM(node->num.ival));
+            }
+            return;
         }
-        return;
+    }
     case ND_CAST:
         gen_expr(node->unary.expr);
         POP(RAX);

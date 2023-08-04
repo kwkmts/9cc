@@ -278,7 +278,7 @@ int64_t calc_const_expr(Node *node, char **label) {
         }
         return calc_const_expr(node->unary.expr, label);
     case ND_NUM:
-        return node->num.val;
+        return node->num.ival;
     case ND_ADDR:
         return calc_const_expr2(node->unary.expr, label);
     default:
@@ -381,7 +381,7 @@ static Node *new_node_unary(NodeKind kind, Node *expr, Token *tok) {
 
 static Node *new_node_num(int64_t val, Token *tok) {
     Node *node = new_node(ND_NUM, tok);
-    node->num.val = val;
+    node->num.ival = val;
     if (tok) {
         node->ty = tok->val_ty;
     }
@@ -2510,5 +2510,14 @@ static Node *primary() {
 
     // 数値
     tok = expect_number();
-    return new_node_num(tok->val, tok);
+    if (is_flonum(tok->val_ty)) {
+        Node *node = new_node(ND_NUM, tok);
+        node->num.fval = tok->fval;
+        node->ty = tok->val_ty;
+        return node;
+    } else {
+        return new_node_num(tok->ival, tok);
+    }
+
+    unreachable();
 }
