@@ -862,9 +862,13 @@ static bool is_type_qualifier() {
 }
 
 static bool is_typename() {
-    static char *kw[] = {"unsigned", "signed", "void", "int",
-                         "char",     "short",  "long", "_Bool",
-                         "struct",   "union",  "enum", "__builtin_va_list"};
+    static char *kw[] = {"unsigned", "signed",
+                         "void",     "int",
+                         "char",     "short",
+                         "long",     "_Bool",
+                         "float",    "double",
+                         "struct",   "union",
+                         "enum",     "__builtin_va_list"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD, token)) {
             return true;
@@ -877,9 +881,11 @@ static bool is_typename() {
 // declspec = ("typedef" | "static" | "extern"
 //             | "unsigned" | "signed"
 //             | "void" | "_Bool" | "char" | "short" | "int" | "long"
-//             | struct-decl | union-decl | enum-specifier | typedef-name
+//             | "float" | "double"
+//             | "struct" struct-decl | "union" union-decl
+//             | "enum" enum-specifier | typedef-name
 //             | "__builtin_va_list"
-//             | "const" | "volatile" | "restrict")*
+//             | "const" | "volatile")*
 static Type *declspec(VarAttr *attr) {
     enum {
         VOID = 1 << 0,
@@ -888,9 +894,11 @@ static Type *declspec(VarAttr *attr) {
         SHORT = 1 << 6,
         INT = 1 << 8,
         LONG = 1 << 10,
-        UNSIGNED = 1 << 12,
-        SIGNED = 1 << 14,
-        OTHER = 1 << 16,
+        FLOAT = 1 << 12,
+        DOUBLE = 1 << 14,
+        UNSIGNED = 1 << 16,
+        SIGNED = 1 << 18,
+        OTHER = 1 << 20,
     };
 
     Token *tok;
@@ -965,6 +973,12 @@ static Type *declspec(VarAttr *attr) {
 
         } else if ((tok = consume("long", TK_KEYWORD))) {
             ty_spec_count += LONG;
+
+        } else if ((tok = consume("float", TK_KEYWORD))) {
+            ty_spec_count += FLOAT;
+
+        } else if ((tok = consume("double", TK_KEYWORD))) {
+            ty_spec_count += DOUBLE;
 
         } else if ((tok = consume("unsigned", TK_KEYWORD))) {
             ty_spec_count += UNSIGNED;
@@ -1045,6 +1059,13 @@ static Type *declspec(VarAttr *attr) {
         case UNSIGNED + LONG + LONG:
         case UNSIGNED + LONG + LONG + INT:
             ty = ty_ulong;
+            break;
+        case FLOAT:
+            ty = ty_float;
+            break;
+        case DOUBLE:
+        case LONG + DOUBLE:
+            ty = ty_double;
             break;
         case OTHER:
             break;

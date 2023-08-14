@@ -57,11 +57,19 @@
 #define INDIRECT_LABEL(label, pc) format("%s[%s]", label, pc)
 
 #define ADD(o1, o2) println("    add %s, %s", o1, o2)
+#define ADDSD(o1, o2) println("    addsd %s, %s", o1, o2)
+#define ADDSS(o1, o2) println("    addss %s, %s", o1, o2)
 #define AND(o1, o2) println("    and %s, %s", o1, o2)
 #define CALL(o1) println("    call %s", o1)
 #define CDQ() println("    cdq")
 #define CMP(o1, o2) println("    cmp %s, %s", o1, o2)
 #define CQO() println("    cqo")
+#define CVTSD2SS(o1, o2) println("    cvtsd2ss %s, %s", o1, o2)
+#define CVTSI2SD(o1, o2) println("    cvtsi2sd %s, %s", o1, o2)
+#define CVTSI2SS(o1, o2) println("    cvtsi2ss %s, %s", o1, o2)
+#define CVTSS2SD(o1, o2) println("    cvtss2sd %s, %s", o1, o2)
+#define CVTTSD2SI(o1, o2) println("    cvttsd2si %s, %s", o1, o2)
+#define CVTTSS2SI(o1, o2) println("    cvttss2si %s, %s", o1, o2)
 #define DIV(o1) println("    div %s", o1)
 #define IDIV(o1) println("    idiv %s", o1)
 #define IMUL(o1, o2) println("    imul %s, %s", o1, o2)
@@ -69,9 +77,11 @@
 #define JE(o1) println("    je %s", o1)
 #define JMP(o1) println("    jmp %s", o1)
 #define JNE(o1) println("    jne %s", o1)
+#define JS(o1) println("    js %s", o1)
 #define LEA(o1, o2) println("    lea %s, %s", o1, o2)
 #define MOV(o1, o2) println("    mov %s, %s", o1, o2)
 #define MOVAPS(o1, o2) println("    movaps %s, %s", o1, o2)
+#define MOVQ(o1, o2) println("    movq %s, %s", o1, o2)
 #define MOVSD(o1, o2) println("    movsd %s, %s", o1, o2)
 #define MOVSS(o1, o2) println("    movss %s, %s", o1, o2)
 #define MOVSX(o1, o2) println("    movsx %s, %s", o1, o2)
@@ -82,6 +92,7 @@
 #define OR(o1, o2) println("    or %s, %s", o1, o2)
 #define POP(o1) println("    pop %s", o1)
 #define PUSH(o1) println("    push %s", o1)
+#define PXOR(o1, o2) println("    pxor %s, %s", o1, o2)
 #define RET() println("    ret")
 #define SAL(o1, o2) println("    sal %s, %s", o1, o2)
 #define SAR(o1, o2) println("    sar %s, %s", o1, o2)
@@ -93,6 +104,7 @@
 #define SETLE(o1) println("    setle %s", o1)
 #define SETNE(o1) println("    setne %s", o1)
 #define SUB(o1, o2) println("    sub %s, %s", o1, o2)
+#define TEST(o1, o2) println("    test %s, %s", o1, o2)
 #define XOR(o1, o2) println("    xor %s, %s", o1, o2)
 
 static char *const argreg64[] = {RDI, RSI, RDX, RCX, R8, R9};
@@ -139,6 +151,15 @@ int align_to(int n, int align) {
 
 static void load(Type *ty) {
     if (is_any_type_of(ty, 3, TY_ARY, TY_STRUCT, TY_UNION)) {
+        return;
+    }
+
+    if (is_any_type_of(ty, 1, TY_FLOAT)) {
+        MOVSS(XMM0, INDIRECT(RAX, 0));
+        return;
+    }
+    if (is_any_type_of(ty, 1, TY_DOUBLE)) {
+        MOVSD(XMM0, INDIRECT(RAX, 0));
         return;
     }
 
@@ -224,6 +245,15 @@ static void store(Type *ty, int offset) {
         return;
     }
 
+    if (is_any_type_of(ty, 1, TY_FLOAT)) {
+        MOVSS(INDIRECT(RAX, 0), XMM0);
+        return;
+    }
+    if (is_any_type_of(ty, 1, TY_DOUBLE)) {
+        MOVSD(INDIRECT(RAX, 0), XMM0);
+        return;
+    }
+
     switch (ty->size) {
     case 1:
         MOV(INDIRECT(RAX, 0), DIL);
@@ -242,29 +272,109 @@ static void store(Type *ty, int offset) {
     unreachable();
 }
 
+// clang-format off
+
+// キャストに使われる関数群
+// [s|z|c][_|f][8|16|32|64][_|f][8|16|32|64]
+
 static void s_8_32() { MOVSX(EAX, AL); }
+static void s_8f32() { CVTTSS2SI(EAX, XMM0); s_8_32(); }
+static void s_8f64() { CVTTSD2SI(EAX, XMM0); s_8_32(); }
 static void s_16_32() { MOVSX(EAX, AX); }
-static void s_32_64() { MOVSXD(RAX, EAX); }
+static void s_16f32() { CVTTSS2SI(EAX, XMM0); s_16_32(); }
+static void s_16f64() { CVTTSD2SI(EAX, XMM0); s_16_32(); }
+static void c_32f32() { CVTTSS2SI(EAX, XMM0); }
+static void c_32f64() { CVTTSD2SI(EAX, XMM0); }
+static void s_64_32() { MOVSXD(RAX, EAX); }
+static void c_64f32() { CVTTSS2SI(RAX, XMM0); }
+static void c_64f64() { CVTTSD2SI(RAX, XMM0); }
 static void z_8_32() { MOVZX(EAX, AL); }
+static void z_8f32() { CVTTSS2SI(EAX, XMM0); z_8_32(); }
+static void z_8f64() { CVTTSD2SI(EAX, XMM0); z_8_32(); }
 static void z_16_32() { MOVZX(EAX, AX); }
-static void z_32_64() { MOV(EAX, EAX); }
+static void z_16f32() { CVTTSS2SI(EAX, XMM0); z_16_32(); }
+static void z_16f64() { CVTTSD2SI(EAX, XMM0); z_16_32(); }
+static void z_32f32() { CVTTSS2SI(RAX, XMM0); }
+static void z_32f64() { CVTTSD2SI(RAX, XMM0); }
+static void z_64_32() { MOV(EAX, EAX); }
+static void sf32_8() { s_8_32(); CVTSI2SS(XMM0, EAX); }
+static void sf32_16() { s_16_32(); CVTSI2SS(XMM0, EAX); }
+static void cf32_32() { CVTSI2SS(XMM0, EAX); }
+static void cf32_64asI() { CVTSI2SS(XMM0, RAX); }
+static void zf32_8() { z_8_32(); CVTSI2SS(XMM0, EAX); }
+static void zf32_16() { z_16_32(); CVTSI2SS(XMM0, EAX); }
+static void zf32_32() { z_64_32(); CVTSI2SS(XMM0, RAX); }
+static void cf32_64asU() {
+    int c = count();
+    int c2 = count();
+    TEST(RAX, RAX);
+    JS(format(".L%d", c));
+    PXOR(XMM0, XMM0);
+    CVTSI2SS(XMM0, RAX);
+    JMP(format(".L%d", c2));
+    println(".L%d:", c);
+    MOV(RDX, RAX);
+    SHR(RDX, IMM(1));
+    AND(EAX, IMM(1));
+    OR(RDX, RAX);
+    PXOR(XMM0, XMM0);
+    CVTSI2SS(XMM0, RDX);
+    ADDSS(XMM0, XMM0);
+    println(format(".L%d:", c2));
+}
+static void cf32f64() { CVTSD2SS(XMM0, XMM0); }
+static void sf64_8() { s_8_32(); CVTSI2SD(XMM0, EAX); }
+static void sf64_16() { s_16_32(); CVTSI2SD(XMM0, EAX); }
+static void cf64_32() { CVTSI2SD(XMM0, EAX); }
+static void cf64_64asI() { CVTSI2SD(XMM0, RAX); }
+static void zf64_8() { z_8_32(); CVTSI2SD(XMM0, EAX); }
+static void zf64_16() { z_16_32(); CVTSI2SD(XMM0, EAX); }
+static void zf64_32() { z_64_32(); CVTSI2SD(XMM0, RAX); }
+static void cf64_64asU() {
+    int c = count();
+    int c2 = count();
+    TEST(RAX, RAX);
+    JS(format(".L%d", c));
+    PXOR(XMM0, XMM0);
+    CVTSI2SD(XMM0, RAX);
+    JMP(format(".L%d", c2));
+    println(".L%d:", c);
+    MOV(RDX, RAX);
+    SHR(RDX, IMM(1));
+    AND(EAX, IMM(1));
+    OR(RDX, RAX);
+    PXOR(XMM0, XMM0);
+    CVTSI2SD(XMM0, RDX);
+    ADDSD(XMM0, XMM0);
+    println(format(".L%d:", c2));
+}
+static void cf64f32() { CVTSS2SD(XMM0, XMM0); }
 static void nocast() {}
 
-static void (*cast_fn_table[][8])() = {
-    {nocast, nocast, nocast, s_32_64, z_8_32, z_16_32, nocast, s_32_64},
-    {s_8_32, nocast, nocast, s_32_64, z_8_32, z_16_32, nocast, s_32_64},
-    {s_8_32, s_16_32, nocast, s_32_64, z_8_32, z_16_32, nocast, s_32_64},
-    {s_8_32, s_16_32, nocast, nocast, z_8_32, z_16_32, nocast, nocast},
-    {s_8_32, nocast, nocast, s_32_64, nocast, nocast, nocast, s_32_64},
-    {s_8_32, s_16_32, nocast, s_32_64, z_8_32, nocast, nocast, s_32_64},
-    {s_8_32, s_16_32, nocast, s_32_64, z_8_32, z_16_32, nocast, z_32_64},
-    {s_8_32, s_16_32, nocast, nocast, z_8_32, z_16_32, nocast, nocast},
+static void (*cast_fn_table[][10])() = {
+  // to i8      i16      i32      i64      u8      u16      u32      u64      f32      f64     // from
+    {nocast, nocast,  nocast,  s_64_32, z_8_32, z_16_32, nocast,  s_64_32, sf32_8,     sf64_8    }, // i8
+    {s_8_32, nocast,  nocast,  s_64_32, z_8_32, z_16_32, nocast,  s_64_32, sf32_16,    sf64_16   }, // i16
+    {s_8_32, s_16_32, nocast,  s_64_32, z_8_32, z_16_32, nocast,  s_64_32, cf32_32,    cf64_32   }, // i32
+    {s_8_32, s_16_32, nocast,  nocast,  z_8_32, z_16_32, nocast,  nocast,  cf32_64asI, cf64_64asI}, // i64
+    {s_8_32, nocast,  nocast,  s_64_32, nocast, nocast,  nocast,  s_64_32, zf32_8,     zf64_8    }, // u8
+    {s_8_32, s_16_32, nocast,  s_64_32, z_8_32, nocast,  nocast,  s_64_32, zf32_16,    zf64_16   }, // u16
+    {s_8_32, s_16_32, nocast,  z_64_32, z_8_32, z_16_32, nocast,  z_64_32, zf32_32,    zf64_32   }, // u32
+    {s_8_32, s_16_32, nocast,  nocast,  z_8_32, z_16_32, nocast,  nocast,  cf32_64asU, cf64_64asU}, // u64
+    {s_8f32, s_16f32, c_32f32, c_64f32, z_8f32, z_16f32, z_32f32, c_64f32, nocast,     cf64f32   }, // f32
+    {s_8f64, s_16f64, c_32f64, c_64f64, z_8f64, z_16f64, z_32f64, c_64f64, cf32f64,    nocast    }, // f64
 };
 
-static int type_id(Type *ty) {
-    assert(is_integer(ty) || is_any_type_of(ty, 1, TY_PTR));
+// clang-format on
 
-    enum { I8, I16, I32, I64, U8, U16, U32, U64 };
+static int type_id(Type *ty) {
+    assert(is_integer(ty) || is_flonum(ty) || is_any_type_of(ty, 1, TY_PTR));
+
+    enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64 };
+
+    if (is_flonum(ty)) {
+        return ty->size == 4 ? F32 : F64;
+    }
 
     switch (ty->size) {
     case 1:
@@ -459,12 +569,14 @@ static void gen_expr(Node *node) {
         case TY_FLOAT:
             u.f32 = (float)node->num.fval;
             MOV(EAX, format("%u", u.u32));
-            MOVSS(XMM0, RAX);
+            MOVQ(XMM0, RAX);
+            PUSH(RAX);
             return;
         case TY_DOUBLE:
             u.f64 = node->num.fval;
             MOV(RAX, format("%lu", u.u64));
-            MOVSD(XMM0, RAX);
+            MOVQ(XMM0, RAX);
+            PUSH(RAX);
             return;
         default:
             if (node->num.ival < INT32_MIN || INT32_MAX < node->num.ival) {
