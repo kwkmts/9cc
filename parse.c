@@ -157,10 +157,6 @@ static VarScope *look_in_cur_var_scope(Token *tok);
 // 名前の重複がある場合はエラーを報告
 static VarScope *new_var_scope(Token *tok) {
     char *name = get_ident(tok);
-    if (look_in_cur_var_scope(tok)) {
-        error_tok(tok, "そのような識別子はすでに存在します");
-    }
-
     VarScope *sc = calloc(1, sizeof(VarScope));
     sc->name = name;
     sc->next = scope->vars;
@@ -169,7 +165,11 @@ static VarScope *new_var_scope(Token *tok) {
 }
 
 static VarScope *push_var_into_var_scope(Token *tok, Obj *var) {
-    VarScope *sc = new_var_scope(tok);
+    VarScope *sc = look_in_cur_var_scope(tok);
+    if (sc && sc->var && sc->var->has_definition) {
+        error_tok(tok, "そのような識別子はすでに存在します");
+    }
+    sc = new_var_scope(tok);
     sc->var = var;
     return sc;
 }
@@ -191,12 +191,18 @@ static void push_builtin_obj_into_var_scope() {
 }
 
 static VarScope *push_enum_const_into_var_scope(Token *tok, EnumConst *ec) {
+    if (look_in_cur_var_scope(tok)) {
+        error_tok(tok, "そのような識別子はすでに存在します");
+    }
     VarScope *sc = new_var_scope(tok);
     sc->enum_const = ec;
     return sc;
 }
 
 static VarScope *push_typedef_into_var_scope(Token *tok, Type *td) {
+    if (look_in_cur_var_scope(tok)) {
+        error_tok(tok, "そのような識別子はすでに存在します");
+    }
     VarScope *sc = new_var_scope(tok);
     sc->typedef_ = td;
     return sc;

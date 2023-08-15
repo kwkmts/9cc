@@ -7,6 +7,7 @@ int g4 = 42;
 static int g5 = 3;
 extern int ext1;
 extern int *ext2;
+int ext3 = 42;
 const int g6;
 int;
 typedef void gV;

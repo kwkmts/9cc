@@ -9,4 +9,6 @@ int sprintf(char *, const char *, ...);
 int strcmp(const char *, const char *);
 int vsprintf(char *, const char *, __builtin_va_list);
 
+extern int ext3;
+
 #endif
