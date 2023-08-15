@@ -194,11 +194,63 @@ int main() {
     ASSERT(65535, (int)(unsigned short)65535);
     ASSERT(65535, ({ unsigned short x = 65535; x; }));
     ASSERT(65535, ({ unsigned short x = 65535; (int)x; }));
+    ASSERT(1, ({ unsigned x=4294967295; (long)x==4294967295; }));
 
     ASSERT(1, sizeof((char)1));
     ASSERT(2, sizeof((short)1));
     ASSERT(4, sizeof((int)1));
     ASSERT(8, sizeof((long)1));
+
+    ASSERT(4, sizeof(float));
+    ASSERT(8, sizeof(double));
+
+    ASSERT(3, (char)3.0);
+    ASSERT(1000, (short)1000.3);
+    ASSERT(3, (int)3.99);
+    ASSERT(3, (float)3.5);
+    ASSERT(5, (double)(float)5.5);
+    ASSERT(3, (float)3);
+    ASSERT(3, (double)3);
+    ASSERT(3, (float)3L);
+    ASSERT(3, (double)3L);
+
+    ASSERT(35, (float)(char)35);
+    ASSERT(35, (float)(short)35);
+    ASSERT(35, (float)(int)35);
+    ASSERT(35, (float)(long)35);
+    ASSERT(35, (float)(unsigned char)35);
+    ASSERT(35, (float)(unsigned short)35);
+    ASSERT(35, (float)(unsigned int)35);
+    ASSERT(35, (float)(unsigned long)35);
+
+    ASSERT(35, (double)(char)35);
+    ASSERT(35, (double)(short)35);
+    ASSERT(35, (double)(int)35);
+    ASSERT(35, (double)(long)35);
+    ASSERT(35, (double)(unsigned char)35);
+    ASSERT(35, (double)(unsigned short)35);
+    ASSERT(35, (double)(unsigned int)35);
+    ASSERT(35, (double)(unsigned long)35);
+
+    ASSERT(35, (char)(float)35);
+    ASSERT(35, (short)(float)35);
+    ASSERT(35, (int)(float)35);
+    ASSERT(35, (long)(float)35);
+    ASSERT(35, (unsigned char)(float)35);
+    ASSERT(35, (unsigned short)(float)35);
+    ASSERT(35, (unsigned int)(float)35);
+    ASSERT(35, (unsigned long)(float)35);
+
+    ASSERT(35, (char)(double)35);
+    ASSERT(35, (short)(double)35);
+    ASSERT(35, (int)(double)35);
+    ASSERT(35, (long)(double)35);
+    ASSERT(35, (unsigned char)(double)35);
+    ASSERT(35, (unsigned short)(double)35);
+    ASSERT(35, (unsigned int)(double)35);
+    ASSERT(35, (unsigned long)(double)35);
+
+    ASSERT(-2147483648, (double)(unsigned long)(long)-1);
 
     return 0;
 }
