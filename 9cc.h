@@ -142,6 +142,7 @@ typedef enum {
     ND_CASE,      // case, default
     ND_WHILE,     // while
     ND_FOR,       // for
+    ND_DO,        // do
     ND_INIT,      // 初期化
     ND_EXPR_STMT, // 式文
     ND_STMT_EXPR, // GNU Statement Exprs
@@ -233,6 +234,13 @@ struct Node {
             int brk_label_id;  // break文のジャンプ先ラベルID
             int cont_label_id; // continue文のジャンプ先ラベルID
         } for_;
+
+        struct {
+            Node *cond;        // 条件式
+            Node *then;        // then節
+            int brk_label_id;  // break文のジャンプ先ラベルID
+            int cont_label_id; // continue文のジャンプ先ラベルID
+        } do_;
 
         struct {
             char *label; // 対応するラベル名

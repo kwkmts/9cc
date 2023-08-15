@@ -307,6 +307,10 @@ void add_type(Node *node) {
         add_type(node->for_.after);
         add_type(node->for_.then);
         return;
+    case ND_DO:
+        add_type(node->do_.cond);
+        add_type(node->do_.then);
+        return;
     case ND_LABEL:
         add_type(node->label.stmt);
         return;

@@ -1783,6 +1783,27 @@ static Node *for_stmt() {
     return node;
 }
 
+// do-stmt = "do" stmt "while" "(" expr ")" ";"
+static Node *do_stmt() {
+    Node *node = new_node(ND_DO, consume("do", TK_KEYWORD));
+
+    int brk_label_id = cur_brk_label_id;
+    int cont_label_id = cur_cont_label_id;
+    node->do_.brk_label_id = cur_brk_label_id = count();
+    node->do_.cont_label_id = cur_cont_label_id = count();
+    node->do_.then = stmt();
+    cur_brk_label_id = brk_label_id;
+    cur_cont_label_id = cont_label_id;
+
+    consume("while", TK_KEYWORD);
+    expect("(");
+    node->do_.cond = expr();
+    expect(")");
+    expect(";");
+
+    return node;
+}
+
 // goto-stmt = "goto" ident ";"
 static Node *goto_stmt() {
     Node *node = new_node(ND_GOTO, consume("goto", TK_KEYWORD));
@@ -1892,6 +1913,9 @@ static Node *stmt() {
     }
     if (equal("for", TK_KEYWORD, token)) {
         return for_stmt();
+    }
+    if (equal("do", TK_KEYWORD, token)) {
+        return do_stmt();
     }
     if (equal("goto", TK_KEYWORD, token)) {
         return goto_stmt();

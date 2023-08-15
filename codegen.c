@@ -877,19 +877,13 @@ static void gen_stmt(Node *node) {
         return;
     case ND_WHILE: {
         int c = count();
-
         println(".Lbegin%d:", c);
-
-        if (node->while_.cond) {
-            gen_expr(node->while_.cond);
-            POP(RAX);
-            CMP(RAX, IMM(0));
-            JE(format(".L%d", node->while_.brk_label_id));
-        }
-
+        gen_expr(node->while_.cond);
+        POP(RAX);
+        CMP(RAX, IMM(0));
+        JE(format(".L%d", node->while_.brk_label_id));
         gen_stmt(node->while_.then);
         println(".L%d:", node->while_.cont_label_id);
-
         JMP(format(".Lbegin%d", c));
         println(".L%d:", node->while_.brk_label_id);
         return;
@@ -919,6 +913,18 @@ static void gen_stmt(Node *node) {
 
         JMP(format(".Lbegin%d", c));
         println(".L%d:", node->for_.brk_label_id);
+        return;
+    }
+    case ND_DO: {
+        int c = count();
+        println(".Lbegin%d:", c);
+        gen_stmt(node->do_.then);
+        println(".L%d:", node->do_.cont_label_id);
+        gen_expr(node->do_.cond);
+        POP(RAX);
+        CMP(RAX, IMM(0));
+        JNE(format(".Lbegin%d", c));
+        println(".L%d:", node->do_.brk_label_id);
         return;
     }
     case ND_INIT:

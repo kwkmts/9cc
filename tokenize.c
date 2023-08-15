@@ -88,13 +88,23 @@ static bool is_alnum(char c) { return is_alpha(c) || ('0' <= c && c <= '9'); }
 
 static int read_keyword(char *c) {
     static char *kw[] = {
-        "if",       "else",     "switch", "case",   "default",
-        "while",    "for",      "goto",   "break",  "continue",
-        "return",   "unsigned", "signed", "void",   "int",
-        "char",     "short",    "long",   "_Bool",  "float",
-        "double",   "struct",   "union",  "enum",   "__builtin_va_list",
-        "sizeof",   "typedef",  "static", "extern", "const",
-        "volatile", "restrict",
+        "if",       "else",
+        "switch",   "case",
+        "default",  "do",
+        "while",    "for",
+        "goto",     "break",
+        "continue", "return",
+        "unsigned", "signed",
+        "void",     "int",
+        "char",     "short",
+        "long",     "_Bool",
+        "float",    "double",
+        "struct",   "union",
+        "enum",     "__builtin_va_list",
+        "sizeof",   "typedef",
+        "static",   "extern",
+        "const",    "volatile",
+        "restrict",
     };
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = (int)strlen(kw[i]);

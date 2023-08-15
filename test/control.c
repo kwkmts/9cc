@@ -48,6 +48,9 @@ int main() {
     ASSERT(55, ({ int j=0; for(int i=0;i<=10;i=i+1) j=j+i; j; }));
     ASSERT(3, ({ int i=3; int j=0; for(int i=0;i<=10;i=i+1) j=j+i; i; }));
 
+    ASSERT(7, ({ int i=0; int j=0; do{ j++; }while(i++<6); j; }));
+    ASSERT(4, ({ int i=0; int j=0; int k=0; do{ if (++j>3) break; continue; k++; }while(1); j; }));
+
     ASSERT(1, ({ typedef int foo; goto foo; foo:; 1; }));
 
     return 0;
