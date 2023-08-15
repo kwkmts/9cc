@@ -91,6 +91,26 @@ static Token *consume_ident() {
     return tok;
 }
 
+static bool is_list_end() {
+    return equal("}", TK_RESERVED, token) ||
+           equal(",", TK_RESERVED, token) &&
+               equal("}", TK_RESERVED, token->next);
+}
+
+static bool consume_list_end() {
+    if (consume("}", TK_RESERVED)) {
+        return true;
+    }
+
+    if (equal(",", TK_RESERVED, token) &&
+        equal("}", TK_RESERVED, token->next)) {
+        token = token->next->next;
+        return true;
+    }
+
+    return false;
+}
+
 // 次のトークンが期待している記号の時は、トークンを1つ読み進めてその記号を返す
 // それ以外の場合にはエラーを報告
 static Token *expect(char *op) {
@@ -787,7 +807,7 @@ static Type *union_decl() {
 
 // enum-specifier = ident? "{" enum-list? "}"
 //                | ident
-// enum-list = ident ("=" num)? ("," ident ("=" num)?)*
+// enum-list = ident ("=" num)? ("," ident ("=" num)?)* ","?
 static Type *enum_specifier() {
     Token *tag = consume_ident();
     Type *ty = NULL;
@@ -814,7 +834,7 @@ static Type *enum_specifier() {
     expect("{");
 
     int val = 0;
-    for (int i = 0; !consume("}", TK_RESERVED); i++) {
+    for (int i = 0; !consume_list_end(); i++) {
         if (i > 0) {
             expect(",");
         }
@@ -1276,7 +1296,7 @@ static int count_ary_init_elems(Type *ty) {
     Token *tmp = token; // 要素数を数える直前のトークンのアドレスを退避
     Initializer *dummy = new_initializer(ty->base, false);
     int i = 0;
-    while (!equal("}", TK_RESERVED, token)) {
+    while (!consume_list_end()) {
         if (i > 0) {
             expect(",");
         }
@@ -1306,8 +1326,9 @@ static void initialize_with_zero(Initializer *init) {
     init->expr = new_node_num(0, NULL);
 }
 
-// ary-initializer = "{" (initializer ("," initializer)*)? "}"}
+// ary-initializer = "{" initializer-list? "}"
 //                 | ε
+// initializer-list = initializer ("," initializer)* ","?
 static void ary_initializer(Initializer *init) {
     if (!consume("{", TK_RESERVED)) {
         return;
@@ -1319,7 +1340,7 @@ static void ary_initializer(Initializer *init) {
     }
 
     int i = 0;
-    while (i < init->ty->ary_len && !equal("}", TK_RESERVED, token)) {
+    while (i < init->ty->ary_len && !is_list_end()) {
         if (i > 0) {
             expect(",");
         }
@@ -1327,11 +1348,12 @@ static void ary_initializer(Initializer *init) {
         initializer2(init->children[i++]);
     }
 
-    expect("}");
+    consume_list_end();
 }
 
-// struct-initializer = "{" (initializer ("," initializer)*)? "}"
+// struct-initializer = "{" initializer-list? "}"
 //                    | assign
+// initializer-list = initializer ("," initializer)* ","?
 static void struct_initializer(Initializer *init) {
     if (!consume("{", TK_RESERVED)) {
         Node *expr = assign();
@@ -1343,7 +1365,7 @@ static void struct_initializer(Initializer *init) {
     }
 
     Member *mem = init->ty->members;
-    while (mem && !equal("}", TK_RESERVED, token)) {
+    while (mem && !is_list_end()) {
         if (mem != init->ty->members) {
             expect(",");
         }
@@ -1352,10 +1374,10 @@ static void struct_initializer(Initializer *init) {
         mem = mem->next;
     }
 
-    expect("}");
+    consume_list_end();
 }
 
-// union-initializer = "{" initializer "}"
+// union-initializer = "{" initializer ","? "}"
 //                   | assign
 static void union_initializer(Initializer *init) {
     if (!consume("{", TK_RESERVED)) {
@@ -1368,6 +1390,7 @@ static void union_initializer(Initializer *init) {
     }
 
     initializer2(init->children[0]);
+    consume(",", TK_RESERVED);
     expect("}");
 }
 

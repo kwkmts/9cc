@@ -22,6 +22,9 @@ int main() {
     int l3[3]={0,1,2};
     int l4[]={0,1,2,3};
     int l5[][2]={{0,1},{2,3},{4,5}};
+    int l6[]={1,2,3,};
+    struct {int a; int b;} l7={42,64,};
+    union {int a; int b;} l8={42,};
 
     ASSERT(0, l3[0]);
     ASSERT(1, l3[1]);

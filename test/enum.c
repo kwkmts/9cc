@@ -5,7 +5,7 @@ typedef enum gE gE;
 
 gE extE;
 
-enum gE { A, B };
+enum gE { A, B, };
 
 int main() {
     enum E;
