@@ -14,7 +14,6 @@
 
 typedef struct Token Token;
 typedef struct Obj Obj;
-typedef enum NodeKind NodeKind;
 typedef struct Node Node;
 typedef struct Type Type;
 typedef struct Member Member;
@@ -71,10 +70,6 @@ struct Initializer {
     bool is_flexible;
 };
 
-int64_t calc_const_expr(Node *node, char **label);
-Node *new_node_unary(NodeKind kind, Node *expr, Token *tok);
-Node *new_node_cast(Node *expr, Type *ty);
-
 extern Obj locals;    // ローカル変数の連結リスト
 extern Obj globals;   // グローバル変数の連結リスト
 extern Obj functions; // 関数の連結リスト
@@ -106,7 +101,7 @@ struct Obj {
 };
 
 // 抽象構文木のノードの種類
-enum NodeKind {
+typedef enum {
     ND_ADD,       // +
     ND_SUB,       // -
     ND_MUL,       // *
@@ -150,7 +145,7 @@ enum NodeKind {
     ND_STMT_EXPR, // GNU Statement Exprs
     ND_NULL_EXPR, // 何もしない式
     ND_NULL_STMT, // 空文
-};
+} NodeKind;
 
 // 抽象構文木のノードの型
 struct Node {
@@ -271,6 +266,9 @@ struct Node {
     };
 };
 
+int64_t calc_const_expr(Node *node, char **label);
+Node *new_node_unary(NodeKind kind, Node *expr, Token *tok);
+Node *new_node_cast(Node *expr, Type *ty);
 void program();
 bool is_builtin(char *name);
 

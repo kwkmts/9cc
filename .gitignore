@@ -4,3 +4,4 @@ a.out
 9cc
 test/*.s
 test/*.out
+stage2/
