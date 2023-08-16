@@ -155,6 +155,9 @@ void add_type_init(Node *node) {
             node->binop.rhs =
                 new_node_cast(node->binop.rhs, node->binop.lhs->ty);
         }
+        if (is_any_type_of(node->binop.rhs->ty, 1, TY_FUNC)) {
+            node->binop.rhs = new_node_unary(ND_ADDR, node->binop.rhs, NULL);
+        }
         node->ty = node->binop.lhs->ty;
         return;
     default:
@@ -239,6 +242,11 @@ void add_type(Node *node) {
         return;
     case ND_DEREF:
         add_type(node->unary.expr);
+        if (node->unary.expr->ty->kind == TY_FUNC) {
+            node->ty = node->unary.expr->ty;
+            return;
+        }
+
         if (!node->unary.expr->ty->base) {
             error_tok(node->tok, "参照外しできません");
         }

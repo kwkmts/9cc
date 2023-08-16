@@ -150,7 +150,7 @@ int align_to(int n, int align) {
 }
 
 static void load(Type *ty) {
-    if (is_any_type_of(ty, 3, TY_ARY, TY_STRUCT, TY_UNION)) {
+    if (is_any_type_of(ty, 4, TY_ARY, TY_STRUCT, TY_UNION, TY_FUNC)) {
         return;
     }
 
@@ -186,10 +186,7 @@ static void load(Type *ty) {
         return;
     }
 
-    // TODO: TY_FUNCは来ないはず(後で実装)
-    //    fprintf(stderr, "#size: %d\n", ty->size);
-    //    fprintf(stderr, "#kind: %d\n", ty->kind);
-    //    unreachable();
+    unreachable();
 }
 
 static void store2(int size, int offset) {

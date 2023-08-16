@@ -229,6 +229,8 @@ static int64_t calc_const_expr2(Node *node, char **label) {
     case ND_VAR:
         *label = node->var.var->name;
         return 0;
+    case ND_DEREF:
+        return calc_const_expr2(node->unary.expr, label);
     default:
         unreachable();
     }
@@ -307,6 +309,14 @@ int64_t calc_const_expr(Node *node, char **label) {
         return node->num.ival;
     case ND_ADDR:
         return calc_const_expr2(node->unary.expr, label);
+    case ND_DEREF:
+        if (node->unary.expr->ty->kind == TY_FUNC) {
+            return calc_const_expr2(node, label);
+        }
+    case ND_VAR:
+        if (node->var.var->ty->kind == TY_FUNC) {
+            return calc_const_expr2(node, label);
+        }
     default:
         error_tok(node->tok, "定数式ではありません");
     }
@@ -399,7 +409,7 @@ static Node *new_node_binary(NodeKind kind, Node *lhs, Node *rhs, Token *tok) {
     return node;
 }
 
-static Node *new_node_unary(NodeKind kind, Node *expr, Token *tok) {
+Node *new_node_unary(NodeKind kind, Node *expr, Token *tok) {
     Node *node = new_node(kind, tok);
     node->unary.expr = expr;
     return node;
@@ -1449,6 +1459,7 @@ static void initializer2(Initializer *init) {
             Obj *var = new_str_literal(token->str);
             init->expr =
                 new_node_unary(ND_ADDR, new_node_var(var, token), token);
+            add_type(init->expr);
             token = token->next;
             return;
         } else {
@@ -1473,11 +1484,13 @@ static void initializer2(Initializer *init) {
 
     if (consume("{", TK_RESERVED)) {
         init->expr = assign();
+        add_type(init->expr);
         expect("}");
         return;
     }
 
     init->expr = assign();
+    add_type(init->expr);
 }
 
 static Initializer *initializer(Type *ty, Type **new_ty) {

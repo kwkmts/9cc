@@ -57,6 +57,7 @@ void a(){}
 void b(int a){}
 const char *func_fn() { return __func__; }
 void ret_none() { return; }
+int (*fii[])(int,int)={add,&sub,*add,**sub};
 
 int main() {
     ASSERT(3, ret3());
@@ -97,7 +98,14 @@ int main() {
     ASSERT(7, ({ int (*fn)(int,int)=add; fn(2,5); }));
     ASSERT(7, ({ int (*fn)(int,int)=add; (*fn)(2,5); }));
     ASSERT(7, ({ int (*fn)(int,int)=add; (&**&fn)(2,5); }));
+    ASSERT(7, ({ int (*fn)(int,int)=&add; fn(2,5); }));
+    ASSERT(7, ({ int (*fn)(int,int)=*add; fn(2,5); }));
+    ASSERT(7, ({ int (*fn)(int,int)=**add; fn(2,5); }));
     ASSERT(7, ret_fnptr(add)(2,5));
+    ASSERT(3, fii[0](1,2));
+    ASSERT(-1, fii[1](1,2));
+    ASSERT(3, fii[2](1,2));
+    ASSERT(-1, fii[3](1,2));
 
     ASSERT(3, param_decay(ret3));
     ASSERT(3, ({ int x[2]; x[0]=3; param_decay2(x); }));
