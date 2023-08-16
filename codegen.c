@@ -1066,7 +1066,9 @@ static void emit_functions() {
         }
 
         // アセンブリの前半部分を出力
-        println("    .globl %s", fn->name);
+        if (!fn->is_static) {
+            println("    .globl %s", fn->name);
+        }
         println("    .text");
         println("%s:", fn->name);
         println("    .loc 1 %d %d", fn->lbrace->line_no, fn->lbrace->column_no);
