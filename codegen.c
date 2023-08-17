@@ -107,6 +107,8 @@
 #define TEST(o1, o2) println("    test %s, %s", o1, o2)
 #define XOR(o1, o2) println("    xor %s, %s", o1, o2)
 
+#define GP_MAX 6
+
 static char *const argreg64[] = {RDI, RSI, RDX, RCX, R8, R9};
 static char *const argreg32[] = {EDI, ESI, EDX, ECX, R8D, R9D};
 static char *const argreg16[] = {DI, SI, DX, CX, R8W, R9W};
@@ -552,6 +554,14 @@ static void gen_builtin_funcall(Node *node) {
     unreachable();
 }
 
+static void push_args(Node *args) {
+    if (!args) {
+        return;
+    }
+    push_args(args->next);
+    gen_expr(args);
+}
+
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM: {
@@ -614,19 +624,23 @@ static void gen_expr(Node *node) {
             return;
         }
 
+        push_args(node->funcall.args);
+
         gen_expr(node->funcall.fn);
-        int nargs = 0;
-        for (Node *arg = node->funcall.args; arg; arg = arg->next) {
-            gen_expr(arg);
-            nargs++;
-        }
-
-        for (int i = nargs - 1; i >= 0; i--) {
-            POP(argreg64[i]);
-        }
-
         POP(RAX);
+
+        int iarg = 0;
+        for (Node *arg = node->funcall.args; arg; arg = arg->next) {
+            if (iarg < GP_MAX) {
+                POP(argreg64[iarg]);
+            }
+            iarg++;
+        }
+
         CALL(RAX);
+        if (iarg > GP_MAX) {
+            ADD(RSP, IMM((iarg - GP_MAX) * 8));
+        }
         PUSH(RAX);
         return;
     }
