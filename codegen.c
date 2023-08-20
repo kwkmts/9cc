@@ -427,7 +427,7 @@ static void gen_lval(Node *node) {
     case ND_VAR:
         if (node->var.var->kind == LVAR) {
             MOV(RAX, RBP);
-            SUB(RAX, IMM(node->var.var->offset));
+            SUB(RAX, IMM((long)node->var.var->offset));
             PUSH(RAX);
             return;
         }
@@ -1071,7 +1071,15 @@ static void emit_functions() {
 
         if (fn->locals) {
             int offset = 0;
-            for (Obj *var = fn->locals; var; var = var->next) {
+            int i = 0;
+            for (Obj *var = fn->locals; var; var = var->next, i++) {
+                // スタックから渡されるパラメータは rbp+16
+                // から上方向に積まれている
+                if (GP_MAX <= i && i < fn->nparams) {
+                    var->offset = -16 - 8 * (i - GP_MAX);
+                    continue;
+                }
+
                 offset += var->ty->size;
                 offset = var->offset = align_to(offset, var->ty->align);
             }
@@ -1113,7 +1121,7 @@ static void emit_functions() {
 
         // レジスタによって渡された引数の値をスタックに保存する
         Obj *var = fn->locals;
-        for (int i = 0; i < fn->nparams; i++) {
+        for (int i = 0; i < MIN(fn->nparams, GP_MAX); i++) {
             switch (var->ty->size) {
             case 1:
                 MOV(INDIRECT(RBP, -var->offset), argreg8[i]);
@@ -1127,7 +1135,8 @@ static void emit_functions() {
             case 8:
                 MOV(INDIRECT(RBP, -var->offset), argreg64[i]);
                 break;
-            default:;
+            default:
+                unreachable();
             }
 
             var = var->next;

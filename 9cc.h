@@ -11,6 +11,8 @@
 #include <strings.h>
 
 #define unreachable() error("internal error at %s:%d", __FILE__, __LINE__)
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
 
 typedef struct Token Token;
 typedef struct Obj Obj;

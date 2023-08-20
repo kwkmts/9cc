@@ -1439,8 +1439,7 @@ static void str_initializer(Initializer *init) {
         initialize_with_zero(init);
     }
 
-    int len =
-        init->ty->ary_len < token->len + 1 ? init->ty->ary_len : token->len + 1;
+    int len = MIN(init->ty->ary_len, token->len + 1);
     for (int i = 0; i < len; i++) {
         init->children[i]->expr = new_node_num(token->str[i], token);
     }
