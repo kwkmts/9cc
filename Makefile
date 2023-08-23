@@ -1,12 +1,20 @@
 CFLAGS=-std=c11 -g -static
 SRCS=$(wildcard *.c)
+PREPROCESSED_SRCS=$(SRCS:.c=.i)
 OBJS=$(SRCS:.c=.o)
 TEST_SRCS=$(wildcard test/*.c)
 TESTS=$(TEST_SRCS:.c=.out)
 RM=rm -rf
 
+all: 9cc stage2/9cc stage3/9cc
+
+test-all: test test-stage2 diff-stage23 err-test
+
 9cc: $(OBJS)
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+
+$(PREPROCESSED_SRCS): %.i: %.c
+	$(CC) -o $@ -U__GNUC__ -E -P -C $^
 
 $(OBJS): 9cc.h
 
@@ -21,10 +29,9 @@ test: $(TESTS)
 		echo; echo "OK"; echo; \
 	done
 
-stage2/%.o: %.c 9cc
+stage2/%.o: %.i 9cc
 	@mkdir -p stage2
-	$(CC) -o- -U__GNUC__ -E -P -C $< > stage2/$*.i
-	./9cc stage2/$*.i > stage2/$*.s
+	./9cc $< > stage2/$*.s
 	$(CC) -c -o $@ stage2/$*.s -g
 
 stage2/9cc: $(OBJS:%=stage2/%)
@@ -42,10 +49,22 @@ test-stage2: $(TESTS:test/%=stage2/test/%)
 		echo; echo "OK"; echo; \
 	done
 
+stage3/%.o: %.i stage2/9cc
+	@mkdir -p stage3
+	./stage2/9cc $< > stage3/$*.s
+	$(CC) -c -o $@ stage3/$*.s -g
+
+stage3/9cc: $(OBJS:%=stage3/%)
+	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+
+diff-stage23: stage3/9cc
+	diff stage2/9cc $^
+	@echo "OK"; echo
+
 err-test: 9cc
 	test/err_test.sh
 
 clean:
-	$(RM) 9cc *.o *~ test/*.s test/*.out stage2
+	$(RM) 9cc $(PREPROCESSED_SRCS) *.o *~ test/*.s test/*.out stage2 stage3
 
-.PHONY: test test-stage2 err-test clean
+.PHONY: all test-all test test-stage2 diff-stage23 err-test clean

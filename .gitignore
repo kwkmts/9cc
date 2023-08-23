@@ -5,3 +5,4 @@ a.out
 test/*.s
 test/*.out
 stage2/
+stage3/
