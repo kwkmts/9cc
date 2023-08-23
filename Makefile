@@ -23,7 +23,8 @@ test: $(TESTS)
 
 stage2/%.o: %.c 9cc
 	@mkdir -p stage2
-	$(CC) -o- -U__GNUC__ -E -P -C $< | ./9cc - > stage2/$*.s
+	$(CC) -o- -U__GNUC__ -E -P -C $< > stage2/$*.i
+	./9cc stage2/$*.i > stage2/$*.s
 	$(CC) -c -o $@ stage2/$*.s -g
 
 stage2/9cc: $(OBJS:%=stage2/%)

@@ -11,6 +11,22 @@ gU extU;
 struct gT {int a; int b;};
 union gU {int a; int b;};
 
+typedef struct {
+    int a;
+    struct {
+        int b;
+        int c;
+    };
+} gT2;
+
+typedef struct {
+    int a;
+    union {
+        int b;
+        int c;
+    };
+} gT3;
+
 int main() {
     struct T;
     union U;
@@ -77,6 +93,9 @@ int main() {
 
     ASSERT(3, ({ struct {union {int a; int b;}; union {int c; int d;};} x; x.a=3; x.b; }));
     ASSERT(5, ({ struct {union {int a; int b;}; union {int c; int d;};} x; x.d=5; x.c; }));
+
+    ASSERT(42, ({ gT2 x={64, {42}}; x.b; }));
+    ASSERT(42, ({ gT3 x={64, {42}}; x.b; }));
 
     return 0;
 }

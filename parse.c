@@ -2373,6 +2373,7 @@ static Node *struct_ref(Node *lhs, Token *tok) {
     }
 
     Type *ty = lhs->ty;
+    Node *node = lhs;
 
     for (;;) {
         Member *mem = get_member(ty);
@@ -2383,8 +2384,9 @@ static Node *struct_ref(Node *lhs, Token *tok) {
             add_const(&mem->ty);
         }
         if (mem->name) {
-            return new_node_member(lhs, mem, tok);
-            ;
+            return new_node_member(node, mem, tok);
+        } else {
+            node = new_node_member(node, mem, NULL);
         }
 
         ty = mem->ty;
