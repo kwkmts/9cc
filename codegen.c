@@ -838,11 +838,8 @@ static void gen_stmt(Node *node) {
         return;
     case ND_RETURN:
         gen_expr(node->return_.expr);
-
         POP(RAX);
-        MOV(RSP, RBP);
-        POP(RBP);
-        RET();
+        JMP(format(".Lreturn.%s", cur_fn->name));
         return;
     case ND_IF: {
         int c = count();
@@ -1145,11 +1142,8 @@ static void emit_functions() {
         // 先頭の式から順にコード生成
         gen_stmt(fn->body);
 
-        // スタックトップに式全体の値が残っているはずなのでスタックが溢れないようにポップしておく
-        POP(RAX);
-
         // エピローグ
-        // 最後の式の結果がRAXに残っているのでそれが戻り値となる
+        println(".Lreturn.%s:", fn->name);
         println("    .loc 1 %d %d", fn->body->tok->line_no,
                 fn->body->tok->column_no);
         MOV(RSP, RBP);

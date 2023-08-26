@@ -62,6 +62,12 @@ void b(int a){}
 const char *func_fn() { return __func__; }
 void ret_none() { return; }
 int (*fii[])(int,int)={add,&sub,*add,**sub};
+unsigned abs_val(int x) {
+    if (x < 0) {
+        return -x;
+    }
+    return x;
+}
 
 int main() {
     ASSERT(3, ret3());
@@ -132,6 +138,9 @@ int main() {
     ASSERT(55, add10_int(1,2,3,4,5,6,7,8,9,10));
 
     ASSERT(4, many_args(1,2,3,4,5,6,40,10));
+
+    ASSERT(42, abs_val(42));
+    ASSERT(42, abs_val(-42));
 
     return 0;
 }
