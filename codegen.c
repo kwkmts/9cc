@@ -151,6 +151,20 @@ int align_to(int n, int align) {
     return (n + align - 1) / align * align;
 }
 
+// プロローグ直後のスタックの状態を基準としてスタックの深さを保持(call と ret
+// は除く)
+static int depth;
+
+static void push(char *reg) {
+    PUSH(reg);
+    depth++;
+}
+
+static void pop(char *reg) {
+    POP(reg);
+    depth--;
+}
+
 static void load(Type *ty) {
     if (is_any_type_of(ty, 4, TY_ARY, TY_STRUCT, TY_UNION, TY_FUNC)) {
         return;
@@ -428,13 +442,13 @@ static void gen_lval(Node *node) {
         if (node->var.var->kind == LVAR) {
             MOV(RAX, RBP);
             SUB(RAX, IMM((long)node->var.var->offset));
-            PUSH(RAX);
+            push(RAX);
             return;
         }
 
         if (node->var.var->kind == GVAR) {
             LEA(RAX, INDIRECT_LABEL(node->var.var->name, RIP));
-            PUSH(RAX);
+            push(RAX);
             return;
         }
 
@@ -445,21 +459,21 @@ static void gen_lval(Node *node) {
                 LEA(RAX,
                     INDIRECT_LABEL(format("%s@PLT", node->var.var->name), RIP));
             }
-            PUSH(RAX);
+            push(RAX);
             return;
         }
     case ND_MEMBER:
         gen_lval(node->member.lhs);
-        POP(RAX);
+        pop(RAX);
         ADD(RAX, IMM(node->member.mem->offset));
-        PUSH(RAX);
+        push(RAX);
         return;
     case ND_DEREF:
         gen_expr(node->unary.expr);
         return;
     case ND_COMMA:
         gen_expr(node->binop.lhs);
-        POP(RAX);
+        pop(RAX);
         gen_lval(node->binop.rhs);
         return;
     default:
@@ -488,7 +502,7 @@ static void gen_builtin_funcall(Node *node) {
         LEA(RAX, INDIRECT(RBP, -reg_save_area_offset));
         MOV(INDIRECT(RBP, -ap_offset + 16), RAX);
 
-        PUSH(RAX);
+        push(RAX);
         return;
     }
 
@@ -525,12 +539,12 @@ static void gen_builtin_funcall(Node *node) {
 
         println(".L%d:", c2);
         MOV(RAX, INDIRECT(RAX, 0));
-        PUSH(RAX);
+        push(RAX);
         return;
     }
 
     if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_end")) {
-        PUSH(RAX);
+        push(RAX);
         return;
     }
 
@@ -547,7 +561,7 @@ static void gen_builtin_funcall(Node *node) {
         MOV(INDIRECT(RCX, 8), RAX);
         MOV(RAX, INDIRECT(RSI, 16));
         MOV(INDIRECT(RCX, 16), RAX);
-        PUSH(RAX);
+        push(RAX);
         return;
     }
 
@@ -577,45 +591,45 @@ static void gen_expr(Node *node) {
             u.f32 = (float)node->num.fval;
             MOV(EAX, format("%u", u.u32));
             MOVQ(XMM0, RAX);
-            PUSH(RAX);
+            push(RAX);
             return;
         case TY_DOUBLE:
             u.f64 = node->num.fval;
             MOV(RAX, format("%lu", u.u64));
             MOVQ(XMM0, RAX);
-            PUSH(RAX);
+            push(RAX);
             return;
         default:
             if (node->num.ival < INT32_MIN || INT32_MAX < node->num.ival) {
                 MOV(RAX, IMM(node->num.ival));
-                PUSH(RAX);
+                push(RAX);
             } else {
-                PUSH(IMM(node->num.ival));
+                push(IMM(node->num.ival));
             }
             return;
         }
     }
     case ND_CAST:
         gen_expr(node->unary.expr);
-        POP(RAX);
+        pop(RAX);
         cast(node->unary.expr->ty, node->ty);
-        PUSH(RAX);
+        push(RAX);
         return;
     case ND_VAR:
     case ND_MEMBER:
         gen_lval(node);
-        POP(RAX);
+        pop(RAX);
         load(node->ty);
-        PUSH(RAX);
+        push(RAX);
         return;
     case ND_ADDR:
         gen_lval(node->unary.expr);
         return;
     case ND_DEREF:
         gen_expr(node->unary.expr);
-        POP(RAX);
+        pop(RAX);
         load(node->ty);
-        PUSH(RAX);
+        push(RAX);
         return;
     case ND_FUNCALL: {
         if (node->funcall.fn->kind == ND_VAR &&
@@ -627,12 +641,12 @@ static void gen_expr(Node *node) {
         push_args(node->funcall.args);
 
         gen_expr(node->funcall.fn);
-        POP(RAX);
+        pop(RAX);
 
         int iarg = 0;
         for (Node *arg = node->funcall.args; arg; arg = arg->next) {
             if (iarg < GP_MAX) {
-                POP(argreg64[iarg]);
+                pop(argreg64[iarg]);
             }
             iarg++;
         }
@@ -640,35 +654,36 @@ static void gen_expr(Node *node) {
         CALL(RAX);
         if (iarg > GP_MAX) {
             ADD(RSP, IMM((iarg - GP_MAX) * 8));
+            depth -= iarg - GP_MAX;
         }
-        PUSH(RAX);
+        push(RAX);
         return;
     }
     case ND_ASSIGN:
         gen_lval(node->binop.lhs);
         gen_expr(node->binop.rhs);
-        POP(RDI);
-        POP(RAX);
+        pop(RDI);
+        pop(RAX);
         store(node->ty, 0);
-        PUSH(RDI);
+        push(RDI);
         return;
     case ND_NOT:
         gen_expr(node->unary.expr);
 
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         SETE(AL);
         MOVZB(RAX, AL);
-        PUSH(RAX);
+        push(RAX);
         return;
     case ND_LOGAND: {
         int c = count();
         gen_expr(node->binop.lhs);
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JE(format(".Lfalse%d", c));
         gen_expr(node->binop.rhs);
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JE(format(".Lfalse%d", c));
         MOV(RAX, IMM(1));
@@ -676,17 +691,17 @@ static void gen_expr(Node *node) {
         println(".Lfalse%d:", c);
         MOV(RAX, IMM(0));
         println(".Lend%d:", c);
-        PUSH(RAX);
+        push(RAX);
         return;
     }
     case ND_LOGOR: {
         int c = count();
         gen_expr(node->binop.lhs);
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JNE(format(".Ltrue%d", c));
         gen_expr(node->binop.rhs);
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JNE(format(".Ltrue%d", c));
         MOV(RAX, IMM(0));
@@ -694,44 +709,44 @@ static void gen_expr(Node *node) {
         println(".Ltrue%d:", c);
         MOV(RAX, IMM(1));
         println(".Lend%d:", c);
-        PUSH(RAX);
+        push(RAX);
         return;
     }
     case ND_BITNOT:
         gen_expr(node->unary.expr);
-        POP(RAX);
+        pop(RAX);
         NOT(RAX);
-        PUSH(RAX);
+        push(RAX);
         return;
     case ND_COMMA:
         gen_expr(node->binop.lhs);
-        POP(RAX);
+        pop(RAX);
         gen_expr(node->binop.rhs);
         return;
     case ND_COND: {
         int c = count();
         gen_expr(node->condop.cond);
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JE(format(".Lelse%d", c));
         gen_expr(node->condop.then);
-        POP(RAX);
+        pop(RAX);
         JMP(format(".Lend%d", c));
         println(".Lelse%d:", c);
         gen_expr(node->condop.els);
-        POP(RAX);
+        pop(RAX);
         println(".Lend%d:", c);
-        PUSH(RAX);
+        push(RAX);
         return;
     }
     case ND_STMT_EXPR:
         for (Node *n = node->block.body; n; n = n->next) {
             gen_stmt(n);
         }
-        PUSH(RAX);
+        push(RAX);
         return;
     case ND_NULL_EXPR:
-        PUSH(RAX);
+        push(RAX);
         return;
     default:;
     }
@@ -739,8 +754,8 @@ static void gen_expr(Node *node) {
     gen_expr(node->binop.lhs);
     gen_expr(node->binop.rhs);
 
-    POP(RDI);
-    POP(RAX);
+    pop(RDI);
+    pop(RAX);
 
     bool _64 =
         node->binop.lhs->ty->kind == TY_LONG || node->binop.lhs->ty->base;
@@ -813,7 +828,7 @@ static void gen_expr(Node *node) {
         unreachable();
     }
 
-    PUSH(RAX);
+    push(RAX);
 }
 
 static void gen_stmt(Node *node) {
@@ -838,14 +853,14 @@ static void gen_stmt(Node *node) {
         return;
     case ND_RETURN:
         gen_expr(node->return_.expr);
-        POP(RAX);
+        pop(RAX);
         JMP(format(".Lreturn.%s", cur_fn->name));
         return;
     case ND_IF: {
         int c = count();
         gen_expr(node->if_.cond);
 
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JE(format(".Lelse%d", c));
 
@@ -864,7 +879,7 @@ static void gen_stmt(Node *node) {
     }
     case ND_SWITCH:
         gen_expr(node->switch_.cond);
-        POP(RAX);
+        pop(RAX);
 
         for (Node *n = node->switch_.cases; n; n = n->case_.next) {
             CMP(RAX, IMM(n->case_.val));
@@ -887,7 +902,7 @@ static void gen_stmt(Node *node) {
         int c = count();
         println(".Lbegin%d:", c);
         gen_expr(node->while_.cond);
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JE(format(".L%d", node->while_.brk_label_id));
         gen_stmt(node->while_.then);
@@ -907,7 +922,7 @@ static void gen_stmt(Node *node) {
 
         if (node->for_.cond) {
             gen_expr(node->for_.cond);
-            POP(RAX);
+            pop(RAX);
             CMP(RAX, IMM(0));
             JE(format(".L%d", node->for_.brk_label_id));
         }
@@ -916,7 +931,7 @@ static void gen_stmt(Node *node) {
         println(".L%d:", node->for_.cont_label_id);
         if (node->for_.after) {
             gen_expr(node->for_.after);
-            POP(RAX);
+            pop(RAX);
         }
 
         JMP(format(".Lbegin%d", c));
@@ -929,7 +944,7 @@ static void gen_stmt(Node *node) {
         gen_stmt(node->do_.then);
         println(".L%d:", node->do_.cont_label_id);
         gen_expr(node->do_.cond);
-        POP(RAX);
+        pop(RAX);
         CMP(RAX, IMM(0));
         JNE(format(".Lbegin%d", c));
         println(".L%d:", node->do_.brk_label_id);
@@ -937,11 +952,11 @@ static void gen_stmt(Node *node) {
     }
     case ND_INIT:
         gen_expr(node->init.assigns);
-        POP(RAX);
+        pop(RAX);
         return;
     case ND_EXPR_STMT:
         gen_expr(node->exprstmt.expr);
-        POP(RAX);
+        pop(RAX);
         return;
     case ND_NULL_STMT:
         return;
@@ -1141,6 +1156,7 @@ static void emit_functions() {
 
         // 先頭の式から順にコード生成
         gen_stmt(fn->body);
+        assert(depth == 0);
 
         // エピローグ
         println(".Lreturn.%s:", fn->name);
