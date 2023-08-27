@@ -638,23 +638,43 @@ static void gen_expr(Node *node) {
             return;
         }
 
+        int stack = 0;
+        {
+            int iarg = 0;
+            for (Node *arg = node->funcall.args; arg; arg = arg->next) {
+                if (iarg >= GP_MAX) {
+                    stack++;
+                }
+                iarg++;
+            }
+
+            // call直前のrspが16バイト境界になるように調整
+            if ((depth + stack) % 2) {
+                SUB(RSP, IMM(8));
+                depth++;
+                stack++;
+            }
+        }
+
         push_args(node->funcall.args);
 
         gen_expr(node->funcall.fn);
         pop(RAX);
 
-        int iarg = 0;
-        for (Node *arg = node->funcall.args; arg; arg = arg->next) {
-            if (iarg < GP_MAX) {
-                pop(argreg64[iarg]);
+        {
+            int iarg = 0;
+            for (Node *arg = node->funcall.args; arg; arg = arg->next) {
+                if (iarg < GP_MAX) {
+                    pop(argreg64[iarg]);
+                }
+                iarg++;
             }
-            iarg++;
         }
 
         CALL(RAX);
-        if (iarg > GP_MAX) {
-            ADD(RSP, IMM((iarg - GP_MAX) * 8));
-            depth -= iarg - GP_MAX;
+        if (stack) {
+            ADD(RSP, IMM(stack * 8));
+            depth -= stack;
         }
         push(RAX);
         return;
