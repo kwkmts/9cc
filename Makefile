@@ -8,7 +8,9 @@ RM=rm -rf
 
 all: 9cc stage2/9cc stage3/9cc
 
-test-all: test test-stage2 cmp-stage23 err-test
+test-all: test test-stage2 cmp-stage23
+
+err-test-all: err-test err-test-stage2
 
 9cc: $(OBJS)
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
@@ -64,7 +66,10 @@ cmp-stage23: stage3/9cc
 	@echo "OK"; echo
 
 err-test: 9cc
-	test/err_test.sh
+	test/err_test.sh ./$^
+
+err-test-stage2: stage2/9cc
+	test/err_test.sh ./$^
 
 clean:
 	$(RM) 9cc $(PREPROCESSED_SRCS) *.o *~ test/*.s test/*.out stage2 stage3

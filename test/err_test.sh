@@ -1,11 +1,13 @@
 #!/bin/bash
 
+cc="$1"
+
 ntest=0
 npass=0
 
 assert() {
   ((ntest++))
-  echo "$1" | ./9cc - &>/dev/null
+  echo "$1" | "$cc" - &>/dev/null
   status="$?"
 
   if [ "$status" -eq 0 ]; then
