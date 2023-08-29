@@ -138,6 +138,8 @@ int main() {
     { volatile int x; }
     { int volatile * volatile x; }
     { int ** restrict const volatile *x; }
+    { int (* volatile x); }
+    { int * volatile (* restrict * const x)[3]; }
 
     ASSERT(6, ({ char a[2*3]; sizeof(a); }));
     ASSERT(16, ({ int a[(char)260]; sizeof(a); }));

@@ -1243,15 +1243,9 @@ static Type *declarator(Type *ty) {
     return ty;
 }
 
-// abstract-declarator = ("*" "const"?)* ("(" abstract-declarator ")")?
-// type-suffix
+// abstract-declarator = pointers ("(" abstract-declarator ")")? type-suffix
 static Type *abstract_declarator(Type *ty) {
-    while (consume("*", TK_RESERVED)) {
-        ty = pointer_to(ty);
-        if (consume("const", TK_KEYWORD)) {
-            ty->is_const = true;
-        }
-    }
+    ty = pointers(ty);
 
     if (consume("(", TK_RESERVED)) {
         Token *start = token;
