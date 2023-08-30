@@ -46,7 +46,7 @@ assert 'int main() { int a[]; }' 1 18 '配列の要素数が指定されてい�
 assert 'long s="foo";' 1 8 '初期化子の型が不正です'
 
 assert 'int main() { case 1:; }' 1 14 'ここでcase文を使用することはできません'
-assert 'int main() { switch(1){ case 1:;case 1:; } }' 1 35 '重複したcase文'
+assert 'int main() { switch(1){ case 1:;case 1:; } }' 1 33 '重複したcase文'
 assert 'int main() { default:; }' 1 14 'ここでdefault文を使用することはできません'
 assert 'int main() { switch(1){ default:; default:; } }' 1 35 '重複したdefault文'
 assert 'int main() { break; }' 1 14 'ここでbreak文を使用することはできません'

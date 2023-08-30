@@ -207,7 +207,6 @@ struct Node {
             Node *then;       // then節
             Node *cases;      // case文リスト
             Node *default_;   // default文
-            Node *case_next;  // 次のcase文
             int brk_label_id; // break文のジャンプ先ラベルID
         } switch_;
 

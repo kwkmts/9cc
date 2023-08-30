@@ -1699,7 +1699,7 @@ static Node *case_stmt() {
         error_tok(tok, "ここでcase文を使用することはできません");
     }
 
-    for (Node *n = cur_switch->switch_.case_next; n; n = n->case_.next) {
+    for (Node *n = cur_switch->switch_.cases; n; n = n->case_.next) {
         if (val == n->case_.val) {
             error_tok(tok, "重複したcase文");
         }
