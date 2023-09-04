@@ -62,7 +62,18 @@ void error_at(char *loc, char *fmt, ...) {
     exit(1);
 }
 
-void error_tok(Token *tok, char *fmt, ...) { error_at(tok->loc, fmt); }
+void error_tok(Token *tok, char *fmt, ...) {
+    char *msg;
+    size_t buflen;
+    FILE *out = open_memstream(&msg, &buflen);
+
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(out, fmt, ap);
+    va_end(ap);
+    fclose(out);
+    error_at(tok->loc, msg);
+}
 
 //
 // トークナイザー

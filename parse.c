@@ -372,12 +372,16 @@ static Type *find_typedef(Token *tok) {
 }
 
 // 構造体・共用体・列挙体タグを名前で検索。見つからなければNULLを返す
-static Type *find_tag(Token *tok) {
-    for (Scope *sc = scope; sc; sc = sc->parent) {
+static Type *find_tag(Token *tok, bool *in_cur_scope) {
+    Scope *cur_sc = scope;
+    *in_cur_scope = false;
+
+    for (Scope *sc = cur_sc; sc; sc = sc->parent) {
         for (TagScope *tag_sc = sc->tags; tag_sc; tag_sc = tag_sc->next) {
             if (tag_sc->ty->name->len == tok->len &&
                 !memcmp(tok->loc, tag_sc->ty->name->loc,
                         tag_sc->ty->name->len)) {
+                *in_cur_scope = (sc == cur_sc);
                 return tag_sc->ty;
             }
         }
@@ -706,7 +710,7 @@ void program() {
     }
 }
 
-static Type *tag_type_decl(Token *tag) {
+static Type *tag_type(Token *tag) {
     Type *ty = calloc(1, sizeof(Type));
     ty->size = -1;
     ty->align = 1;
@@ -714,6 +718,37 @@ static Type *tag_type_decl(Token *tag) {
     if (tag) {
         push_tag_scope(ty);
     }
+    return ty;
+}
+
+static Type *tag_type_decl(TypeKind kind) {
+    assert(kind == TY_STRUCT || kind == TY_UNION || kind == TY_ENUM);
+
+    Token *tag = consume_ident();
+    Type *ty = NULL;
+    if (tag) {
+        bool in_cur_scope;
+        ty = find_tag(tag, &in_cur_scope);
+        if (!ty || !in_cur_scope && equal("{", TK_RESERVED, token)) {
+            ty = tag_type(tag);
+            ty->kind = kind;
+            push_tag_scope(ty);
+        } else if (in_cur_scope) {
+            if (!is_any_type_of(ty, 1, kind)) {
+                error_tok(tag, "前回の宣言と型が一致しません");
+            }
+            if (ty->size > 0 && equal("{", TK_RESERVED, token)) {
+                char *kind_str = kind == TY_STRUCT  ? "構造体"
+                                 : kind == TY_UNION ? "共用体"
+                                                    : "列挙体";
+                error_tok(tag, "%sの再定義はできません", kind_str);
+            }
+        }
+    } else {
+        ty = tag_type(NULL);
+        ty->kind = kind;
+    }
+
     return ty;
 }
 
@@ -743,29 +778,11 @@ static Member *member_list(Type *ty) {
 // struct-decl = ident? "{" member-list
 //             | ident
 static Type *struct_decl() {
-    Token *tag = consume_ident();
-    Type *ty = NULL;
-    if (tag) {
-        ty = find_tag_in_cur_scope(tag);
-    }
-    if (!ty) {
-        ty = tag_type_decl(tag);
-        ty->kind = TY_STRUCT;
-    }
+    Type *ty = tag_type_decl(TY_STRUCT);
 
-    if (!is_any_type_of(ty, 1, TY_STRUCT)) {
-        error_tok(tag, "前回の宣言と型が一致しません");
-    }
-
-    if (tag && !equal("{", TK_RESERVED, token)) {
+    if (!consume("{", TK_RESERVED)) {
         return ty;
     }
-
-    if (ty->size > 0) {
-        error_tok(tag, "構造体の再定義はできません");
-    }
-
-    expect("{");
 
     int offset = 0;
     Member *mems = member_list(ty);
@@ -783,29 +800,11 @@ static Type *struct_decl() {
 // union-decl = ident? "{" (declspec declarator ";")* "}"
 //             | ident
 static Type *union_decl() {
-    Token *tag = consume_ident();
-    Type *ty = NULL;
-    if (tag) {
-        ty = find_tag_in_cur_scope(tag);
-    }
-    if (!ty) {
-        ty = tag_type_decl(tag);
-        ty->kind = TY_UNION;
-    }
+    Type *ty = tag_type_decl(TY_UNION);
 
-    if (!is_any_type_of(ty, 1, TY_UNION)) {
-        error_tok(tag, "前回の宣言と型が一致しません");
-    }
-
-    if (tag && !equal("{", TK_RESERVED, token)) {
+    if (!consume("{", TK_RESERVED)) {
         return ty;
     }
-
-    if (ty->size > 0) {
-        error_tok(tag, "共用体の再定義はできません");
-    }
-
-    expect("{");
 
     int offset = 0;
     Member *mems = member_list(ty);
@@ -825,29 +824,11 @@ static Type *union_decl() {
 //                | ident
 // enum-list = ident ("=" num)? ("," ident ("=" num)?)* ","?
 static Type *enum_specifier() {
-    Token *tag = consume_ident();
-    Type *ty = NULL;
-    if (tag) {
-        ty = find_tag_in_cur_scope(tag);
-    }
-    if (!ty) {
-        ty = tag_type_decl(tag);
-        ty->kind = TY_ENUM;
-    }
+    Type *ty = tag_type_decl(TY_ENUM);
 
-    if (!is_any_type_of(ty, 1, TY_ENUM)) {
-        error_tok(tag, "前回の宣言と型が一致しません");
-    }
-
-    if (tag && !equal("{", TK_RESERVED, token)) {
+    if (!consume("{", TK_RESERVED)) {
         return ty;
     }
-
-    if (ty->size > 0) {
-        error_tok(tag, "列挙体の再定義はできません");
-    }
-
-    expect("{");
 
     int val = 0;
     for (int i = 0; !consume_list_end(); i++) {
@@ -1420,9 +1401,12 @@ static void union_initializer(Initializer *init) {
         }
     }
 
-    initializer2(init->children[0]);
-    consume(",", TK_RESERVED);
-    expect("}");
+    if (!is_list_end()) {
+        initializer2(init->children[0]);
+        consume(",", TK_RESERVED);
+    }
+
+    consume_list_end();
 }
 
 // str-initializer = str

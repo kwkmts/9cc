@@ -97,5 +97,10 @@ int main() {
     ASSERT(42, ({ gT2 x={64, {42}}; x.b; }));
     ASSERT(42, ({ gT3 x={64, {42}}; x.b; }));
 
+    ASSERT(42, ({ struct gT x={}; x.a=42; }));
+    ASSERT(42, ({ union gU x={}; x.a=42; }));
+    ASSERT(42, ({ gT x={}; x.a=42; }));
+    ASSERT(42, ({ gU x={}; x.a=42; }));
+
     return 0;
 }
