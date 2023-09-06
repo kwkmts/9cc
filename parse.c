@@ -682,7 +682,7 @@ static Node *lvar_initializer(Obj *var);
 static void gvar_initializer(Obj *var);
 static Node *declaration();
 static Node *stmt();
-static Node *compound_stmt();
+static Node *compound_stmt(bool is_fn_def);
 static Node *expr();
 static Node *assign();
 static Node *conditional();
@@ -1293,7 +1293,7 @@ static Obj *function(Type *ty) {
     }
 
     fn->lbrace = expect("{");
-    fn->body = compound_stmt();
+    fn->body = compound_stmt(true);
     fn->locals = locals.next;
     fn->has_definition = true;
     leave_scope();
@@ -1884,7 +1884,7 @@ static Node *return_stmt() {
 //      | return-stmt
 static Node *stmt() {
     if (consume("{", TK_RESERVED)) {
-        return compound_stmt();
+        return compound_stmt(false);
     }
     if (equal("if", TK_KEYWORD, token)) {
         return if_stmt();
@@ -1930,8 +1930,10 @@ static Node *stmt() {
 }
 
 // compound-stmt = (stmt | declaration)* "}"
-static Node *compound_stmt() {
-    enter_scope();
+static Node *compound_stmt(bool is_fn_def) {
+    if (!is_fn_def) {
+        enter_scope();
+    }
 
     Node head = {};
     for (Node *cur = &head; !equal("}", TK_RESERVED, token);) {
@@ -1943,7 +1945,9 @@ static Node *compound_stmt() {
         add_type(cur);
     }
 
-    leave_scope();
+    if (!is_fn_def) {
+        leave_scope();
+    }
 
     Node *node = new_node(ND_BLOCK, expect("}"));
     node->block.body = head.next;
@@ -2542,7 +2546,7 @@ static Node *primary() {
         Node *node;
         if (equal("{", TK_RESERVED, token)) { // GNU Statement Exprs
             node = new_node(ND_STMT_EXPR, consume("{", TK_RESERVED));
-            node->block.body = compound_stmt()->block.body;
+            node->block.body = compound_stmt(false)->block.body;
         } else {
             node = expr();
         }
