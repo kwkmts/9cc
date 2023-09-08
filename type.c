@@ -35,6 +35,8 @@ bool is_integer(Type *ty) {
 
 bool is_flonum(Type *ty) { return is_any_type_of(ty, 2, TY_FLOAT, TY_DOUBLE); }
 
+bool is_numeric(Type *ty) { return is_integer(ty) || is_flonum(ty); }
+
 Type *copy_type(Type *ty) {
     Type *ret = calloc(1, sizeof(Type));
     *ret = *ty;
@@ -114,7 +116,7 @@ static Type *get_common_type(Type *ty1, Type *ty2) {
     if (ty1->base) {
         return pointer_to(ty1->base);
     }
-    
+
     if (ty1->kind == TY_DOUBLE || ty2->kind == TY_DOUBLE) {
         return ty_double;
     }

@@ -71,6 +71,8 @@
 #define CVTTSD2SI(o1, o2) println("    cvttsd2si %s, %s", o1, o2)
 #define CVTTSS2SI(o1, o2) println("    cvttss2si %s, %s", o1, o2)
 #define DIV(o1) println("    div %s", o1)
+#define DIVSD(o1, o2) println("    divsd %s, %s", o1, o2)
+#define DIVSS(o1, o2) println("    divss %s, %s", o1, o2)
 #define IDIV(o1) println("    idiv %s", o1)
 #define IMUL(o1, o2) println("    imul %s, %s", o1, o2)
 #define JAE(o1) println("    jae %s", o1)
@@ -88,6 +90,8 @@
 #define MOVSXD(o1, o2) println("    movsxd %s, %s", o1, o2)
 #define MOVZB(o1, o2) println("    movzb %s, %s", o1, o2)
 #define MOVZX(o1, o2) println("    movzx %s, %s", o1, o2)
+#define MULSD(o1, o2) println("    mulsd %s, %s", o1, o2)
+#define MULSS(o1, o2) println("    mulss %s, %s", o1, o2)
 #define NOT(o1) println("    not %s", o1)
 #define OR(o1, o2) println("    or %s, %s", o1, o2)
 #define POP(o1) println("    pop %s", o1)
@@ -108,6 +112,8 @@
 #define SETNP(o1) println("    setnp %s", o1)
 #define SETP(o1) println("    setp %s", o1)
 #define SUB(o1, o2) println("    sub %s, %s", o1, o2)
+#define SUBSD(o1, o2) println("    subsd %s, %s", o1, o2)
+#define SUBSS(o1, o2) println("    subss %s, %s", o1, o2)
 #define TEST(o1, o2) println("    test %s, %s", o1, o2)
 #define UCOMISD(o1, o2) println("    ucomisd %s, %s", o1, o2)
 #define UCOMISS(o1, o2) println("    ucomiss %s, %s", o1, o2)
@@ -796,16 +802,25 @@ static void gen_expr(Node *node) {
         ADD(RSP, IMM(16));
         depth -= 2;
 
+        bool _32 = node->binop.lhs->ty->kind == TY_FLOAT;
         switch (node->kind) {
+        case ND_ADD:
+            _32 ? ADDSS(XMM0, XMM1) : ADDSD(XMM0, XMM1);
+            break;
+        case ND_SUB:
+            _32 ? SUBSS(XMM0, XMM1) : SUBSD(XMM0, XMM1);
+            break;
+        case ND_MUL:
+            _32 ? MULSS(XMM0, XMM1) : MULSD(XMM0, XMM1);
+            break;
+        case ND_DIV:
+            _32 ? DIVSS(XMM0, XMM1) : DIVSD(XMM0, XMM1);
+            break;
         case ND_EQ:
         case ND_NE:
         case ND_LT:
         case ND_LE:
-            if (node->binop.lhs->ty->kind == TY_FLOAT) {
-                UCOMISS(XMM1, XMM0);
-            } else {
-                UCOMISD(XMM1, XMM0);
-            }
+            _32 ? UCOMISS(XMM1, XMM0) : UCOMISD(XMM1, XMM0);
 
             switch (node->kind) {
             case ND_EQ:
