@@ -97,14 +97,20 @@
 #define SAL(o1, o2) println("    sal %s, %s", o1, o2)
 #define SAR(o1, o2) println("    sar %s, %s", o1, o2)
 #define SHR(o1, o2) println("    shr %s, %s", o1, o2)
+#define SETA(o1) println("    seta %s", o1)
+#define SETAE(o1) println("    setae %s", o1)
 #define SETB(o1) println("    setb %s", o1)
 #define SETBE(o1) println("    setbe %s", o1)
 #define SETE(o1) println("    sete %s", o1)
 #define SETL(o1) println("    setl %s", o1)
 #define SETLE(o1) println("    setle %s", o1)
 #define SETNE(o1) println("    setne %s", o1)
+#define SETNP(o1) println("    setnp %s", o1)
+#define SETP(o1) println("    setp %s", o1)
 #define SUB(o1, o2) println("    sub %s, %s", o1, o2)
 #define TEST(o1, o2) println("    test %s, %s", o1, o2)
+#define UCOMISD(o1, o2) println("    ucomisd %s, %s", o1, o2)
+#define UCOMISS(o1, o2) println("    ucomiss %s, %s", o1, o2)
 #define XOR(o1, o2) println("    xor %s, %s", o1, o2)
 
 #define GP_MAX 6
@@ -162,6 +168,18 @@ static void push(char *reg) {
 
 static void pop(char *reg) {
     POP(reg);
+    depth--;
+}
+
+static void pushf(char *reg) {
+    SUB(RSP, IMM(8));
+    MOVSD(INDIRECT(RSP, 0), reg);
+    depth++;
+}
+
+static void popf(char *reg) {
+    MOVSD(reg, INDIRECT(RSP, 0));
+    ADD(RSP, IMM(8));
     depth--;
 }
 
@@ -769,6 +787,54 @@ static void gen_expr(Node *node) {
         push(RAX);
         return;
     default:;
+    }
+
+    if (is_flonum(node->binop.lhs->ty)) {
+        gen_expr(node->binop.rhs);
+        MOVSD(XMM1, XMM0);
+        gen_expr(node->binop.lhs);
+        ADD(RSP, IMM(16));
+        depth -= 2;
+
+        switch (node->kind) {
+        case ND_EQ:
+        case ND_NE:
+        case ND_LT:
+        case ND_LE:
+            if (node->binop.lhs->ty->kind == TY_FLOAT) {
+                UCOMISS(XMM1, XMM0);
+            } else {
+                UCOMISD(XMM1, XMM0);
+            }
+
+            switch (node->kind) {
+            case ND_EQ:
+                SETE(AL);
+                SETNP(CL);
+                AND(AL, CL);
+                break;
+            case ND_NE:
+                SETNE(AL);
+                SETP(CL);
+                OR(AL, CL);
+                break;
+            case ND_LT:
+                SETA(AL);
+                break;
+            case ND_LE:
+                SETAE(AL);
+                break;
+            default:
+                unreachable();
+            }
+
+            AND(AL, IMM(1));
+            MOVZX(EAX, AL);
+            break;
+        }
+
+        push(RAX);
+        return;
     }
 
     gen_expr(node->binop.lhs);

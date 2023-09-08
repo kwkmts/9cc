@@ -252,5 +252,25 @@ int main() {
 
     ASSERT(-2147483648, (double)(unsigned long)(long)-1);
 
+    ASSERT(1, 0.1==0.1);
+    ASSERT(0, 0.1==0.2);
+    ASSERT(1, 2.0==2);
+    ASSERT(0, 5.1<5);
+    ASSERT(0, 5.0<5);
+    ASSERT(1, 4.9<5);
+    ASSERT(0, 5.1<=5);
+    ASSERT(1, 5.0<=5);
+    ASSERT(1, 4.9<=5);
+
+    ASSERT(1, 0.1f==0.1f);
+    ASSERT(0, 0.1f==0.2f);
+    ASSERT(1, 2.0f==2);
+    ASSERT(0, 5.1f<5);
+    ASSERT(0, 5.0f<5);
+    ASSERT(1, 4.9f<5);
+    ASSERT(0, 5.1f<=5);
+    ASSERT(1, 5.0f<=5);
+    ASSERT(1, 4.9f<=5);
+
     return 0;
 }
