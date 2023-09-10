@@ -53,6 +53,17 @@ int sum1(int x, ...) {
         x += y;
     }
 }
+int sum2(double x, ...) {
+    __builtin_va_list ap;
+    __builtin_va_start(ap, x);
+
+    for (;;) {
+        double y = __builtin_va_arg(ap, double);
+        if (y == 0)
+            return x;
+        x += y;
+    }
+}
 int add10_int(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j);
 float add10_float(float x1, float x2, float x3, float x4, float x5, float x6, float x7, float x8, float x9, float x10);
 double add10_double(double x1, double x2, double x3, double x4, double x5, double x6, double x7, double x8, double x9, double x10);
@@ -147,6 +158,7 @@ int main() {
     ASSERT(0, ({ char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); strcmp("1 2 foo", buf); }));
 
     ASSERT(6, sum1(1, 2, 3, 0));
+    ASSERT(6, sum2(1., 2., 3., 0.));
 
     ASSERT(5, sizeof(__func__));
     ASSERT(0, strcmp("main", __func__));
@@ -175,6 +187,8 @@ int main() {
 
     ASSERT(7, add_float3(2.5,2.5,2.5));
     ASSERT(7, add_double3(2.5,2.5,2.5));
+
+    ASSERT(0, ({ char buf[100]; fmt(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
 
     return 0;
 }

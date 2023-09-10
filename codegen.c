@@ -11,6 +11,7 @@
 #define RCX "rcx"
 #define R8 "r8"
 #define R9 "r9"
+#define R10 "r10"
 #define RBP "rbp"
 #define RSP "rsp"
 #define RIP "rip"
@@ -510,11 +511,19 @@ static void gen_lval(Node *node) {
 
 static void gen_builtin_funcall(Node *node) {
     if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_start")) {
-        // 現時点では浮動小数点に対応していないので
-        // 8*(パラメータの数) がそのまま`gp_offset`になる
-        int gp_offset = 8 * cur_fn->nparams;
-        // 現時点では浮動小数点に対応していないので 48 固定
-        int fp_offset = 48;
+        int iparam = 0;
+        int fparam = 0;
+        for (Obj *param = cur_fn->locals; iparam + fparam < cur_fn->nparams;
+             param = param->next) {
+            if (is_flonum(param->ty)) {
+                fparam++;
+                continue;
+            }
+            iparam++;
+        }
+
+        int gp_offset = 8 * iparam;
+        int fp_offset = 48 + 16 * fparam;
 
         Node *ap = node->funcall.args;
         int ap_offset = ap->var.var->offset;
@@ -522,7 +531,7 @@ static void gen_builtin_funcall(Node *node) {
 
         MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), IMM(gp_offset));
         MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)), IMM(fp_offset));
-        // 現時点では6つ以上の引数に対応していないので
+        // 現時点ではスタックで渡される引数に対応していないので
         // `overflow_arg_area`は rbp+16 固定
         LEA(RAX, INDIRECT(RBP, 16));
         MOV(INDIRECT(RBP, -ap_offset + 8), RAX);
@@ -545,14 +554,22 @@ static void gen_builtin_funcall(Node *node) {
         // 引数レジスタがまだ残っている場合
         // 次に使用可能な引数レジスタのアドレスを計算
         MOV(RAX, INDIRECT(RBP, -ap_offset + 16));
-        MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+        is_flonum(node->ty) ? MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)))
+                            : MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
         MOV(EDX, EDX);
         ADD(RAX, RDX);
 
-        // gp_offsetを更新
-        MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
-        ADD(EDX, IMM(8));
-        MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), EDX);
+        // gp_offset/fp_offsetを更新
+        if (is_flonum(node->ty)) {
+            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)));
+            ADD(EDX, IMM(16));
+            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)), EDX);
+        } else {
+            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+            ADD(EDX, IMM(8));
+            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), EDX);
+        }
+
         int c2 = count();
         JMP(format(".L%d", c2));
 
@@ -564,7 +581,8 @@ static void gen_builtin_funcall(Node *node) {
         MOV(INDIRECT(RBP, -ap_offset + 8), RDX);
 
         println(".L%d:", c2);
-        MOV(RAX, INDIRECT(RAX, 0));
+        is_flonum(node->ty) ? MOVSD(XMM0, INDIRECT(RAX, 0))
+                            : MOV(RAX, INDIRECT(RAX, 0));
         return;
     }
 
@@ -761,6 +779,7 @@ static void gen_expr(Node *node) {
         int stack = push_args(node->funcall.args, &reg_iargs, &reg_fargs);
 
         gen_expr(node->funcall.fn);
+        MOV(R10, RAX);
 
         for (int i = 0; i < list_size(reg_fargs); i++) {
             popf(argregf[i]);
@@ -769,7 +788,10 @@ static void gen_expr(Node *node) {
             pop(argreg64[i]);
         }
 
-        CALL(RAX);
+        if (node->funcall.fn->ty->is_variadic) {
+            MOV(EAX, IMM(MIN(list_size(reg_fargs), FP_MAX)));
+        }
+        CALL(R10);
         if (stack) {
             ADD(RSP, IMM(stack * 8));
             depth -= stack;
