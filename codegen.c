@@ -1221,15 +1221,33 @@ static void emit_functions() {
 
         if (fn->locals) {
             int offset = 0;
-            int i = 0;
-            for (Obj *var = fn->locals; var; var = var->next, i++) {
-                // スタックから渡されるパラメータは rbp+16
-                // から上方向に積まれている
-                if (GP_MAX <= i && i < fn->nparams) {
-                    var->offset = -16 - 8 * (i - GP_MAX);
+            int iparam = 0;
+            int fparam = 0;
+            int stack = 0;
+            Obj *var = fn->locals;
+
+            for (int i = 0; i < fn->nparams; i++, var = var->next) {
+                if (is_flonum(var->ty)) {
+                    if (fparam < FP_MAX) {
+                        offset += var->ty->size;
+                        offset = var->offset = align_to(offset, var->ty->align);
+                    } else {
+                        var->offset = -16 - 8 * stack++;
+                    }
+                    fparam++;
                     continue;
                 }
 
+                if (iparam < GP_MAX) {
+                    offset += var->ty->size;
+                    offset = var->offset = align_to(offset, var->ty->align);
+                } else {
+                    var->offset = -16 - 8 * stack++;
+                }
+                iparam++;
+            }
+
+            for (; var; var = var->next) {
                 offset += var->ty->size;
                 offset = var->offset = align_to(offset, var->ty->align);
             }
@@ -1270,26 +1288,40 @@ static void emit_functions() {
         }
 
         // レジスタによって渡された引数の値をスタックに保存する
-        Obj *var = fn->locals;
-        for (int i = 0; i < MIN(fn->nparams, GP_MAX); i++) {
-            switch (var->ty->size) {
-            case 1:
-                MOV(INDIRECT(RBP, -var->offset), argreg8[i]);
-                break;
-            case 2:
-                MOV(INDIRECT(RBP, -var->offset), argreg16[i]);
-                break;
-            case 4:
-                MOV(INDIRECT(RBP, -var->offset), argreg32[i]);
-                break;
-            case 8:
-                MOV(INDIRECT(RBP, -var->offset), argreg64[i]);
-                break;
-            default:
-                unreachable();
+        int iparam = 0;
+        int fparam = 0;
+        for (Obj *var = fn->locals; iparam + fparam < fn->nparams;
+             var = var->next) {
+            if (is_flonum(var->ty)) {
+                if (fparam < FP_MAX) {
+                    var->ty->kind == TY_FLOAT
+                        ? MOVSS(INDIRECT(RBP, -var->offset), argregf[fparam])
+                        : MOVSD(INDIRECT(RBP, -var->offset), argregf[fparam]);
+                }
+                fparam++;
+                continue;
             }
 
-            var = var->next;
+            if (iparam < GP_MAX) {
+                switch (var->ty->size) {
+                case 1:
+                    MOV(INDIRECT(RBP, -var->offset), argreg8[iparam]);
+                    break;
+                case 2:
+                    MOV(INDIRECT(RBP, -var->offset), argreg16[iparam]);
+                    break;
+                case 4:
+                    MOV(INDIRECT(RBP, -var->offset), argreg32[iparam]);
+                    break;
+                case 8:
+                    MOV(INDIRECT(RBP, -var->offset), argreg64[iparam]);
+                    break;
+                default:
+                    unreachable();
+                }
+            }
+
+            iparam++;
         }
 
         // 先頭の式から順にコード生成

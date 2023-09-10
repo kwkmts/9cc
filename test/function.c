@@ -59,6 +59,15 @@ double add10_double(double x1, double x2, double x3, double x4, double x5, doubl
 int many_args(int a, int b, int c, int d, int e, int f, int g, int h) {
     return g / h;
 }
+double many_args2(double a, double b, double c, double d, double e, double f,
+                  double g, double h, double i, double j) {
+    return i / j;
+}
+int many_args3(int a, double b, int c, int d, double e, int f, double g, int h,
+               double i, double j, double k, double l, double m, int n, int o,
+               double p) {
+    return o / p;
+}
 void a(){}
 void b(int a){}
 const char *func_fn() { return __func__; }
@@ -72,6 +81,12 @@ unsigned abs_val(int x) {
 }
 double add_double(double x, double y);
 float add_float(float x, float y);
+float add_float3(float x, float y, float z) {
+  return x + y + z;
+}
+double add_double3(double x, double y, double z) {
+  return x + y + z;
+}
 
 int main() {
     ASSERT(3, ret3());
@@ -149,9 +164,17 @@ int main() {
     ASSERT(55, add10_int(1,2,3,4,5,6,7,8,9,10));
 
     ASSERT(4, many_args(1,2,3,4,5,6,40,10));
+    ASSERT(4, many_args2(1,2,3,4,5,6,7,8,40,10));
+    ASSERT(8, many_args3(1,2,3,4,5,6,7,8,9,10,11,12,13,14,80,10));
 
     ASSERT(42, abs_val(42));
     ASSERT(42, abs_val(-42));
+
+    ASSERT(6, add_float(2.3,3.8));
+    ASSERT(6, add_double(2.3,3.8));
+
+    ASSERT(7, add_float3(2.5,2.5,2.5));
+    ASSERT(7, add_double3(2.5,2.5,2.5));
 
     return 0;
 }
