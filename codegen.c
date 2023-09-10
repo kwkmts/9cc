@@ -969,7 +969,7 @@ static void gen_stmt(Node *node) {
         gen_expr(node->if_.cond);
 
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->if_.cond->ty);
         JE(format(".Lelse%d", c));
 
         gen_stmt(node->if_.then);
@@ -1011,7 +1011,7 @@ static void gen_stmt(Node *node) {
         println(".Lbegin%d:", c);
         gen_expr(node->while_.cond);
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->while_.cond->ty);
         JE(format(".L%d", node->while_.brk_label_id));
         gen_stmt(node->while_.then);
         println(".L%d:", node->while_.cont_label_id);
@@ -1031,7 +1031,7 @@ static void gen_stmt(Node *node) {
         if (node->for_.cond) {
             gen_expr(node->for_.cond);
             pop(RAX);
-            CMP(RAX, IMM(0));
+            cmp_zero(node->for_.cond->ty);
             JE(format(".L%d", node->for_.brk_label_id));
         }
 
@@ -1053,7 +1053,7 @@ static void gen_stmt(Node *node) {
         println(".L%d:", node->do_.cont_label_id);
         gen_expr(node->do_.cond);
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->do_.cond->ty);
         JNE(format(".Lbegin%d", c));
         println(".L%d:", node->do_.brk_label_id);
         return;

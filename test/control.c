@@ -53,5 +53,12 @@ int main() {
 
     ASSERT(1, ({ typedef int foo; goto foo; foo:; 1; }));
 
+    ASSERT(5, ({ int x; if(0.0) x=3; else x=5; x; }));
+    ASSERT(3, ({ int x; if(0.1) x=3; else x=5; x; }));
+    ASSERT(5, ({ int x=5; if(0.0) x=3; x; }));
+    ASSERT(3, ({ int x=5; if(0.1) x=3; x; }));
+    ASSERT(10, ({ double i=10.0; int j=0; for(; i; i--, j++); j; }));
+    ASSERT(10, ({ double i=10.0; int j=0; do j++; while(--i); j; }));
+
     return 0;
 }
