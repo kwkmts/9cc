@@ -189,6 +189,25 @@ static void popf(char *reg) {
     depth--;
 }
 
+static void cmp_zero(Type *ty) {
+    if (is_integer(ty) || ty->kind == TY_PTR) {
+        ty->size < 4 ? CMP(EAX, IMM(0)) : CMP(RAX, IMM(0));
+        return;
+    }
+
+    PXOR(XMM1, XMM1);
+    if (ty->kind == TY_FLOAT) {
+        UCOMISS(XMM0, XMM1);
+        return;
+    }
+    if (ty->kind == TY_DOUBLE) {
+        UCOMISD(XMM0, XMM1);
+        return;
+    }
+
+    unreachable();
+}
+
 static void load(Type *ty) {
     if (is_any_type_of(ty, 4, TY_ARY, TY_STRUCT, TY_UNION, TY_FUNC)) {
         return;
@@ -437,19 +456,7 @@ static void cast(Type *from, Type *to) {
     }
 
     if (is_integer(from) && is_any_type_of(to, 1, TY_BOOL)) {
-        switch (from->size) {
-        case 1:
-        case 2:
-        case 4:
-            CMP(EAX, IMM(0));
-            break;
-        case 8:
-            CMP(RAX, IMM(0));
-            break;
-        default:
-            unreachable();
-        }
-
+        cmp_zero(from);
         SETNE(AL);
         MOVZB(EAX, AL);
         return;
@@ -715,7 +722,7 @@ static void gen_expr(Node *node) {
         gen_expr(node->unary.expr);
 
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->unary.expr->ty);
         SETE(AL);
         MOVZB(RAX, AL);
         push(RAX);
@@ -724,11 +731,11 @@ static void gen_expr(Node *node) {
         int c = count();
         gen_expr(node->binop.lhs);
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->binop.lhs->ty);
         JE(format(".Lfalse%d", c));
         gen_expr(node->binop.rhs);
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->binop.rhs->ty);
         JE(format(".Lfalse%d", c));
         MOV(RAX, IMM(1));
         JMP(format(".Lend%d", c));
@@ -742,11 +749,11 @@ static void gen_expr(Node *node) {
         int c = count();
         gen_expr(node->binop.lhs);
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->binop.lhs->ty);
         JNE(format(".Ltrue%d", c));
         gen_expr(node->binop.rhs);
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->binop.rhs->ty);
         JNE(format(".Ltrue%d", c));
         MOV(RAX, IMM(0));
         JMP(format(".Lend%d", c));
@@ -771,7 +778,7 @@ static void gen_expr(Node *node) {
         int c = count();
         gen_expr(node->condop.cond);
         pop(RAX);
-        CMP(RAX, IMM(0));
+        cmp_zero(node->condop.cond->ty);
         JE(format(".Lelse%d", c));
         gen_expr(node->condop.then);
         pop(RAX);

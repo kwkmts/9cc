@@ -302,5 +302,21 @@ int main() {
     ASSERT(4, sizeof(1.f/2));
     ASSERT(8, sizeof(1.0/2));
 
+    ASSERT(0, 0.0&&0.0);
+    ASSERT(0, 0.0&&0.1);
+    ASSERT(0, 0.3&&0.0);
+    ASSERT(1, 0.3&&0.5);
+    ASSERT(0, 0.0||0.0);
+    ASSERT(1, 0.0||0.1);
+    ASSERT(1, 0.3||0.0);
+    ASSERT(1, 0.3||0.5);
+    ASSERT(0, !3.);
+    ASSERT(1, !0.);
+    ASSERT(0, !3.f);
+    ASSERT(1, !0.f);
+
+    ASSERT(5, 0.0 ? 3 : 5);
+    ASSERT(3, 1.2 ? 3 : 5);
+
     return 0;
 }
