@@ -107,6 +107,8 @@ assert 'int main() { ({ int x; }); }' 1 15 'voidを返すことはできませ�
 
 assert 'int main() { 2=42; }' 1 14 '代入の左辺値が変数ではありません'
 
+assert 'int main() { 0.1&0.1; }' 1 17 '不正なオペランド'
+
 echo
 echo "[$npass/$ntest]"
 if [ "$npass" -eq "$ntest" ]; then
