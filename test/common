@@ -30,3 +30,17 @@ int add10_int(int a, int b, int c, int d, int e, int f, int g, int h, int i,
               int j) {
     return a + b + c + d + e + f + g + h + i + j;
 }
+
+float add10_float(float x1, float x2, float x3, float x4, float x5, float x6,
+                  float x7, float x8, float x9, float x10) {
+    return x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10;
+}
+
+double add10_double(double x1, double x2, double x3, double x4, double x5,
+                    double x6, double x7, double x8, double x9, double x10) {
+    return x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10;
+}
+
+float add_float(float x, float y) { return x + y; }
+
+double add_double(double x, double y) { return x + y; }

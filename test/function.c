@@ -54,6 +54,8 @@ int sum1(int x, ...) {
     }
 }
 int add10_int(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j);
+float add10_float(float x1, float x2, float x3, float x4, float x5, float x6, float x7, float x8, float x9, float x10);
+double add10_double(double x1, double x2, double x3, double x4, double x5, double x6, double x7, double x8, double x9, double x10);
 int many_args(int a, int b, int c, int d, int e, int f, int g, int h) {
     return g / h;
 }
@@ -68,6 +70,8 @@ unsigned abs_val(int x) {
     }
     return x;
 }
+double add_double(double x, double y);
+float add_float(float x, float y);
 
 int main() {
     ASSERT(3, ret3());
@@ -133,7 +137,14 @@ int main() {
     ASSERT(0, strcmp("main", __func__));
     ASSERT(0, strcmp("func_fn", func_fn()));
 
-    ret_none();
+    ASSERT(0, ({
+               char buf[200];
+               sprintf(buf,
+                       "%d %.1f %.1f %.1f %d %d %.1f %d %d %d %d %.1f %d %d %.1f %.1f %.1f %.1f %d",
+                       1,1.0,1.0,1.0,1,1,1.0,1,1,1,1,1.0,1,1,1.0,1.0,1.0,1.0,1);
+               printf("%s\n",buf);
+               strcmp("1 1.0 1.0 1.0 1 1 1.0 1 1 1 1 1.0 1 1 1.0 1.0 1.0 1.0 1",buf);
+           }));
 
     ASSERT(55, add10_int(1,2,3,4,5,6,7,8,9,10));
 

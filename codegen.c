@@ -120,11 +120,13 @@
 #define XOR(o1, o2) println("    xor %s, %s", o1, o2)
 
 #define GP_MAX 6
+#define FP_MAX 8
 
 static char *const argreg64[] = {RDI, RSI, RDX, RCX, R8, R9};
 static char *const argreg32[] = {EDI, ESI, EDX, ECX, R8D, R9D};
 static char *const argreg16[] = {DI, SI, DX, CX, R8W, R9W};
 static char *const argreg8[] = {DIL, SIL, DL, CL, R8B, R9B};
+static char *const argregf[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
 
 static Obj *cur_fn; // 現在コード生成中の関数
 
@@ -589,13 +591,119 @@ static void gen_builtin_funcall(Node *node) {
     unreachable();
 }
 
-static void push_args(Node *args) {
-    if (!args) {
+typedef struct ListNode ListNode;
+
+struct ListNode {
+    void *val;
+    ListNode *next;
+};
+
+// 単方向リストの試験的実装
+typedef struct List {
+    ListNode *head;
+    ListNode *tail;
+    int size;
+} *List;
+
+static List list_new() {
+    List list = calloc(1, sizeof(struct List));
+    return list;
+}
+
+static void list_push_front(List list, void *val) {
+    ListNode *node = calloc(1, sizeof(ListNode));
+    node->val = val;
+    list->size++;
+    if (!list->head) {
+        list->head = node;
+        list->tail = node;
         return;
     }
-    push_args(args->next);
-    gen_expr(args);
-    push(RAX);
+    node->next = list->head;
+    list->head = node;
+}
+
+static void list_push_back(List list, void *val) {
+    ListNode *node = calloc(1, sizeof(ListNode));
+    node->val = val;
+    list->size++;
+    if (!list->head) {
+        list->head = node;
+        list->tail = node;
+        return;
+    }
+    list->tail = list->tail->next = node;
+}
+
+typedef void **ListIter;
+
+static ListIter list_begin(List list) { return (ListIter)list->head; }
+
+static ListIter list_next(ListIter it) {
+    return (ListIter)((ListNode *)it)->next;
+}
+
+static int list_size(List list) { return list->size; }
+
+static int push_args(Node *args, List *reg_iargs, List *reg_fargs) {
+    int stack = 0;
+    int iarg = 0;
+    int farg = 0;
+    List stack_args = list_new();
+
+    for (Node *arg = args; arg; arg = arg->next) {
+        if (is_flonum(arg->ty)) {
+            if (farg < FP_MAX) {
+                list_push_front(*reg_fargs, arg);
+            } else {
+                list_push_front(stack_args, arg);
+                stack++;
+            }
+            farg++;
+            continue;
+        }
+
+        if (iarg < GP_MAX) {
+            list_push_front(*reg_iargs, arg);
+        } else {
+            list_push_front(stack_args, arg);
+            stack++;
+        }
+        iarg++;
+    }
+
+    // call直前のrspが16バイト境界になるように調整
+    if ((depth + stack) % 2) {
+        SUB(RSP, IMM(8));
+        depth++;
+        stack++;
+    }
+
+    for (ListIter it = list_begin(stack_args); it; it = list_next(it)) {
+        Node *arg = *it;
+        gen_expr(arg);
+
+        if (is_flonum(arg->ty)) {
+            pushf(XMM0);
+            continue;
+        }
+
+        push(RAX);
+    }
+
+    for (ListIter it = list_begin(*reg_iargs); it; it = list_next(it)) {
+        Node *arg = *it;
+        gen_expr(arg);
+        push(RAX);
+    }
+
+    for (ListIter it = list_begin(*reg_fargs); it; it = list_next(it)) {
+        Node *arg = *it;
+        gen_expr(arg);
+        pushf(XMM0);
+    }
+
+    return stack;
 }
 
 // 式の評価結果をraxまたはxmm0に格納する
@@ -648,36 +756,17 @@ static void gen_expr(Node *node) {
             return;
         }
 
-        int stack = 0;
-        {
-            int iarg = 0;
-            for (Node *arg = node->funcall.args; arg; arg = arg->next) {
-                if (iarg >= GP_MAX) {
-                    stack++;
-                }
-                iarg++;
-            }
-
-            // call直前のrspが16バイト境界になるように調整
-            if ((depth + stack) % 2) {
-                SUB(RSP, IMM(8));
-                depth++;
-                stack++;
-            }
-        }
-
-        push_args(node->funcall.args);
+        List reg_iargs = list_new();
+        List reg_fargs = list_new();
+        int stack = push_args(node->funcall.args, &reg_iargs, &reg_fargs);
 
         gen_expr(node->funcall.fn);
 
-        {
-            int iarg = 0;
-            for (Node *arg = node->funcall.args; arg; arg = arg->next) {
-                if (iarg < GP_MAX) {
-                    pop(argreg64[iarg]);
-                }
-                iarg++;
-            }
+        for (int i = 0; i < list_size(reg_fargs); i++) {
+            popf(argregf[i]);
+        }
+        for (int i = 0; i < list_size(reg_iargs); i++) {
+            pop(argreg64[i]);
         }
 
         CALL(RAX);
