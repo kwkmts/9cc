@@ -98,6 +98,20 @@ float add_float3(float x, float y, float z) {
 double add_double3(double x, double y, double z) {
   return x + y + z;
 }
+double add_selected(int a, int b, int c, int d, int e, int f, int g, int h,
+                    int i, int j, ...) {
+    int arr[] = {a, b, c, d, e, f, g, h, i, j};
+    int sum = 0;
+    __builtin_va_list ap;
+    __builtin_va_start(ap, j);
+    for (;;) {
+        int y = __builtin_va_arg(ap, int);
+        if (y < 0)
+            return sum;
+        if (y < 10)
+            sum += arr[y];
+    }
+}
 
 int main() {
     ASSERT(3, ret3());
@@ -158,7 +172,9 @@ int main() {
     ASSERT(0, ({ char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); strcmp("1 2 foo", buf); }));
 
     ASSERT(6, sum1(1, 2, 3, 0));
+    ASSERT(55, sum1(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0));
     ASSERT(6, sum2(1., 2., 3., 0.));
+    ASSERT(55, sum2(1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 0.));
 
     ASSERT(5, sizeof(__func__));
     ASSERT(0, strcmp("main", __func__));
@@ -189,6 +205,9 @@ int main() {
     ASSERT(7, add_double3(2.5,2.5,2.5));
 
     ASSERT(0, ({ char buf[100]; fmt(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
+
+    ASSERT(11, add_selected(1,2,3,4,5,6,7,8,9,10,0,9,-1));
+    ASSERT(25, add_selected(1,2,3,4,5,6,7,8,9,10,0,2,4,6,8,-1));
 
     return 0;
 }

@@ -511,63 +511,75 @@ static void gen_lval(Node *node) {
 
 static void gen_builtin_funcall(Node *node) {
     if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_start")) {
+        int stack = 0;
         int iparam = 0;
         int fparam = 0;
         for (Obj *param = cur_fn->locals; iparam + fparam < cur_fn->nparams;
              param = param->next) {
             if (is_flonum(param->ty)) {
+                if (fparam >= FP_MAX) {
+                    stack++;
+                }
                 fparam++;
                 continue;
+            }
+
+            if (iparam >= GP_MAX) {
+                stack++;
             }
             iparam++;
         }
 
+        Node *ap = node->funcall.args;
+        int ap_off = -ap->var.var->offset;
         int gp_offset = 8 * iparam;
         int fp_offset = 48 + 16 * fparam;
+        int reg_save_area_off = -cur_fn->reg_save_area->offset;
+        int overflow_arg_area_off = 16 + stack * 8;
 
-        Node *ap = node->funcall.args;
-        int ap_offset = ap->var.var->offset;
-        int reg_save_area_offset = cur_fn->reg_save_area->offset;
-
-        MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), IMM(gp_offset));
-        MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)), IMM(fp_offset));
-        // 現時点ではスタックで渡される引数に対応していないので
-        // `overflow_arg_area`は rbp+16 固定
-        LEA(RAX, INDIRECT(RBP, 16));
-        MOV(INDIRECT(RBP, -ap_offset + 8), RAX);
-        LEA(RAX, INDIRECT(RBP, -reg_save_area_offset));
-        MOV(INDIRECT(RBP, -ap_offset + 16), RAX);
+        MOV(DWORD_PTR(INDIRECT(RBP, ap_off)), IMM(gp_offset));
+        MOV(DWORD_PTR(INDIRECT(RBP, ap_off + 4)), IMM(fp_offset));
+        LEA(RAX, INDIRECT(RBP, overflow_arg_area_off));
+        MOV(INDIRECT(RBP, ap_off + 8), RAX);
+        LEA(RAX, INDIRECT(RBP, reg_save_area_off));
+        MOV(INDIRECT(RBP, ap_off + 16), RAX);
 
         return;
     }
 
     if (!strcmp(node->funcall.fn->var.var->name, "__builtin_va_arg")) {
         Node *ap = node->funcall.args;
-        int ap_offset = ap->var.var->offset;
+        int ap_off = -ap->var.var->offset;
+        bool f = is_flonum(node->ty);
 
         // 引数レジスタを消費しきったかどうか
-        MOV(EAX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
-        CMP(EAX, IMM(48));
+        if (f) {
+            MOV(EAX, DWORD_PTR(INDIRECT(RBP, ap_off + 4)));
+            CMP(EAX, IMM(176));
+        } else {
+            MOV(EAX, DWORD_PTR(INDIRECT(RBP, ap_off)));
+            CMP(EAX, IMM(48));
+        }
         int c = count();
         JAE(format(".L%d", c));
 
         // 引数レジスタがまだ残っている場合
         // 次に使用可能な引数レジスタのアドレスを計算
-        MOV(RAX, INDIRECT(RBP, -ap_offset + 16));
-        is_flonum(node->ty) ? MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)))
-                            : MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+        MOV(RAX, INDIRECT(RBP, ap_off + 16));
+        f ? MOV(EDX, DWORD_PTR(INDIRECT(RBP, ap_off + 4)))
+          : MOV(EDX, DWORD_PTR(INDIRECT(RBP, ap_off)));
         MOV(EDX, EDX);
         ADD(RAX, RDX);
 
         // gp_offset/fp_offsetを更新
-        if (is_flonum(node->ty)) {
-            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)));
+        if (f) {
+            MOV(EDX, DWORD_PTR(INDIRECT(RBP, ap_off + 4)));
             ADD(EDX, IMM(16));
-            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset + 4)), EDX);
+            MOV(DWORD_PTR(INDIRECT(RBP, ap_off + 4)), EDX);
         } else {
-            MOV(EDX, DWORD_PTR(INDIRECT(RBP, -ap_offset)));
+            MOV(EDX, DWORD_PTR(INDIRECT(RBP, ap_off)));
             ADD(EDX, IMM(8));
-            MOV(DWORD_PTR(INDIRECT(RBP, -ap_offset)), EDX);
+            MOV(DWORD_PTR(INDIRECT(RBP, ap_off)), EDX);
         }
 
         int c2 = count();
@@ -576,13 +588,12 @@ static void gen_builtin_funcall(Node *node) {
         // 引数レジスタを消費しきった場合
         println(".L%d:", c);
         // overflow_arg_areaを更新
-        MOV(RAX, INDIRECT(RBP, -ap_offset + 8));
+        MOV(RAX, INDIRECT(RBP, ap_off + 8));
         LEA(RDX, INDIRECT(RAX, 8));
-        MOV(INDIRECT(RBP, -ap_offset + 8), RDX);
+        MOV(INDIRECT(RBP, ap_off + 8), RDX);
 
         println(".L%d:", c2);
-        is_flonum(node->ty) ? MOVSD(XMM0, INDIRECT(RAX, 0))
-                            : MOV(RAX, INDIRECT(RAX, 0));
+        f ? MOVSD(XMM0, INDIRECT(RAX, 0)) : MOV(RAX, INDIRECT(RAX, 0));
         return;
     }
 
@@ -798,14 +809,18 @@ static void gen_expr(Node *node) {
         }
         return;
     }
-    case ND_ASSIGN:
+    case ND_ASSIGN: {
+        bool f = is_flonum(node->ty);
         gen_expr(node->binop.rhs);
-        push(RAX);
+        f ? pushf(XMM0) : push(RAX);
         gen_lval(node->binop.lhs);
-        pop(RDI);
+        f ? popf(XMM0) : pop(RDI);
         store(node->ty, 0);
-        MOV(RAX, RDI);
+        if (!f) {
+            MOV(RAX, RDI);
+        }
         return;
+    }
     case ND_NOT:
         gen_expr(node->unary.expr);
         cmp_zero(node->unary.expr->ty);
