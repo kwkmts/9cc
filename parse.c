@@ -754,6 +754,26 @@ static Type *tag_type_decl(TypeKind kind) {
     return ty;
 }
 
+static bool duplicate_member_exists(Member *list, Token *name) {
+    for (Member *m = list; m; m = m->next) {
+        // 無名構造体・共用体の場合はそのメンバに対して再帰的に検索
+        if (!m->name) {
+            assert(m->ty->kind == TY_STRUCT || m->ty->kind == TY_UNION);
+            if (duplicate_member_exists(m->ty->members, name)) {
+                return true;
+            }
+            continue;
+        }
+
+        if (m->name->len == name->len &&
+            !memcmp(m->name->loc, name->loc, name->len)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // member = declspec declarator ";"
 // member-list = member* "}"
 static Member *member_list(Type *ty) {
@@ -763,6 +783,10 @@ static Member *member_list(Type *ty) {
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
         TypeIdentPair *pair = declarator(declspec(NULL));
+        if (pair->ident && duplicate_member_exists(head.next, pair->ident)) {
+            error_tok(pair->ident, "同名のメンバがすでに存在します");
+        }
+
         Type *mem_ty = expand_pseudo(pair->pty);
         if (mem_ty->size < 0) {
             error_tok(pair->ident, "メンバの型が不完全です");

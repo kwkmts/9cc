@@ -72,8 +72,8 @@ assert 'int A; enum { A };' 1 15 'そのような識別子はすでに存在し�
 assert 'int x; int x;' 1 12 'そのような識別子はすでに存在します'
 assert 'int f() { int x; int x; }' 1 22 'そのような識別子はすでに存在します'
 assert 'int f(int x) { int x; }' 1 20 'そのような識別子はすでに存在します'
-assert 'struct T { int a; int a; };' 1 23 'そのような識別子はすでに存在します'
-assert 'union U { int a; int a; };' 1 22 'そのような識別子はすでに存在します'
+assert 'struct T { int a; int a; };' 1 23 '同名のメンバがすでに存在します'
+assert 'union U { int a; int a; };' 1 22 '同名のメンバがすでに存在します'
 
 assert 'int f(int n) { __builtin_va_list ap; __builtin_va_start(ap,n); }' 1 56 '固定長引数関数で使うことはできません'
 assert 'int f(int n, ...) { char* ap; __builtin_va_arg(ap, int); }' 1 48 'va_list型ではありません'
@@ -119,6 +119,7 @@ echo
 echo "[$npass/$ntest]"
 if [ "$npass" -eq "$ntest" ]; then
   echo "All tests passed."
+  echo
 else
   exit 1
 fi
