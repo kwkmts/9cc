@@ -428,18 +428,18 @@ static Node *new_node_num(int64_t val, Token *tok) {
     return node;
 }
 
-Node *new_node_cast(Node *expr, Type *ty) {
+Node *new_node_cast(Node *expr, Type *ty, Token *tok) {
     add_type(expr);
 
-    Node *node = new_node(ND_CAST, ty->ident);
+    Node *node = new_node(ND_CAST, tok);
     node->unary.expr = expr;
-    node->ty = copy_type(ty);
+    node->ty = ty;
     return node;
 }
 
 static Node *new_node_var(Obj *var, Token *tok) {
     Node *node = new_node(ND_VAR, tok);
-    node->ty = var->ty;
+    node->ty = var->kind == GVAR ? expand_pseudo(var->pty) : var->ty;
     node->var.var = var;
     return node;
 }
@@ -531,6 +531,7 @@ static Obj *new_obj(Token *tok, char *name, Type *ty) {
     Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
     var->ty = ty;
+    var->tok = tok;
 
     // 入力プログラム中に書かれた変数のみを変数スコープに登録する
     if (tok) {
@@ -550,6 +551,7 @@ static Obj *new_lvar(Token *tok, char *name, Type *ty) {
 static Obj *new_gvar(Token *tok, char *name, Type *ty) {
     Obj *var = new_obj(tok, name, ty);
     var->kind = GVAR;
+    var->pty = (PseudoType *)ty;
     var->has_definition = true;
     push_to_obj_list(var);
     return var;
@@ -675,9 +677,9 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
     return init;
 }
 
-static Type *declspec(VarAttr *attr);
-static Type *declarator(Type *ty);
-static Obj *function(Type *ty);
+static PseudoType *declspec(VarAttr *attr);
+static TypeIdentPair *declarator(PseudoType *pty);
+static Obj *function(PseudoType *pty, Token *tok);
 static Node *lvar_initializer(Obj *var);
 static void gvar_initializer(Obj *var);
 static Node *declaration();
@@ -760,13 +762,19 @@ static Member *member_list(Type *ty) {
 
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
-        Type *mem_ty = declarator(declspec(NULL));
+        TypeIdentPair *pair = declarator(declspec(NULL));
+        Type *mem_ty = expand_pseudo(pair->pty);
+        if (mem_ty->size < 0) {
+            error_tok(pair->ident, "メンバの型が不完全です");
+        }
+
         expect(";");
 
-        Member *mem = new_member(idx++, mem_ty, mem_ty->ident, 0);
+        Member *mem = new_member(idx++, mem_ty, pair->ident, 0);
+        mem->pty = pair->pty;
 
-        if (ty->align < mem->ty->align) {
-            ty->align = mem->ty->align;
+        if (ty->align < mem_ty->align) {
+            ty->align = mem_ty->align;
         }
 
         cur = cur->next = mem;
@@ -903,7 +911,7 @@ static bool is_typename() {
 //             | "enum" enum-specifier | typedef-name
 //             | "__builtin_va_list"
 //             | "const" | "volatile")*
-static Type *declspec(VarAttr *attr) {
+static PseudoType *declspec(VarAttr *attr) {
     enum {
         VOID = 1 << 0,
         BOOL = 1 << 2,
@@ -1016,7 +1024,7 @@ static Type *declspec(VarAttr *attr) {
             ty = enum_specifier();
         } else if ((tok = consume("__builtin_va_list", TK_KEYWORD))) {
             ty_spec_count += OTHER;
-            ty = va_list_type();
+            ty = ty_va_list;
 
         } else if ((ty2 = find_typedef(token))) {
             if (ty_spec_count) {
@@ -1092,38 +1100,43 @@ static Type *declspec(VarAttr *attr) {
     }
 
     if (is_const) {
-        add_const(&ty);
+        ty = const_of(ty);
     }
 
-    return ty;
+    return (PseudoType *)ty;
 }
 
 // ary-suffix = "[" assign? "]" ary-suffix?
-static Type *ary_suffix(Type *ty) {
-    if (consume("[", TK_RESERVED)) {
+static PseudoType *ary_suffix(PseudoType *pty) {
+    Token *tok;
+    if ((tok = consume("[", TK_RESERVED))) {
+        if (expand_pseudo(pty)->size < 0) {
+            error_tok(tok, "配列の要素の型が不完全です");
+        }
+
         int size =
             !equal("]", TK_RESERVED, token)
                 ? (int)calc_const_expr(assign(), &(char *){NULL} /* dummy */)
                 : -1;
         expect("]");
-        ty = ary_suffix(ty);
-        return array_of(ty, size);
+        pty = ary_suffix(pty);
+        return (PseudoType *)array_of((Type *)pty, size);
     }
 
-    return ty;
+    return pty;
 }
 
 // func-suffix = "(" func-params? ")"
 // func-params = declspec declarator ("," declspec declarator)* ("," "...")?
-static Type *func_suffix(Type *ty) {
+static PseudoType *func_suffix(PseudoType *pty) {
     expect("(");
 
-    Type head = {};
-    Type *cur = &head;
+    List params = list_new();
+    ListIter begin = list_begin(params);
     bool is_variadic = false;
 
     while (!consume(")", TK_RESERVED)) {
-        if (cur != &head) {
+        if (list_size(params)) {
             expect(",");
         }
 
@@ -1133,38 +1146,40 @@ static Type *func_suffix(Type *ty) {
             break;
         }
 
-        Type *ty2 = declarator(declspec(NULL));
-        Token *name = ty2->ident;
-        if (is_any_type_of(ty2, 1, TY_FUNC)) {
-            ty2 = pointer_to(ty2);
-        } else if (is_any_type_of(ty2, 1, TY_ARY)) {
-            ty2 = pointer_to(ty2->base);
-        }
-        ty2->ident = name;
+        TypeIdentPair *param = declarator(declspec(NULL));
+        Type *param_ty = expand_pseudo(param->pty);
 
-        cur = cur->next = copy_type(ty2);
+        if (is_any_type_of(param_ty, 1, TY_FUNC)) {
+            param->pty = (PseudoType *)pointer_to((Type *)param->pty);
+        } else if (is_any_type_of(param_ty, 1, TY_ARY)) {
+            param->pty = (PseudoType *)pointer_to(((Type *)(param->pty))->base);
+        }
+
+        list_push_back(params, param);
     }
 
-    ty = func_type(ty, head.next);
-    ty->is_variadic = is_variadic;
-    return ty;
+    pty = (PseudoType *)func_type(pty, params);
+    ((Type *)(pty))->is_variadic = is_variadic;
+    return pty;
 }
 
 // type-suffix = ary-suffix | func-suffix | ε
-static Type *type_suffix(Type *ty) {
+static PseudoType *type_suffix(PseudoType *pty) {
     if (equal("[", TK_RESERVED, token)) {
-        return ary_suffix(ty);
+        return ary_suffix(pty);
     }
 
     if (equal("(", TK_RESERVED, token)) {
-        return func_suffix(ty);
+        return func_suffix(pty);
     }
 
-    return ty;
+    return pty;
 }
 
 // pointers = ("*" ("const" | "volatile" | "restrict")*)*
-static Type *pointers(Type *ty) {
+static PseudoType *pointers(PseudoType *pty) {
+    Type *ty = (Type *)pty;
+
     while (consume("*", TK_RESERVED)) {
         ty = pointer_to(ty);
         Token *tok;
@@ -1196,54 +1211,57 @@ static Type *pointers(Type *ty) {
         }
     }
 
-    return ty;
+    return (PseudoType *)ty;
 }
 
 // declarator = pointers (ident | "("declarator ")") type-suffix
-static Type *declarator(Type *ty) {
-    ty = pointers(ty);
+static TypeIdentPair *declarator(PseudoType *pty) {
+    pty = pointers(pty);
 
     if (consume("(", TK_RESERVED)) {
         Token *start = token;
 
-        Type dummy = {};
+        PseudoType dummy = {};
         declarator(&dummy);
         expect(")");
-        ty = type_suffix(ty);
+        pty = type_suffix(pty);
 
         token = start;
-        ty = declarator(ty);
+        TypeIdentPair *pair = declarator(pty);
         expect(")");
         type_suffix(&dummy);
-        return ty;
+        return pair;
     }
 
     Token *tok = consume_ident();
-    ty = type_suffix(ty);
-    ty->ident = tok;
-    return ty;
+    pty = type_suffix(pty);
+
+    TypeIdentPair *pair = calloc(1, sizeof(TypeIdentPair));
+    pair->ident = tok;
+    pair->pty = pty;
+    return pair;
 }
 
 // abstract-declarator = pointers ("(" abstract-declarator ")")? type-suffix
-static Type *abstract_declarator(Type *ty) {
-    ty = pointers(ty);
+static PseudoType *abstract_declarator(PseudoType *pty) {
+    pty = pointers(pty);
 
     if (consume("(", TK_RESERVED)) {
         Token *start = token;
 
-        Type dummy = {};
+        PseudoType dummy = {};
         abstract_declarator(&dummy);
         expect(")");
-        ty = type_suffix(ty);
+        pty = type_suffix(pty);
 
         token = start;
-        ty = abstract_declarator(ty);
+        pty = abstract_declarator(pty);
         expect(")");
         type_suffix(&dummy);
-        return ty;
+        return pty;
     }
 
-    return type_suffix(ty);
+    return type_suffix(pty);
 }
 
 static void resolve_goto_labels() {
@@ -1262,14 +1280,34 @@ static void resolve_goto_labels() {
 }
 
 // function-decl = ("{" compound-stmt)?
-static Obj *function(Type *ty) {
-    Obj *fn = find_func(ty->ident);
+static Obj *function(PseudoType *pty, Token *tok) {
+    Obj *fn = find_func(tok);
+
+    Type *ty = expand_pseudo(pty);
+    ty->ret->ty = expand_pseudo(ty->ret->pty);
+    for (ListIter it = list_begin(ty->params); it; it = list_next(it)) {
+        TypeIdentPair *param = *it;
+        param->ty = expand_pseudo(param->pty);
+    }
+
     if (!fn) {
-        fn = new_func(ty->ident, get_ident(ty->ident), ty);
+        fn = new_func(tok, get_ident(tok), ty);
     }
 
     if (!equal("{", TK_RESERVED, token)) {
         return fn;
+    }
+
+    fn->ty = ty;
+
+    if (fn->ty->ret->ty->size < 0) {
+        error_tok(fn->tok, "戻り値の型が不完全です");
+    }
+    for (ListIter it = list_begin(fn->ty->params); it; it = list_next(it)) {
+        TypeIdentPair *param = *it;
+        if (param->ty->size < 0) {
+            error_tok(param->ident, "パラメータの型が不完全です");
+        }
     }
 
     cur_fn = fn;
@@ -1282,12 +1320,13 @@ static Obj *function(Type *ty) {
     sc->next = scope->vars;
     scope->vars = sc;
 
-    for (Type *param = ty->params; param; param = param->next) {
-        new_lvar(param->ident, get_ident(param->ident), param);
+    for (ListIter it = list_begin(fn->ty->params); it; it = list_next(it)) {
+        TypeIdentPair *param = *it;
+        new_lvar(param->ident, get_ident(param->ident), param->ty);
         fn->nparams++;
     }
 
-    if (ty->is_variadic) {
+    if (fn->ty->is_variadic) {
         fn->reg_save_area = new_lvar(NULL, "", array_of(ty_char, 176));
         fn->reg_save_area->ty->align = 16;
     }
@@ -1559,45 +1598,43 @@ static Node *declaration() {
     Node *cur = &head;
 
     VarAttr attr = NOATTR;
-    Type *basety = declspec(&attr);
+    PseudoType *basety = declspec(&attr);
 
     if (!equal(";", TK_RESERVED, token)) {
-        Type *ty = declarator(basety);
-        if (!(attr & TYPEDEF)) {
-            if (is_any_type_of(ty, 1, TY_VOID) &&
-                !is_any_type_of(ty, 1, TY_FUNC)) {
-                error_tok(ty->ident, "void型の変数を宣言することはできません");
-            }
-            //            if ((is_type_of(TY_STRUCT, ty) || is_type_of(TY_UNION,
-            //            ty) ||
-            //                 is_type_of(TY_ENUM, ty)) &&
-            //                ty->size < 0) {
-            //                error_tok(ty->ident, "不完全な型の変数宣言です");
-            //            }
+        TypeIdentPair *pair = declarator(basety);
+        Type *ty = expand_pseudo(pair->pty);
+
+        if (!(attr & TYPEDEF) && ty->kind == TY_VOID) {
+            error_tok(pair->ident, "void型の変数を宣言することはできません");
         }
 
         if (attr & TYPEDEF) {
-            ty->name = ty->ident;
-            push_typedef_into_var_scope(ty->name, ty);
+            Type *td = typedef_of((Type *)pair->pty, pair->ident);
+            push_typedef_into_var_scope(td->name, td);
 
         } else if (is_any_type_of(ty, 1, TY_FUNC)) {
-            Obj *fn = function(ty);
+            Obj *fn = function(pair->pty, pair->ident);
             fn->is_static = attr & STATIC;
             return NULL;
 
         } else {
+            Obj *var;
+
             if (scope->parent) {
                 if (attr & STATIC) {
                     static int static_count = 0;
-                    char *name = get_ident(ty->ident);
+                    char *name = get_ident(pair->ident);
                     char *unique_name =
                         format("%s.%s.%d", cur_fn->name, name, static_count++);
-                    Obj *var = new_gvar(ty->ident, unique_name, ty);
+                    var = new_gvar(pair->ident, unique_name, ty);
                     if (consume("=", TK_RESERVED)) {
                         gvar_initializer(var);
                     }
+
+                    var->pty = var->ty->kind == TY_ARY ? (PseudoType *)var->ty
+                                                       : pair->pty;
                 } else {
-                    Obj *var = new_lvar(ty->ident, get_ident(ty->ident), ty);
+                    var = new_lvar(pair->ident, get_ident(pair->ident), ty);
 
                     if (consume("=", TK_RESERVED)) {
                         Node *node = new_node(ND_INIT, NULL);
@@ -1606,17 +1643,23 @@ static Node *declaration() {
                     }
 
                     if (var->ty->ary_len < 0) {
-                        error_tok(ty->ident,
+                        error_tok(pair->ident,
                                   "配列の要素数が指定されていません");
                     }
                 }
+                if (var->ty->size < 0) {
+                    error_tok(var->tok, "不完全な型の変数宣言です");
+                }
             } else {
-                Obj *var = new_gvar(ty->ident, get_ident(ty->ident), ty);
+                var = new_gvar(pair->ident, get_ident(pair->ident), ty);
                 var->is_static = attr & STATIC;
                 var->has_definition = !(attr & EXTERN);
                 if (consume("=", TK_RESERVED)) {
                     gvar_initializer(var);
                 }
+
+                var->pty =
+                    var->ty->kind == TY_ARY ? (PseudoType *)var->ty : pair->pty;
             }
         }
     }
@@ -1746,7 +1789,7 @@ static Node *for_stmt() {
     enter_scope();
 
     if (!consume(";", TK_RESERVED)) {
-        node->for_.init = is_typename() ? declaration(NOATTR) : expr_stmt();
+        node->for_.init = is_typename() ? declaration() : expr_stmt();
     }
 
     if (!consume(";", TK_RESERVED)) {
@@ -1846,7 +1889,7 @@ static Node *continue_stmt() {
 static Node *return_stmt() {
     Token *tok = consume("return", TK_KEYWORD);
     Node *node = new_node(ND_RETURN, tok);
-    bool in_void_fn = is_any_type_of(cur_fn->ty->ret, 1, TY_VOID);
+    bool in_void_fn = is_any_type_of(cur_fn->ty->ret->ty, 1, TY_VOID);
     Node *exp;
 
     if (equal(";", TK_RESERVED, token)) {
@@ -1860,7 +1903,7 @@ static Node *return_stmt() {
         }
         exp = expr();
         add_type(exp);
-        exp = new_node_cast(exp, cur_fn->ty->ret);
+        exp = new_node_cast(exp, cur_fn->ty->ret->ty, NULL);
     }
     expect(";");
 
@@ -2230,7 +2273,8 @@ static Node *cast() {
     Token *tmp = token;
     if (consume("(", TK_RESERVED)) {
         if (is_typename()) {
-            Type *ty = abstract_declarator(declspec(NULL));
+            PseudoType *pty = abstract_declarator(declspec(NULL));
+            Type *ty = expand_pseudo(pty);
             expect(")");
 
             // 複合リテラル
@@ -2249,7 +2293,7 @@ static Node *cast() {
                 return new_node_var(var, NULL);
             }
 
-            return new_node_cast(cast(), ty);
+            return new_node_cast(cast(), ty, NULL);
         }
     }
 
@@ -2269,7 +2313,7 @@ static Node *unary() {
         if (consume("(", TK_RESERVED)) {
             int sz;
             if (is_typename()) {
-                Type *ty = abstract_declarator(declspec(NULL));
+                Type *ty = expand_pseudo(abstract_declarator(declspec(NULL)));
                 sz = ty->size;
             } else {
                 Node *node = expr();
@@ -2348,6 +2392,12 @@ static Member *get_member(Type *ty) {
     return NULL;
 }
 
+static Member *copy_mem(Member *mem) {
+    Member *ret = calloc(1, sizeof(Member));
+    *ret = *mem;
+    return ret;
+}
+
 static Node *struct_ref(Node *lhs, Token *tok) {
     add_type(lhs);
     if (!is_any_type_of(lhs->ty, 2, TY_STRUCT, TY_UNION)) {
@@ -2362,6 +2412,9 @@ static Node *struct_ref(Node *lhs, Token *tok) {
         if (!mem) {
             error_tok(token, "そのようなメンバは存在しません");
         }
+
+        mem = copy_mem(mem);
+        mem->ty = expand_pseudo(mem->pty);
         if (ty->is_const) {
             add_const(&mem->ty);
         }
@@ -2411,11 +2464,11 @@ static Node *builtin_funcall(Node *fn) {
         Node *node = new_node(ND_FUNCALL, tok);
         node->funcall.fn = fn;
         node->funcall.args = assign();
-        if (node->funcall.args->ty != va_list_type()) {
+        if (node->funcall.args->ty->kind != TY_VA_LIST) {
             error_tok(node->funcall.args->tok, "va_list型ではありません");
         }
         expect(",");
-        node->ty = abstract_declarator(declspec(NULL));
+        node->ty = expand_pseudo(abstract_declarator(declspec(NULL)));
         expect(")");
         return node;
     }
@@ -2434,12 +2487,12 @@ static Node *builtin_funcall(Node *fn) {
         Node *node = new_node(ND_FUNCALL, tok);
         node->funcall.fn = fn;
         node->funcall.args = assign();
-        if (node->funcall.args->ty != va_list_type()) {
+        if (node->funcall.args->ty->kind != TY_VA_LIST) {
             error_tok(node->funcall.args->tok, "va_list型ではありません");
         }
         expect(",");
         node->funcall.args->next = assign();
-        if (node->funcall.args->next->ty != va_list_type()) {
+        if (node->funcall.args->next->ty->kind != TY_VA_LIST) {
             error_tok(node->funcall.args->next->tok, "va_list型ではありません");
         }
         expect(")");
@@ -2467,26 +2520,29 @@ static Node *funcall(Node *fn) {
     Node head = {};
     Node *cur = &head;
     Type *ty = is_any_type_of(fn->ty, 1, TY_FUNC) ? fn->ty : fn->ty->base;
-    Type *param_ty = ty->params;
+    ListIter begin = list_begin(ty->params);
+    ListIter it = begin;
 
     Token *tok = expect("(");
     while (!consume(")", TK_RESERVED)) {
-        if (cur != &head) {
+        if (it != begin) {
             expect(",");
         }
 
         Node *arg = assign();
         add_type(arg);
-        if (param_ty) {
-            cur = cur->next = new_node_cast(arg, param_ty);
-            param_ty = param_ty->next;
+        if (it) {
+            TypeIdentPair *pair = *it;
+            cur = cur->next =
+                new_node_cast(arg, expand_pseudo(pair->pty), arg->tok);
+            it = list_next(it);
         } else {
             cur = cur->next = arg;
         }
     }
 
     Node *node = new_node(ND_FUNCALL, tok);
-    node->ty = ty->ret;
+    node->ty = ty->ret->ty;
     node->funcall.fn = fn;
     node->funcall.args = head.next;
     return node;
@@ -2505,7 +2561,7 @@ static Node *postfix() {
             node = new_node_cast(
                 new_node_sub(to_assign(new_node_add(node, node_one, NULL)),
                              node_one, consume("++", TK_RESERVED)),
-                node->ty);
+                node->ty, NULL);
 
         } else if (equal("--", TK_RESERVED, token)) {
             // `A--` は `(A -= 1) + 1` と等価
@@ -2513,7 +2569,7 @@ static Node *postfix() {
             node = new_node_cast(
                 new_node_add(to_assign(new_node_sub(node, node_one, NULL)),
                              node_one, consume("--", TK_RESERVED)),
-                node->ty);
+                node->ty, NULL);
 
         } else if (equal(".", TK_RESERVED, token)) {
             node = struct_ref(node, consume(".", TK_RESERVED));

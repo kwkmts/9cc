@@ -212,7 +212,8 @@ static void cmp_zero(Type *ty) {
 }
 
 static void load(Type *ty) {
-    if (is_any_type_of(ty, 4, TY_ARY, TY_STRUCT, TY_UNION, TY_FUNC)) {
+    if (is_any_type_of(ty, 5, TY_ARY, TY_STRUCT, TY_UNION, TY_FUNC,
+                       TY_VA_LIST)) {
         return;
     }
 
@@ -453,7 +454,7 @@ static void cast(Type *from, Type *to) {
     if (is_any_type_of(from, 1, TY_ARY)) {
         from = pointer_to(from->base);
     }
-    if (is_any_type_of(from, 3, TY_STRUCT, TY_UNION, TY_FUNC) ||
+    if (is_any_type_of(from, 4, TY_STRUCT, TY_UNION, TY_FUNC, TY_VA_LIST) ||
         is_any_type_of(to, 1, TY_VOID)) {
         return;
     }
@@ -628,18 +629,18 @@ struct ListNode {
 };
 
 // 単方向リストの試験的実装
-typedef struct List {
+struct List {
     ListNode *head;
     ListNode *tail;
     int size;
-} *List;
+};
 
-static List list_new() {
+List list_new() {
     List list = calloc(1, sizeof(struct List));
     return list;
 }
 
-static void list_push_front(List list, void *val) {
+void list_push_front(List list, void *val) {
     ListNode *node = calloc(1, sizeof(ListNode));
     node->val = val;
     list->size++;
@@ -652,7 +653,7 @@ static void list_push_front(List list, void *val) {
     list->head = node;
 }
 
-static void list_push_back(List list, void *val) {
+void list_push_back(List list, void *val) {
     ListNode *node = calloc(1, sizeof(ListNode));
     node->val = val;
     list->size++;
@@ -664,15 +665,11 @@ static void list_push_back(List list, void *val) {
     list->tail = list->tail->next = node;
 }
 
-typedef void **ListIter;
+ListIter list_begin(List list) { return (ListIter)list->head; }
 
-static ListIter list_begin(List list) { return (ListIter)list->head; }
+ListIter list_next(ListIter it) { return (ListIter)((ListNode *)it)->next; }
 
-static ListIter list_next(ListIter it) {
-    return (ListIter)((ListNode *)it)->next;
-}
-
-static int list_size(List list) { return list->size; }
+int list_size(List list) { return list->size; }
 
 static int push_args(Node *args, List *reg_iargs, List *reg_fargs) {
     int stack = 0;
@@ -1215,6 +1212,14 @@ static void emit_global_variables() {
     for (Obj *var = globals.next; var; var = var->next) {
         if (!var->has_definition) {
             continue;
+        }
+
+        // 配列はこの時点で完全な型であることが保証される
+        if (var->ty->kind != TY_ARY) {
+            var->ty = expand_pseudo(var->pty);
+            if (var->ty->size < 0) {
+                error_tok(var->tok, "不完全な型の変数宣言です");
+            }
         }
 
         if (var->init_data_str) {

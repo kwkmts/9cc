@@ -4,6 +4,7 @@ struct gT;
 union gU;
 typedef struct gT gT;
 typedef union gU gU;
+typedef gT gT4;
 
 gT extT;
 gU extU;
@@ -101,6 +102,9 @@ int main() {
     ASSERT(42, ({ union gU x={}; x.a=42; }));
     ASSERT(42, ({ gT x={}; x.a=42; }));
     ASSERT(42, ({ gU x={}; x.a=42; }));
+    ASSERT(42, ({ T x={}; x.a=42; }));
+    ASSERT(42, ({ U x={}; x.a=42; }));
+    ASSERT(42, ({ gT4 x={}; x.a=42; }));
 
     return 0;
 }

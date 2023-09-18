@@ -12,6 +12,7 @@ Type *ty_uint = &(Type){TY_INT, 4, 4, true};
 Type *ty_ulong = &(Type){TY_LONG, 8, 8, true};
 Type *ty_float = &(Type){TY_FLOAT, 4, 4};
 Type *ty_double = &(Type){TY_DOUBLE, 8, 8};
+Type *ty_va_list = &(Type){TY_VA_LIST, 24, 8};
 
 // ty->kindが指定したTypeKind(n個)のいずれかと一致するかどうか
 bool is_any_type_of(Type *ty, int n, ...) {
@@ -43,6 +44,37 @@ Type *copy_type(Type *ty) {
     return ret;
 }
 
+// ty->kind == TY_PSEUDO_* なType構造体を取り除いた型を返す
+Type *expand_pseudo(PseudoType *pty) {
+    Type *ty = (Type *)pty;
+
+    if (!ty->base) {
+        return copy_type(ty);
+    }
+
+    Type *base = expand_pseudo((PseudoType *)ty->base);
+
+    switch (ty->kind) {
+    case TY_PSEUDO_TYPEDEF:
+        return base;
+    case TY_PSEUDO_CONST:
+        base->is_const = true;
+        return base;
+    case TY_PTR:
+        ty = copy_type(ty);
+        ty->base = base;
+        return ty;
+    case TY_ARY:
+        ty = copy_type(ty);
+        ty->base = base;
+        ty->size = base->size * ty->ary_len;
+        ty->align = base->align;
+        return ty;
+    default:
+        unreachable();
+    }
+}
+
 Type *pointer_to(Type *base) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_PTR;
@@ -61,11 +93,27 @@ Type *array_of(Type *base, int len) {
     return ty;
 }
 
-Type *func_type(Type *ret, Type *params) {
+Type *func_type(PseudoType *ret, List params) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_FUNC;
-    ty->ret = ret;
+    ty->ret = calloc(1, sizeof(ReturnType));
+    ty->ret->pty = ret;
     ty->params = params;
+    return ty;
+}
+
+Type *typedef_of(Type *base, Token *name) {
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_PSEUDO_TYPEDEF;
+    ty->base = base;
+    ty->name = name;
+    return ty;
+}
+
+Type *const_of(Type *base) {
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_PSEUDO_CONST;
+    ty->base = base;
     return ty;
 }
 
@@ -76,30 +124,6 @@ Member *new_member(int idx, Type *ty, Token *name, int offset) {
     mem->name = name;
     mem->offset = offset;
     return mem;
-}
-
-// __builtin_va_list型
-// struct {
-//   unsigned int gp_offset;
-//   unsigned int fp_offset;
-//   void *overflow_arg_area;
-//   void *reg_save_area;
-// }[1];
-Type *va_list_type() {
-    static Type *ty;
-    if (!ty) {
-        ty = calloc(1, sizeof(Type));
-        ty->kind = TY_STRUCT;
-        ty->size = 24;
-        ty->align = 8;
-        ty->members = new_member(0, ty_uint, NULL, 0);
-        ty->members->next = new_member(1, ty_uint, NULL, 4);
-        ty->members->next->next = new_member(2, pointer_to(ty_void), NULL, 8);
-        ty->members->next->next->next =
-            new_member(4, pointer_to(ty_void), NULL, 16);
-        ty = array_of(ty, 1);
-    }
-    return ty;
 }
 
 void add_const(Type **ty) {
@@ -141,8 +165,8 @@ static Type *get_common_type(Type *ty1, Type *ty2) {
 
 static void usual_arith_conv(Node **lhs, Node **rhs) {
     Type *ty = get_common_type((*lhs)->ty, (*rhs)->ty);
-    *lhs = new_node_cast(*lhs, ty);
-    *rhs = new_node_cast(*rhs, ty);
+    *lhs = new_node_cast(*lhs, ty, NULL);
+    *rhs = new_node_cast(*rhs, ty, NULL);
 }
 
 void add_type_binop(Node *node) {
@@ -162,7 +186,7 @@ void add_type_init(Node *node) {
         add_type_init(node->binop.rhs);
         if (!is_any_type_of(node->binop.lhs->ty, 1, TY_STRUCT)) {
             node->binop.rhs =
-                new_node_cast(node->binop.rhs, node->binop.lhs->ty);
+                new_node_cast(node->binop.rhs, node->binop.lhs->ty, NULL);
         }
         if (is_any_type_of(node->binop.rhs->ty, 1, TY_FUNC)) {
             node->binop.rhs = new_node_unary(ND_ADDR, node->binop.rhs, NULL);
@@ -202,7 +226,7 @@ void add_type(Node *node) {
         }
         if (!is_any_type_of(node->binop.lhs->ty, 1, TY_STRUCT)) {
             node->binop.rhs =
-                new_node_cast(node->binop.rhs, node->binop.lhs->ty);
+                new_node_cast(node->binop.rhs, node->binop.lhs->ty, NULL);
         }
         node->ty = node->binop.lhs->ty;
         return;

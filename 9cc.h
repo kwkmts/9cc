@@ -14,11 +14,67 @@
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
+// 単方向リスト
+typedef struct List *List;
+typedef void **ListIter;
+List list_new();
+void list_push_front(List list, void *val);
+void list_push_back(List list, void *val);
+ListIter list_begin(List list);
+ListIter list_next(ListIter it);
+int list_size(List list);
+
 typedef struct Token Token;
 typedef struct Obj Obj;
 typedef struct Node Node;
 typedef struct Type Type;
+typedef struct ReturnType ReturnType;
 typedef struct Member Member;
+
+// データ型の種類
+typedef enum TypeKind {
+    TY_VOID,
+    TY_BOOL,
+    TY_CHAR,
+    TY_SHORT,
+    TY_INT,
+    TY_LONG,
+    TY_FLOAT,
+    TY_DOUBLE,
+    TY_PTR,
+    TY_ARY,
+    TY_STRUCT,
+    TY_UNION,
+    TY_ENUM,
+    TY_FUNC,
+    TY_VA_LIST,
+    TY_PSEUDO_TYPEDEF,
+    TY_PSEUDO_CONST,
+} TypeKind;
+
+// データ型の型
+struct Type {
+    TypeKind kind; // データ型の種類
+    int size;      // サイズ
+    int align;     // アライメント
+    bool is_unsigned;
+
+    Token *name;     // タグ名またはtypedef名
+    Member *members; // 構造体のメンバリスト
+
+    int ary_len; // 配列の要素数
+    Type *base;  // ポインタ,配列,TY_PSEUDO_*において使われる
+
+    ReturnType *ret; // 関数型の戻り値のデータ型
+    List params; // 関数型のパラメータのデータ型(TypeIdentPairのリスト)
+    bool is_variadic;
+
+    bool is_const; // const修飾子の有無
+};
+
+// Typeのエイリアス(TY_PSEUDO_*なType構造体を含むことを示すために使用される)
+typedef Type PseudoType[1];
+typedef struct TypeIdentPair TypeIdentPair;
 
 //
 // tokenize.c
@@ -83,8 +139,10 @@ extern Token *token;
 struct Obj {
     enum { LVAR, GVAR, FUNC } kind;
     Obj *next;
-    char *name; // 識別子名
-    Type *ty;
+    char *name;      // 識別子名
+    Type *ty;        // expand_pseudo()によって得られる実質的な型
+    PseudoType *pty; // TY_PSEUDO_*を含む型(グローバル変数のみ)
+    Token *tok;
 
     int offset; // RBPからのオフセット
 
@@ -269,7 +327,7 @@ struct Node {
 
 int64_t calc_const_expr(Node *node, char **label);
 Node *new_node_unary(NodeKind kind, Node *expr, Token *tok);
-Node *new_node_cast(Node *expr, Type *ty);
+Node *new_node_cast(Node *expr, Type *ty, Token *tok);
 void program();
 bool is_builtin(char *name);
 
@@ -277,52 +335,24 @@ bool is_builtin(char *name);
 // type.c
 //
 
-// データ型の種類
-typedef enum {
-    TY_VOID,
-    TY_BOOL,
-    TY_CHAR,
-    TY_SHORT,
-    TY_INT,
-    TY_LONG,
-    TY_FLOAT,
-    TY_DOUBLE,
-    TY_PTR,
-    TY_ARY,
-    TY_STRUCT,
-    TY_UNION,
-    TY_ENUM,
-    TY_FUNC,
-} TypeKind;
-
-// データ型の型
-struct Type {
-    TypeKind kind; // データ型の種類
-    int size;      // サイズ
-    int align;     // アライメント
-    bool is_unsigned;
-    Token *ident; // 識別子名
-
-    Token *name;     // タグ名またはtypedef名
-    Member *members; // 構造体のメンバリスト
-
-    int ary_len; // 配列の要素数
-    Type *base;  // データ型がポインタや配列の場合使われる
-
-    Type *ret;    // 関数型の戻り値のデータ型
-    Type *params; // 関数型のパラメータのデータ型リスト
-    Type *next;   // 次のパラメータのデータ型
-    bool is_variadic;
-
-    bool is_const; // const修飾子の有無
-};
-
 struct Member {
     Member *next;
     int idx;
     Type *ty;
+    PseudoType *pty;
     Token *name;
     int offset;
+};
+
+struct ReturnType {
+    PseudoType *pty;
+    Type *ty;
+};
+
+struct TypeIdentPair {
+    Token *ident;
+    PseudoType *pty;
+    Type *ty;
 };
 
 extern Type *ty_void;
@@ -337,17 +367,20 @@ extern Type *ty_uint;
 extern Type *ty_ulong;
 extern Type *ty_float;
 extern Type *ty_double;
+extern Type *ty_va_list;
 
 bool is_any_type_of(Type *ty, int n, ...);
 bool is_integer(Type *ty);
 bool is_flonum(Type *ty);
 bool is_numeric(Type *ty);
 Type *copy_type(Type *ty);
+Type *expand_pseudo(PseudoType *pty);
 Type *pointer_to(Type *base);
 Type *array_of(Type *base, int len);
-Type *func_type(Type *ret, Type *params);
+Type *typedef_of(Type *base, Token *name);
+Type *const_of(Type *base);
+Type *func_type(PseudoType *ret, List params);
 Member *new_member(int idx, Type *ty, Token *name, int offset);
-Type *va_list_type();
 void add_const(Type **ty);
 void add_type(Node *node);
 
