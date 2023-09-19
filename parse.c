@@ -682,26 +682,26 @@ static TypeIdentPair *declarator(PseudoType *pty);
 static Obj *function(PseudoType *pty, Token *tok);
 static Node *lvar_initializer(Obj *var);
 static void gvar_initializer(Obj *var);
-static Node *declaration();
-static Node *stmt();
+static Node *declaration(void);
+static Node *stmt(void);
 static Node *compound_stmt(bool is_fn_def);
-static Node *expr();
-static Node *assign();
-static Node *conditional();
-static Node *logor();
-static Node *logand();
-static Node * bitor ();
-static Node *bitxor();
-static Node *bitand();
-static Node *equality();
-static Node *relational();
-static Node *shift();
-static Node *add();
-static Node *mul();
-static Node *cast();
-static Node *unary();
-static Node *postfix();
-static Node *primary();
+static Node *expr(void);
+static Node *assign(void);
+static Node *conditional(void);
+static Node *logor(void);
+static Node *logand(void);
+static Node * bitor (void);
+static Node *bitxor(void);
+static Node *bitand(void);
+static Node *equality(void);
+static Node *relational(void);
+static Node *shift(void);
+static Node *add(void);
+static Node *mul(void);
+static Node *cast(void);
+static Node *unary(void);
+static Node *postfix(void);
+static Node *primary(void);
 
 // program = declaration*
 void program() {
@@ -1160,7 +1160,7 @@ static PseudoType *ary_suffix(PseudoType *pty) {
     return pty;
 }
 
-// func-suffix = "(" func-params? ")"
+// func-suffix = "(" func-params? | "void" ")"
 // func-params = declspec declarator ("," declspec declarator)* ("," "...")?
 static PseudoType *func_suffix(PseudoType *pty) {
     expect("(");
@@ -1169,14 +1169,19 @@ static PseudoType *func_suffix(PseudoType *pty) {
     ListIter begin = list_begin(params);
     bool is_variadic = false;
 
-    while (!consume(")", TK_RESERVED)) {
+    while (!equal(")", TK_RESERVED, token)) {
+        if (equal("void", TK_KEYWORD, token) &&
+            equal(")", TK_RESERVED, token->next)) {
+            token = token->next;
+            break;
+        }
+
         if (list_size(params)) {
             expect(",");
         }
 
         if (consume("...", TK_RESERVED)) {
             is_variadic = true;
-            expect(")");
             break;
         }
 
@@ -1191,6 +1196,8 @@ static PseudoType *func_suffix(PseudoType *pty) {
 
         list_push_back(params, param);
     }
+
+    expect(")");
 
     pty = (PseudoType *)func_type(pty, params);
     ((Type *)(pty))->is_variadic = is_variadic;

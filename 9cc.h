@@ -17,7 +17,7 @@
 // 単方向リスト
 typedef struct List *List;
 typedef void **ListIter;
-List list_new();
+List list_new(void);
 void list_push_front(List list, void *val);
 void list_push_back(List list, void *val);
 ListIter list_begin(List list);
@@ -113,7 +113,7 @@ struct Token {
 extern char *filepath;   // ソースファイルのパス
 extern char *user_input; // 入力プログラム
 
-Token *tokenize();
+Token *tokenize(void);
 
 //
 // parse.c
@@ -328,7 +328,7 @@ struct Node {
 int64_t calc_const_expr(Node *node, char **label);
 Node *new_node_unary(NodeKind kind, Node *expr, Token *tok);
 Node *new_node_cast(Node *expr, Type *ty, Token *tok);
-void program();
+void program(void);
 bool is_builtin(char *name);
 
 //
@@ -388,7 +388,7 @@ void add_type(Node *node);
 // codegen.c
 //
 
-int count();
+int count(void);
 char *format(const char *fmt, ...);
 int align_to(int n, int align);
-void codegen();
+void codegen(void);

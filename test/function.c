@@ -2,7 +2,7 @@
 
 int ret3(){ return 3; }
 int ret5(){ return 5; }
-int ret42();
+int ret42(void);
 int ret_n(int);
 int add(int x, int y){ return x+y; }
 int sub(int x, int y){ return x-y; }
@@ -212,5 +212,5 @@ int main() {
     return 0;
 }
 
-int ret42(){ return 42; }
+int ret42(void){ return 42; }
 int ret_n(int n){ return n; }

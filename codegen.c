@@ -411,7 +411,7 @@ static void cf64_64asU() {
 static void cf64f32() { CVTSS2SD(XMM0, XMM0); }
 static void nocast() {}
 
-static void (*cast_fn_table[][10])() = {
+static void (*cast_fn_table[][10])(void) = {
   // to i8      i16      i32      i64      u8      u16      u32      u64      f32      f64     // from
     {nocast, nocast,  nocast,  s_64_32, z_8_32, z_16_32, nocast,  s_64_32, sf32_8,     sf64_8    }, // i8
     {s_8_32, nocast,  nocast,  s_64_32, z_8_32, z_16_32, nocast,  s_64_32, sf32_16,    sf64_16   }, // i16
