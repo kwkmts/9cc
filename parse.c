@@ -4,7 +4,7 @@
 // パーサー
 //
 
-Token *token;
+static Token *token; // 現在着目しているトークン
 Obj locals = (Obj){};
 Obj globals = (Obj){};
 Obj functions = (Obj){};
@@ -64,7 +64,7 @@ typedef int VarAttr;
 #define EXTERN 0x10
 
 // 指定したトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
-static bool equal(char *op, TokenKind kind, Token *tok) {
+bool equal(char *op, TokenKind kind, Token *tok) {
     return tok->kind == kind && strlen(op) == tok->len &&
            !memcmp(tok->loc, op, tok->len);
 }
@@ -150,7 +150,7 @@ static char *get_ident(Token *tok) {
     return strndup(tok->loc, tok->len);
 }
 
-static bool at_eof() { return token->kind == TK_EOF; }
+bool at_eof(Token *tok) { return tok->kind == TK_EOF; }
 
 static VarScope *look_in_cur_var_scope(Token *tok);
 
@@ -704,10 +704,12 @@ static Node *postfix(void);
 static Node *primary(void);
 
 // program = declaration*
-void program() {
+void program(Token *tok) {
+    token = tok;
+
     push_builtin_obj_into_var_scope();
 
-    while (!at_eof()) {
+    while (!at_eof(token)) {
         declaration();
     }
 }

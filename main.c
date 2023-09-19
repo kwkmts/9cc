@@ -48,10 +48,13 @@ int main(int argc, char **argv) {
 
     // トークナイズ
     user_input = read_file(filepath = argv[1]);
-    token = tokenize();
+    Token *token = tokenize();
+
+    // プリプロセス
+    token = preprocess(token);
 
     // パース
-    program();
+    program(token);
 
     // コード生成
     codegen();

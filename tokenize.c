@@ -2,6 +2,8 @@
 
 char *user_input;
 
+static bool at_bol = true; // 行頭かどうか
+
 // エラーを報告する関数
 //  printf()と同じ引数
 void error(char *fmt, ...) {
@@ -84,6 +86,8 @@ static Token *new_token(TokenKind kind, char *loc, int len) {
     tok->kind = kind;
     tok->loc = loc;
     tok->len = len;
+    tok->at_bol = at_bol;
+    at_bol = false;
     return tok;
 }
 
@@ -135,7 +139,7 @@ static int read_punct(char *p) {
             return (int)strlen(kw[i]);
         }
     }
-    return strchr("+-*/%&|()<>{}[]=~^!?:;,.", *p) ? 1 : 0;
+    return strchr("+-*/%&|()<>{}[]=~^!?:;,.#", *p) ? 1 : 0;
 }
 
 static char *str_literal_end(char *p) {
@@ -330,6 +334,7 @@ Token *tokenize() {
     while (*p) {
         // 空白文字をスキップ
         if (isspace(*p)) {
+            at_bol = *p == '\n';
             p++;
             continue;
         }
