@@ -774,7 +774,7 @@ static bool duplicate_member_exists(Member *list, Token *name) {
     return false;
 }
 
-// member = declspec declarator ";"
+// member = declspec declarator ("," declarator)* ";"
 // member-list = member* "}"
 static Member *member_list(Type *ty) {
     Member head = {};
@@ -782,26 +782,36 @@ static Member *member_list(Type *ty) {
 
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
-        TypeIdentPair *pair = declarator(declspec(NULL));
-        if (pair->ident && duplicate_member_exists(head.next, pair->ident)) {
-            error_tok(pair->ident, "同名のメンバがすでに存在します");
-        }
+        PseudoType *pbasety = declspec(NULL);
 
-        Type *mem_ty = expand_pseudo(pair->pty);
-        if (mem_ty->size < 0) {
-            error_tok(pair->ident, "メンバの型が不完全です");
-        }
+        int i = 0;
+        do {
+            if (i++ > 0) {
+                expect(",");
+            }
+
+            TypeIdentPair *pair = declarator(pbasety);
+            if (pair->ident &&
+                duplicate_member_exists(head.next, pair->ident)) {
+                error_tok(pair->ident, "同名のメンバがすでに存在します");
+            }
+
+            Type *mem_ty = expand_pseudo(pair->pty);
+            if (mem_ty->size < 0) {
+                error_tok(pair->ident, "メンバの型が不完全です");
+            }
+
+            Member *mem = new_member(idx++, mem_ty, pair->ident);
+            mem->pty = pair->pty;
+
+            if (ty->align < mem_ty->align) {
+                ty->align = mem_ty->align;
+            }
+
+            cur = cur->next = mem;
+        } while (!equal(";", TK_RESERVED, token));
 
         expect(";");
-
-        Member *mem = new_member(idx++, mem_ty, pair->ident, 0);
-        mem->pty = pair->pty;
-
-        if (ty->align < mem_ty->align) {
-            ty->align = mem_ty->align;
-        }
-
-        cur = cur->next = mem;
     }
 
     return head.next;
@@ -1614,7 +1624,8 @@ static void gvar_initializer(Obj *var) {
     var->init = init;
 }
 
-// declaration = declspec declarator ("=" initializer)? ";"
+// declaration = declspec declarator ("=" initializer)?
+//                   ("," declarator ("=" initializer)?)* ";"
 //             | declspec declarator function-definition
 //             | declspec ";"
 static Node *declaration() {
@@ -1624,7 +1635,11 @@ static Node *declaration() {
     VarAttr attr = NOATTR;
     PseudoType *basety = declspec(&attr);
 
-    if (!equal(";", TK_RESERVED, token)) {
+    for (int i = 0; !equal(";", TK_RESERVED, token); i++) {
+        if (i > 0) {
+            expect(",");
+        }
+
         TypeIdentPair *pair = declarator(basety);
         Type *ty = expand_pseudo(pair->pty);
 
@@ -1632,59 +1647,61 @@ static Node *declaration() {
             error_tok(pair->ident, "void型の変数を宣言することはできません");
         }
 
+        // typedef
         if (attr & TYPEDEF) {
             Type *td = typedef_of((Type *)pair->pty, pair->ident);
             push_typedef_into_var_scope(td->name, td);
+            continue;
+        }
 
-        } else if (is_any_type_of(ty, 1, TY_FUNC)) {
+        // 関数
+        if (is_any_type_of(ty, 1, TY_FUNC)) {
             Obj *fn = function(pair->pty, pair->ident);
             fn->is_static = attr & STATIC;
             return NULL;
+        }
 
-        } else {
-            Obj *var;
-
-            if (scope->parent) {
-                if (attr & STATIC) {
-                    static int static_count = 0;
-                    char *name = get_ident(pair->ident);
-                    char *unique_name =
-                        format("%s.%s.%d", cur_fn->name, name, static_count++);
-                    var = new_gvar(pair->ident, unique_name, ty);
-                    if (consume("=", TK_RESERVED)) {
-                        gvar_initializer(var);
-                    }
-
-                    var->pty = var->ty->kind == TY_ARY ? (PseudoType *)var->ty
-                                                       : pair->pty;
-                } else {
-                    var = new_lvar(pair->ident, get_ident(pair->ident), ty);
-
-                    if (consume("=", TK_RESERVED)) {
-                        Node *node = new_node(ND_INIT, NULL);
-                        node->init.assigns = lvar_initializer(var);
-                        cur->next = node;
-                    }
-
-                    if (var->ty->ary_len < 0) {
-                        error_tok(pair->ident,
-                                  "配列の要素数が指定されていません");
-                    }
-                }
-                if (var->ty->size < 0) {
-                    error_tok(var->tok, "不完全な型の変数宣言です");
-                }
-            } else {
-                var = new_gvar(pair->ident, get_ident(pair->ident), ty);
-                var->is_static = attr & STATIC;
-                var->has_definition = !(attr & EXTERN);
+        // 変数
+        Obj *var;
+        if (scope->parent) {
+            if (attr & STATIC) {
+                static int static_count = 0;
+                char *name = get_ident(pair->ident);
+                char *unique_name =
+                    format("%s.%s.%d", cur_fn->name, name, static_count++);
+                var = new_gvar(pair->ident, unique_name, ty);
                 if (consume("=", TK_RESERVED)) {
                     gvar_initializer(var);
                 }
 
                 var->pty =
                     var->ty->kind == TY_ARY ? (PseudoType *)var->ty : pair->pty;
+            } else {
+                var = new_lvar(pair->ident, get_ident(pair->ident), ty);
+
+                if (consume("=", TK_RESERVED)) {
+                    Node *node = new_node(ND_INIT, NULL);
+                    node->init.assigns = lvar_initializer(var);
+                    cur = cur->next = node;
+                }
+
+                if (var->ty->ary_len < 0) {
+                    error_tok(pair->ident, "配列の要素数が指定されていません");
+                }
             }
+            if (var->ty->size < 0) {
+                error_tok(var->tok, "不完全な型の変数宣言です");
+            }
+        } else {
+            var = new_gvar(pair->ident, get_ident(pair->ident), ty);
+            var->is_static = attr & STATIC;
+            var->has_definition = !(attr & EXTERN);
+            if (consume("=", TK_RESERVED)) {
+                gvar_initializer(var);
+            }
+
+            var->pty =
+                var->ty->kind == TY_ARY ? (PseudoType *)var->ty : pair->pty;
         }
     }
 

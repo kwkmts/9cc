@@ -106,5 +106,9 @@ int main() {
     ASSERT(42, ({ U x={}; x.a=42; }));
     ASSERT(42, ({ gT4 x={}; x.a=42; }));
 
+    ASSERT(1, ({ struct {int a,b;} x={1,2}; x.a; }));
+    ASSERT(2, ({ struct {int a,b;} x={1,2}; x.b; }));
+    ASSERT(1, ({ union {int a,b;} x={1}; x.b;}));
+
     return 0;
 }

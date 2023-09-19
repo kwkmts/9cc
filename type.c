@@ -117,12 +117,11 @@ Type *const_of(Type *base) {
     return ty;
 }
 
-Member *new_member(int idx, Type *ty, Token *name, int offset) {
+Member *new_member(int idx, Type *ty, Token *name) {
     Member *mem = calloc(1, sizeof(Member));
     mem->idx = idx;
     mem->ty = ty;
     mem->name = name;
-    mem->offset = offset;
     return mem;
 }
 

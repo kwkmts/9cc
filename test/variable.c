@@ -11,6 +11,8 @@ int ext3 = 42;
 const int g6;
 int;
 typedef void gV;
+int g7, *g8=&g4, g9[]={1,2,3}, g10();
+int g10() {return 42;}
 
 int main() {
     int l1 = 0;
@@ -31,6 +33,10 @@ int main() {
     ASSERT(42, g4);
     ASSERT(4, sizeof(g1));
     ASSERT(16, sizeof(g3));
+    ASSERT(0, g7);
+    ASSERT(42, *g8);
+    ASSERT(1, g9[0]);
+    ASSERT(42, g10());
 
     ASSERT(3, ({ int a; a=3; a; }));
     ASSERT(8, ({ int a=3; int z=5; a+z; }));

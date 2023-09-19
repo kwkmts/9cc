@@ -672,9 +672,7 @@ ListIter list_next(ListIter it) { return (ListIter)((ListNode *)it)->next; }
 int list_size(List list) { return list->size; }
 
 static int push_args(Node *args, List *reg_iargs, List *reg_fargs) {
-    int stack = 0;
-    int iarg = 0;
-    int farg = 0;
+    int stack = 0, iarg = 0, farg = 0;
     List stack_args = list_new();
 
     for (Node *arg = args; arg; arg = arg->next) {

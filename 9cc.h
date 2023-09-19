@@ -380,7 +380,7 @@ Type *array_of(Type *base, int len);
 Type *typedef_of(Type *base, Token *name);
 Type *const_of(Type *base);
 Type *func_type(PseudoType *ret, List params);
-Member *new_member(int idx, Type *ty, Token *name, int offset);
+Member *new_member(int idx, Type *ty, Token *name);
 void add_const(Type **ty);
 void add_type(Node *node);
 
