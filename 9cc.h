@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <libgen.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -80,9 +81,15 @@ typedef struct TypeIdentPair TypeIdentPair;
 // tokenize.c
 //
 
+typedef struct {
+    char *name;
+    int number;
+    char *content;
+} File;
+
 void error(char *fmt, ...);
 
-void error_at(char *loc, char *fmt, ...);
+void error_at(File *file, char *loc, char *fmt, ...);
 
 void error_tok(Token *tok, char *fmt, ...);
 
@@ -106,15 +113,15 @@ struct Token {
     char *loc;      // 入力プログラム中での位置
     char *str;      // 文字列リテラル
     int len;        // トークンの長さ
+    File *file;     // トークンが含まれるファイル
     int line_no;    // 行番号
     int column_no;  // 列番号
     bool at_bol;    // 行頭かどうか
 };
 
-extern char *filepath;   // ソースファイルのパス
-extern char *user_input; // 入力プログラム
+extern File **input_files;
 
-Token *tokenize(void);
+Token *tokenize_file(char *path);
 
 //
 // preprocess.c
@@ -398,3 +405,9 @@ int count(void);
 char *format(const char *fmt, ...);
 int align_to(int n, int align);
 void codegen(void);
+
+//
+// main.c
+//
+
+char *read_file(char *path);

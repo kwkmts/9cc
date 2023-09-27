@@ -115,7 +115,7 @@ static bool consume_list_end() {
 // それ以外の場合にはエラーを報告
 static Token *expect(char *op) {
     if (!equal(op, TK_RESERVED, token)) {
-        error_at(token->loc, "'%s'ではありません", op);
+        error_tok(token, "'%s'ではありません", op);
     }
     Token *tok = token;
     token = token->next;

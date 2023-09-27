@@ -1016,7 +1016,8 @@ static void gen_expr(Node *node) {
 
 static void gen_stmt(Node *node) {
     if (node->tok) {
-        println("    .loc 1 %d %d", node->tok->line_no, node->tok->column_no);
+        println("    .loc %d %d %d", node->tok->file->number,
+                node->tok->line_no, node->tok->column_no);
     }
 
     switch (node->kind) {
@@ -1380,7 +1381,10 @@ static void emit_functions() {
 
 void codegen() {
     println("    .intel_syntax noprefix");
-    println("    .file 1 \"%s\"", filepath);
+    for (int i = 0; input_files[i]; i++) {
+        println("    .file %d \"%s\"", input_files[i]->number,
+                input_files[i]->name);
+    }
 
     emit_global_variables();
     emit_functions();

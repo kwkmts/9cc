@@ -37,6 +37,9 @@ assert '/* comment' 1 1 'コメントが閉じられていません'
 assert 'int main() { '\''a" }' 1 16 \'\'\''ではありません'
 assert 'あ' 1 1 'トークナイズできません'
 
+assert '#hoge' 1 2 '不正なディレクティブです'
+assert '#include foo' 1 10 '"ファイル名" ではありません'
+
 assert 'enum E { 42 };' 1 10 '識別子ではありません'
 
 assert 'int main() { int *p; int *q; p+q; }' 1 31 'ポインタ同士の加算はできません'

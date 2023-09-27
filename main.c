@@ -1,8 +1,6 @@
 #include "9cc.h"
 
-char *filepath;
-
-static char *read_file(char *path) {
+char *read_file(char *path) {
     FILE *fp;
     if (strcmp(path, "-") == 0) {
         fp = stdin;
@@ -46,9 +44,10 @@ int main(int argc, char **argv) {
         error("引数の個数が正しくありません");
     }
 
+    char *filepath = argv[1];
+
     // トークナイズ
-    user_input = read_file(filepath = argv[1]);
-    Token *token = tokenize();
+    Token *token = tokenize_file(filepath);
 
     // プリプロセス
     token = preprocess(token);
