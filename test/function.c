@@ -208,8 +208,6 @@ int main() {
 
     ASSERT(11, add_selected(1,2,3,4,5,6,7,8,9,10,0,9,-1));
     ASSERT(25, add_selected(1,2,3,4,5,6,7,8,9,10,0,2,4,6,8,-1));
-
-    return 0;
 }
 
 int ret42(void){ return 42; }
