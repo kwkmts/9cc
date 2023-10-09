@@ -1369,12 +1369,12 @@ static void emit_functions() {
         assert(depth == 0);
 
         // エピローグ
-        println(".Lreturn.%s:", fn->name);
-        println("    .loc 1 %d %d", fn->body->tok->line_no,
-                fn->body->tok->column_no);
         if (!strcmp(fn->name, "main")) {
             MOV(EAX, IMM(0));
         }
+        println(".Lreturn.%s:", fn->name);
+        println("    .loc 1 %d %d", fn->body->tok->line_no,
+                fn->body->tok->column_no);
         MOV(RSP, RBP);
         POP(RBP);
         RET();
