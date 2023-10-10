@@ -80,7 +80,11 @@ err-test: 9cc
 err-test-stage2: stage2/9cc
 	test/err_test.sh ./$^
 
+hashmap-test:
+	cc -e hashmap_test -o hashmap_test *.c && ./hashmap_test
+	@echo "OK"; echo
+
 clean:
-	$(RM) 9cc $(PREPROCESSED_SRCS) *.o *~ test/*.s test/*.out stage2 stage3
+	$(RM) 9cc hashmap_test $(PREPROCESSED_SRCS) *.o *~ test/*.s test/*.out stage2 stage3
 
 .PHONY: all test-all test test-stage2 cmp-stage23 err-test clean
