@@ -27,5 +27,10 @@ int main() {
 #endif
     assert(1, x, "x");
 
+#define M1 3
+    assert(3, M1, "M1");
+#define M1 3 + 4 +
+    assert(12, M1 5, "5");
+
     return 0;
 }

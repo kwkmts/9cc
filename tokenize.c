@@ -93,6 +93,12 @@ static Token *new_token(TokenKind kind, char *loc, int len) {
     return tok;
 }
 
+Token *copy_token(Token *tok) {
+    Token *ret = calloc(1, sizeof(Token));
+    *ret = *tok;
+    return ret;
+}
+
 static bool startswith(char *p, char *q) {
     return memcmp(p, q, strlen(q)) == 0;
 }

@@ -120,7 +120,7 @@ struct Token {
 };
 
 extern File **input_files;
-
+Token *copy_token(Token *tok);
 Token *tokenize_file(char *path);
 
 //

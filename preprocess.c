@@ -176,6 +176,7 @@ int hashmap_test() {
 //
 
 static Token *token; // 現在着目しているトークン
+static Hashmap macros;
 
 typedef struct CondIncl CondIncl;
 struct CondIncl {
@@ -259,13 +260,33 @@ static Token *skip_until_endif() {
     return token;
 }
 
+static bool expand_macro(Token **tok) {
+    Token *macro_body = hashmap_get(macros, token->loc, token->len);
+    if (!macro_body) {
+        return false;
+    }
+
+    for (Token *t = macro_body; !t->at_bol; t = t->next) {
+        *tok = (*tok)->next = copy_token(t);
+    }
+
+    token = token->next;
+    return true;
+}
+
 Token *preprocess(Token *tok) {
     token = tok;
+    macros = hashmap_new();
+
     Token head = {};
     Token *cur = &head;
 
     while (!at_eof(token)) {
         Token *tok;
+
+        if (expand_macro(&cur)) {
+            continue;
+        }
 
         if (!consume_hash()) {
             cur = cur->next = token;
@@ -301,6 +322,16 @@ Token *preprocess(Token *tok) {
             }
 
             cond_incl = cond_incl->parent;
+            continue;
+        }
+
+        if (consume("define", TK_IDENT)) {
+            Token *name = token;
+            Token *body = token->next;
+            while (!token->at_bol) {
+                token = token->next;
+            }
+            hashmap_put(macros, name->loc, name->len, body);
             continue;
         }
 
