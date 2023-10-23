@@ -47,5 +47,31 @@ int main() {
 #define M5(x) (x) * (x) * (x)
     assert(64, M5(4), "M5(4)");
 
+    x = 4;
+#ifdef M6
+    x = 5;
+#endif
+    assert(4, x, "x");
+
+    x = 4;
+#define M6
+#ifdef M6
+    x = 5;
+#endif
+    assert(5, x, "x");
+
+    x = 4;
+#ifndef M7
+    x = 5;
+#endif
+    assert(5, x, "x");
+
+    x = 4;
+#define M7
+#ifndef M7
+    x = 5;
+#endif
+    assert(4, x, "x");
+
     return 0;
 }

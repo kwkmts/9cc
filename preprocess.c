@@ -276,7 +276,9 @@ static Token *skip_until_endif() {
         }
 
         if (equal("#", TK_RESERVED, token) &&
-            equal("if", TK_KEYWORD, token->next)) {
+            (equal("if", TK_KEYWORD, token->next) ||
+             equal("ifdef", TK_IDENT, token->next) ||
+             equal("ifndef", TK_IDENT, token->next))) {
             token = token->next->next;
             token = skip_until_endif();
             if (!at_eof(token)) {
@@ -423,6 +425,26 @@ Token *preprocess(Token *tok) {
             }
 
             cond_incl = cond_incl->parent;
+            continue;
+        }
+
+        if ((tok = consume("ifdef", TK_IDENT))) {
+            Token *m = hashmap_get(macros, token->loc, token->len);
+            token = token->next;
+            push_cond_incl(tok);
+            if (!m) {
+                token = skip_until_endif();
+            }
+            continue;
+        }
+
+        if ((tok = consume("ifndef", TK_IDENT))) {
+            Token *m = hashmap_get(macros, token->loc, token->len);
+            token = token->next;
+            push_cond_incl(tok);
+            if (m) {
+                token = skip_until_endif();
+            }
             continue;
         }
 
