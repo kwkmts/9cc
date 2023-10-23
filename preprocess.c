@@ -176,6 +176,7 @@ int hashmap_test() {
 //
 
 static Token *token; // 現在着目しているトークン
+static Token *eof_token = &(Token){TK_EOF};
 static Hashmap macros;
 
 typedef struct CondIncl CondIncl;
@@ -185,6 +186,19 @@ struct CondIncl {
 };
 
 static CondIncl *cond_incl;
+
+typedef struct MacroParam MacroParam;
+
+typedef struct {
+    enum { OBJLIKE, FUNCLIKE } kind;
+    Token *body;
+    MacroParam *params;
+} Macro;
+
+struct MacroParam {
+    Token *name;
+    MacroParam *next;
+};
 
 static Token *consume(char *op, TokenKind kind) {
     if (!equal(op, kind, token)) {
@@ -201,6 +215,22 @@ static bool consume_hash() {
     }
     token = token->next;
     return true;
+}
+
+static void expect(char *op) {
+    if (!equal(op, TK_RESERVED, token)) {
+        error_tok(token, "'%s'ではありません", op);
+    }
+    token = token->next;
+}
+
+static Token *expect_ident() {
+    if (token->kind != TK_IDENT) {
+        error_tok(token, "識別子ではありません");
+    }
+    Token *tok = token;
+    token = token->next;
+    return tok;
 }
 
 static Token *expect_integer() {
@@ -260,17 +290,88 @@ static Token *skip_until_endif() {
     return token;
 }
 
+static Token *read_arg() {
+    Token head = {};
+    Token *cur = &head;
+
+    while (!equal(",", TK_RESERVED, token) && !equal(")", TK_RESERVED, token)) {
+        cur = cur->next = copy_token(token);
+        token = token->next;
+    }
+    cur->next = eof_token;
+
+    return head.next;
+}
+
+static Token *find_arg(List args, MacroParam *params, Token *tok) {
+    ListIter it = list_begin(args);
+
+    for (MacroParam *param = params; param;
+         param = param->next, it = list_next(it)) {
+        if (param->name->len == tok->len &&
+            !memcmp(param->name->loc, tok->loc, tok->len)) {
+            return *it;
+        }
+    }
+
+    return NULL;
+}
+
 static bool expand_macro(Token **tok) {
-    Token *macro_body = hashmap_get(macros, token->loc, token->len);
-    if (!macro_body) {
+    Macro *m = hashmap_get(macros, token->loc, token->len);
+    if (!m) {
         return false;
     }
 
-    for (Token *t = macro_body; !t->at_bol; t = t->next) {
-        *tok = (*tok)->next = copy_token(t);
+    Token *replace;
+    {
+        Token head = {};
+        Token *cur = &head;
+        for (Token *t = m->body; !t->at_bol; t = t->next) {
+            cur = cur->next = copy_token(t);
+        }
+        cur->next = eof_token;
+        replace = head.next;
     }
 
     token = token->next;
+    if (m->kind == FUNCLIKE) {
+        if (!consume("(", TK_RESERVED)) {
+            return false;
+        }
+
+        if (m->params) {
+            List args = list_new();
+            for (MacroParam *param = m->params; param; param = param->next) {
+                if (param != m->params) {
+                    expect(",");
+                }
+
+                Token *arg = read_arg();
+                list_push_back(args, arg);
+            }
+
+            Token head = {};
+            Token *cur = &head;
+            for (Token *tok2 = replace; !at_eof(tok2); tok2 = tok2->next) {
+                Token *arg = find_arg(args, m->params, tok2);
+                if (arg) {
+                    for (Token *t = arg; !at_eof(t); t = t->next) {
+                        cur = cur->next = copy_token(t);
+                    }
+                    continue;
+                }
+                cur = cur->next = tok2;
+            }
+            replace = head.next;
+        }
+        expect(")");
+    }
+
+    for (Token *t = replace; !at_eof(t); t = t->next) {
+        *tok = (*tok)->next = t;
+    }
+
     return true;
 }
 
@@ -326,12 +427,39 @@ Token *preprocess(Token *tok) {
         }
 
         if (consume("define", TK_IDENT)) {
+            bool is_objlike = true;
             Token *name = token;
-            Token *body = token->next;
+            MacroParam *params = NULL;
+
+            token = token->next;
+            if (consume("(", TK_RESERVED)) {
+                MacroParam head2 = {};
+                MacroParam *cur2 = &head2;
+
+                while (!consume(")", TK_RESERVED)) {
+                    if (cur2 != &head2) {
+                        expect(",");
+                    }
+
+                    MacroParam *param = calloc(1, sizeof(MacroParam));
+                    param->name = expect_ident();
+                    cur2 = cur2->next = param;
+                }
+
+                is_objlike = false;
+                params = head2.next;
+            }
+
+            Token *body = token;
             while (!token->at_bol) {
                 token = token->next;
             }
-            hashmap_put(macros, name->loc, name->len, body);
+
+            Macro *m = calloc(1, sizeof(Macro));
+            m->kind = is_objlike ? OBJLIKE : FUNCLIKE;
+            m->body = body;
+            m->params = params;
+            hashmap_put(macros, name->loc, name->len, m);
             continue;
         }
 

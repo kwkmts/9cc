@@ -32,5 +32,20 @@ int main() {
 #define M1 3 + 4 +
     assert(12, M1 5, "5");
 
+#define M2() 1
+    assert(1, M2(), "M2()");
+
+#define M3(x, y) x + y
+    assert(7, M3(3, 4), "M3(3, 4)");
+
+#define M4(x, y) x *y
+    assert(24, M4(3 + 4, 4 + 5), "M4(3+4, 4+5)");
+
+#define M4(x, y) (x) * (y)
+    assert(63, M4(3 + 4, 4 + 5), "M4(3+4, 4+5)");
+
+#define M5(x) (x) * (x) * (x)
+    assert(64, M5(4), "M5(4)");
+
     return 0;
 }

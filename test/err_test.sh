@@ -43,6 +43,7 @@ assert '#if 1.2
 #endif' 1 5 '浮動小数点数は使えません'
 assert '#if 1' 1 2 '対応する#endifがありません'
 assert '#endif' 1 2 '対応する#ifがありません'
+assert '#define F(1)' 1 11 '識別子ではありません'
 
 assert 'enum E { 42 };' 1 10 '識別子ではありません'
 
