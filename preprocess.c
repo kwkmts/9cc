@@ -319,6 +319,57 @@ static Token *find_arg(List args, MacroParam *params, Token *tok) {
     return NULL;
 }
 
+static Token *stringize(Token *arg) {
+    int len = 1;
+    for (Token *t = arg; !at_eof(t); t = t->next) {
+        if (t != arg && t->has_space) {
+            len++;
+        }
+        if (t->kind == TK_STR) {
+            len += 2;
+        }
+        len += t->len;
+    }
+
+    char *buf = calloc(1, len);
+
+    for (Token *t = arg; !at_eof(t); t = t->next) {
+        if (t != arg && t->has_space) {
+            buf = strcat(buf, " ");
+        }
+
+        if (t->kind == TK_STR) {
+            strcat(buf, "\"");
+            strcat(buf, t->str);
+            strcat(buf, "\"");
+        } else {
+            strncat(buf, t->loc, t->len);
+        }
+    }
+
+    len = 3;
+    for (char *p = buf; *p; p++) {
+        if (*p == '\\' || *p == '"') {
+            len++;
+        }
+        len++;
+    }
+
+    char *buf2 = calloc(1, len);
+
+    char *p = buf, *q = buf2;
+    *q++ = '"';
+    while (*p) {
+        if (*p == '\\' || *p == '"') {
+            *q++ = '\\';
+        }
+        *q++ = *p++;
+    }
+    *q = '"';
+
+    return tokenize(buf2);
+}
+
 static bool expand_macro(Token **tok) {
     Macro *m = hashmap_get(macros, token->loc, token->len);
     if (!m) {
@@ -356,6 +407,19 @@ static bool expand_macro(Token **tok) {
             Token head = {};
             Token *cur = &head;
             for (Token *tok2 = replace; !at_eof(tok2); tok2 = tok2->next) {
+                if (equal("#", TK_RESERVED, tok2)) {
+                    Token *arg = find_arg(args, m->params, tok2->next);
+                    if (!arg) {
+                        error_tok(tok2,
+                                  "マクロのパラメータが後に続く必要があります");
+                    }
+
+                    Token *t = stringize(arg);
+                    cur = cur->next = t;
+                    tok2 = tok2->next;
+                    continue;
+                }
+
                 Token *arg = find_arg(args, m->params, tok2);
                 if (arg) {
                     for (Token *t = arg; !at_eof(t); t = t->next) {
@@ -363,6 +427,7 @@ static bool expand_macro(Token **tok) {
                     }
                     continue;
                 }
+
                 cur = cur->next = tok2;
             }
             replace = head.next;

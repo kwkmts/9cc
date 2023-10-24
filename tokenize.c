@@ -4,6 +4,7 @@ static File *cur_file;
 File **input_files;
 
 static bool at_bol; // 行頭かどうか
+static bool has_space;
 
 // エラーを報告する関数
 //  printf()と同じ引数
@@ -89,7 +90,8 @@ static Token *new_token(TokenKind kind, char *loc, int len) {
     tok->len = len;
     tok->file = cur_file;
     tok->at_bol = at_bol;
-    at_bol = false;
+    tok->has_space = has_space;
+    at_bol = has_space = false;
     return tok;
 }
 
@@ -147,7 +149,7 @@ static int read_punct(char *p) {
             return (int)strlen(kw[i]);
         }
     }
-    return strchr("+-*/%&|()<>{}[]=~^!?:;,.#", *p) ? 1 : 0;
+    return strchr("+-*/%&|()<>{}[]=~^!?:;,.#`", *p) ? 1 : 0;
 }
 
 static char *str_literal_end(char *p) {
@@ -334,19 +336,19 @@ static void add_line_column_no(Token *tok) {
 }
 
 // 入力文字列pをトークナイズしてそれを返す
-static Token *tokenize(File *file) {
-    cur_file = file;
-
+Token *tokenize(char *p) {
     at_bol = true;
-    char *p = file->content;
+    has_space = false;
     Token head = {};
     Token *cur = &head;
 
     while (*p) {
         // 空白文字をスキップ
         if (isspace(*p)) {
+            has_space = true;
             if (*p == '\n') {
                 at_bol = true;
+                has_space = false;
             }
             p++;
             continue;
@@ -354,6 +356,7 @@ static Token *tokenize(File *file) {
 
         // 行コメントをスキップ
         if (startswith(p, "//")) {
+            has_space = true;
             p += 2;
             while (*p != '\n') {
                 p++;
@@ -363,6 +366,7 @@ static Token *tokenize(File *file) {
 
         // ブロックコメントをスキップ
         if (startswith(p, "/*")) {
+            has_space = true;
             char *q = strstr(p + 2, "*/");
             if (q == NULL) {
                 error_at(cur_file, p, "コメントが閉じられていません");
@@ -461,5 +465,6 @@ Token *tokenize_file(char *path) {
     input_files[input_file_count + 1] = NULL;
     input_file_count++;
 
-    return tokenize(file);
+    cur_file = file;
+    return tokenize(file->content);
 }

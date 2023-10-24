@@ -117,10 +117,12 @@ struct Token {
     int line_no;    // 行番号
     int column_no;  // 列番号
     bool at_bol;    // 行頭かどうか
+    bool has_space; // トークンの前に空白があるかどうか
 };
 
 extern File **input_files;
 Token *copy_token(Token *tok);
+Token *tokenize(char *p);
 Token *tokenize_file(char *path);
 
 //

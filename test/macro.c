@@ -1,5 +1,6 @@
 void assert(int expected, int actual, char *code);
 int printf(const char *, ...);
+int strcmp(const char *, const char *);
 
 #include "include1.h"
 
@@ -72,6 +73,9 @@ int main() {
     x = 5;
 #endif
     assert(4, x, "x");
+
+#define M8(x) #x
+    assert(0, strcmp(M8(a!b  `"def"g), "a!b `\"def\"g"), "strcmp(M8( a!b  `\"def\"g), \"a!b `\\\"def\\\"g\")");
 
     return 0;
 }
