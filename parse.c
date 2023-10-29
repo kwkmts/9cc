@@ -4,7 +4,7 @@
 // パーサー
 //
 
-Token *token;
+static Token *token; // 現在着目しているトークン
 Obj locals = (Obj){};
 Obj globals = (Obj){};
 Obj functions = (Obj){};
@@ -64,7 +64,7 @@ typedef int VarAttr;
 #define EXTERN 0x10
 
 // 指定したトークンが期待しているトークンの時は真を返し、それ以外では偽を返す
-static bool equal(char *op, TokenKind kind, Token *tok) {
+bool equal(char *op, TokenKind kind, Token *tok) {
     return tok->kind == kind && strlen(op) == tok->len &&
            !memcmp(tok->loc, op, tok->len);
 }
@@ -115,7 +115,7 @@ static bool consume_list_end() {
 // それ以外の場合にはエラーを報告
 static Token *expect(char *op) {
     if (!equal(op, TK_RESERVED, token)) {
-        error_at(token->loc, "'%s'ではありません", op);
+        error_tok(token, "'%s'ではありません", op);
     }
     Token *tok = token;
     token = token->next;
@@ -150,7 +150,7 @@ static char *get_ident(Token *tok) {
     return strndup(tok->loc, tok->len);
 }
 
-static bool at_eof() { return token->kind == TK_EOF; }
+bool at_eof(Token *tok) { return tok->kind == TK_EOF; }
 
 static VarScope *look_in_cur_var_scope(Token *tok);
 
@@ -704,10 +704,12 @@ static Node *postfix(void);
 static Node *primary(void);
 
 // program = declaration*
-void program() {
+void program(Token *tok) {
+    token = tok;
+
     push_builtin_obj_into_var_scope();
 
-    while (!at_eof()) {
+    while (!at_eof(token)) {
         declaration();
     }
 }
@@ -1492,12 +1494,12 @@ static void union_initializer(Initializer *init) {
 // str-initializer = str
 static void str_initializer(Initializer *init) {
     if (init->is_flexible) {
-        *init =
-            *new_initializer(array_of(init->ty->base, token->len + 1), false);
+        *init = *new_initializer(
+            array_of(init->ty->base, (int)strlen(token->str) + 1), false);
         initialize_with_zero(init);
     }
 
-    int len = MIN(init->ty->ary_len, token->len + 1);
+    int len = MIN(init->ty->ary_len, (int)strlen(token->str) + 1);
     for (int i = 0; i < len; i++) {
         init->children[i]->expr = new_node_num(token->str[i], token);
     }

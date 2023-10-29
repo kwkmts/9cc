@@ -1,6 +1,10 @@
 #include "9cc.h"
 
-char *user_input;
+static File *cur_file;
+File **input_files;
+
+static bool at_bol; // 行頭かどうか
+static bool has_space;
 
 // エラーを報告する関数
 //  printf()と同じ引数
@@ -13,7 +17,7 @@ void error(char *fmt, ...) {
 }
 
 // エラー箇所を報告
-void error_at(char *loc, char *fmt, ...) {
+void error_at(File *file, char *loc, char *fmt, ...) {
     char *msg;
     size_t buflen;
     FILE *out = open_memstream(&msg, &buflen);
@@ -25,7 +29,7 @@ void error_at(char *loc, char *fmt, ...) {
     fclose(out);
 
     char *line = loc;
-    while (line > user_input && line[-1] != '\n') {
+    while (line > file->content && line[-1] != '\n') {
         line--;
     }
 
@@ -35,7 +39,7 @@ void error_at(char *loc, char *fmt, ...) {
     }
 
     int line_no = 1;
-    for (char *p = user_input; p < line; p++) {
+    for (char *p = file->content; p < line; p++) {
         if (*p == '\n') {
             line_no++;
         }
@@ -43,7 +47,7 @@ void error_at(char *loc, char *fmt, ...) {
 
     int column_no = (int)(loc - line + 1);
 
-    int indent = fprintf(stderr, "%s:%d:%d: ", filepath, line_no, column_no);
+    int indent = fprintf(stderr, "%s:%d:%d: ", file->name, line_no, column_no);
     fprintf(stderr, "%.*s\n", (int)(end - line), line);
 
     int pos = (int)(loc - line + indent);
@@ -72,7 +76,7 @@ void error_tok(Token *tok, char *fmt, ...) {
     vfprintf(out, fmt, ap);
     va_end(ap);
     fclose(out);
-    error_at(tok->loc, msg);
+    error_at(tok->file, tok->loc, msg);
 }
 
 //
@@ -84,7 +88,17 @@ static Token *new_token(TokenKind kind, char *loc, int len) {
     tok->kind = kind;
     tok->loc = loc;
     tok->len = len;
+    tok->file = cur_file;
+    tok->at_bol = at_bol;
+    tok->has_space = has_space;
+    at_bol = has_space = false;
     return tok;
+}
+
+Token *copy_token(Token *tok) {
+    Token *ret = calloc(1, sizeof(Token));
+    *ret = *tok;
+    return ret;
 }
 
 static bool startswith(char *p, char *q) {
@@ -135,13 +149,13 @@ static int read_punct(char *p) {
             return (int)strlen(kw[i]);
         }
     }
-    return strchr("+-*/%&|()<>{}[]=~^!?:;,.", *p) ? 1 : 0;
+    return strchr("+-*/%&|()<>{}[]=~^!?:;,.#`", *p) ? 1 : 0;
 }
 
 static char *str_literal_end(char *p) {
     while (*p != '"') {
         if (*p == '\n' || *p == '\0') {
-            error_at(p, "'\"'がありません");
+            error_at(cur_file, p, "'\"'がありません");
         }
         if (*p == '\\') {
             p++;
@@ -212,7 +226,7 @@ static Type *read_int_suffix(char **p, int64_t val, int base) {
         }
 
         if (is_alnum(**p)) {
-            error_at(start, "不正なサフィックスです");
+            error_at(cur_file, start, "不正なサフィックスです");
         }
 
         break;
@@ -259,7 +273,7 @@ static Type *read_float_suffix(char **p) {
     }
 
     if (is_alnum(**p)) {
-        error_at(start, "不正なサフィックスです");
+        error_at(cur_file, start, "不正なサフィックスです");
     }
 
     return ty;
@@ -267,7 +281,7 @@ static Type *read_float_suffix(char **p) {
 
 static void read_num_literal(char **p, Token **tok) {
     int base;
-    if (strncasecmp(*p, "0x", 2) == 0 && is_alnum(*p[2])) {
+    if (strncasecmp(*p, "0x", 2) == 0 && is_alnum((*p)[2])) {
         *p += 2;
         base = 16;
     } else if (**p == '0') {
@@ -286,13 +300,14 @@ static void read_num_literal(char **p, Token **tok) {
         }
 
         if (base != 10) {
-            error_at(start, "浮動小数点数で10進数以外の表記はできません");
+            error_at(cur_file, start,
+                     "浮動小数点数で10進数以外の表記はできません");
         }
 
         *p = start;
         (*tok)->fval = strtod(*p, p);
         if (**p == '.') {
-            error_at(*p, "小数点が多すぎます");
+            error_at(cur_file, *p, "小数点が多すぎます");
         }
 
         (*tok)->val_ty = read_float_suffix(p);
@@ -303,9 +318,8 @@ static void read_num_literal(char **p, Token **tok) {
 }
 
 static void add_line_column_no(Token *tok) {
-    int line_no = 1;
-    int column_no = 1;
-    for (char *p = user_input; *p; p++) {
+    int line_no = 1, column_no = 1;
+    for (char *p = tok->file->content; *p; p++) {
         if (p == tok->loc) {
             tok->line_no = line_no;
             tok->column_no = column_no;
@@ -322,20 +336,27 @@ static void add_line_column_no(Token *tok) {
 }
 
 // 入力文字列pをトークナイズしてそれを返す
-Token *tokenize() {
-    char *p = user_input;
+Token *tokenize(char *p) {
+    at_bol = true;
+    has_space = false;
     Token head = {};
     Token *cur = &head;
 
     while (*p) {
         // 空白文字をスキップ
         if (isspace(*p)) {
+            has_space = true;
+            if (*p == '\n') {
+                at_bol = true;
+                has_space = false;
+            }
             p++;
             continue;
         }
 
         // 行コメントをスキップ
         if (startswith(p, "//")) {
+            has_space = true;
             p += 2;
             while (*p != '\n') {
                 p++;
@@ -345,9 +366,10 @@ Token *tokenize() {
 
         // ブロックコメントをスキップ
         if (startswith(p, "/*")) {
+            has_space = true;
             char *q = strstr(p + 2, "*/");
             if (q == NULL) {
-                error_at(p, "コメントが閉じられていません");
+                error_at(cur_file, p, "コメントが閉じられていません");
             }
             p = q + 2;
             continue;
@@ -363,8 +385,10 @@ Token *tokenize() {
 
         // 数値リテラル
         if (isdigit(*p) || (*p == '.' && isdigit(p[1]))) {
+            char *start = p;
             cur = cur->next = new_token(TK_NUM, p, 0);
             read_num_literal(&p, &cur);
+            cur->len = (int)(p - start);
             continue;
         }
 
@@ -378,11 +402,13 @@ Token *tokenize() {
 
         // 文字リテラル
         if (*p == '\'') {
+            char *start = p;
             cur = cur->next = new_token(TK_NUM, p++, 0);
             cur->ival = (int64_t)read_char(&p);
             cur->val_ty = ty_int;
+            cur->len = (int)(p - start + 1);
             if (*p != '\'') {
-                error_at(p, "'''ではありません");
+                error_at(cur_file, p, "'''ではありません");
             }
             p++;
             continue;
@@ -397,7 +423,7 @@ Token *tokenize() {
                 buf[i] = read_char(&p);
             }
 
-            cur = cur->next = new_token(TK_STR, start, (int)strlen(buf));
+            cur = cur->next = new_token(TK_STR, start, (int)(end - start + 1));
             cur->str = buf;
             p++; // 結びの`"`を読み飛ばす
             continue;
@@ -414,11 +440,35 @@ Token *tokenize() {
             continue;
         }
 
-        error_at(p, "トークナイズできません");
+        error_at(cur_file, p, "トークナイズできません");
     }
 
     cur->next = new_token(TK_EOF, p, 0);
 
     add_line_column_no(head.next);
     return head.next;
+}
+
+static File *new_file(char *name, char *content, int number) {
+    File *file = calloc(1, sizeof(File));
+    file->name = name;
+    file->content = content;
+    file->number = number;
+    return file;
+}
+
+Token *tokenize_file(char *path) {
+    char *p = read_file(path);
+
+    static int input_file_count;
+
+    File *file = new_file(path, p, input_file_count + 1);
+
+    input_files = realloc(input_files, sizeof(File *) * (input_file_count + 2));
+    input_files[input_file_count] = file;
+    input_files[input_file_count + 1] = NULL;
+    input_file_count++;
+
+    cur_file = file;
+    return tokenize(file->content);
 }

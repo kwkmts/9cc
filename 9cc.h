@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <libgen.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -80,9 +81,15 @@ typedef struct TypeIdentPair TypeIdentPair;
 // tokenize.c
 //
 
+typedef struct {
+    char *name;
+    int number;
+    char *content;
+} File;
+
 void error(char *fmt, ...);
 
-void error_at(char *loc, char *fmt, ...);
+void error_at(File *file, char *loc, char *fmt, ...);
 
 void error_tok(Token *tok, char *fmt, ...);
 
@@ -106,14 +113,23 @@ struct Token {
     char *loc;      // 入力プログラム中での位置
     char *str;      // 文字列リテラル
     int len;        // トークンの長さ
+    File *file;     // トークンが含まれるファイル
     int line_no;    // 行番号
     int column_no;  // 列番号
+    bool at_bol;    // 行頭かどうか
+    bool has_space; // トークンの前に空白があるかどうか
 };
 
-extern char *filepath;   // ソースファイルのパス
-extern char *user_input; // 入力プログラム
+extern File **input_files;
+Token *copy_token(Token *tok);
+Token *tokenize(char *p);
+Token *tokenize_file(char *path);
 
-Token *tokenize(void);
+//
+// preprocess.c
+//
+
+Token *preprocess(Token *tok);
 
 //
 // parse.c
@@ -131,9 +147,6 @@ struct Initializer {
 extern Obj locals;    // ローカル変数の連結リスト
 extern Obj globals;   // グローバル変数の連結リスト
 extern Obj functions; // 関数の連結リスト
-
-// 現在着目しているトークン
-extern Token *token;
 
 // 変数・関数
 struct Obj {
@@ -325,10 +338,12 @@ struct Node {
     };
 };
 
+bool equal(char *op, TokenKind kind, Token *tok);
+bool at_eof(Token *tok);
 int64_t calc_const_expr(Node *node, char **label);
 Node *new_node_unary(NodeKind kind, Node *expr, Token *tok);
 Node *new_node_cast(Node *expr, Type *ty, Token *tok);
-void program(void);
+void program(Token *tok);
 bool is_builtin(char *name);
 
 //
@@ -392,3 +407,9 @@ int count(void);
 char *format(const char *fmt, ...);
 int align_to(int n, int align);
 void codegen(void);
+
+//
+// main.c
+//
+
+char *read_file(char *path);
