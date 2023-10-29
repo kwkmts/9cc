@@ -385,8 +385,10 @@ Token *tokenize(char *p) {
 
         // 数値リテラル
         if (isdigit(*p) || (*p == '.' && isdigit(p[1]))) {
+            char *start = p;
             cur = cur->next = new_token(TK_NUM, p, 0);
             read_num_literal(&p, &cur);
+            cur->len = (int)(p - start);
             continue;
         }
 
@@ -400,9 +402,11 @@ Token *tokenize(char *p) {
 
         // 文字リテラル
         if (*p == '\'') {
+            char *start = p;
             cur = cur->next = new_token(TK_NUM, p++, 0);
             cur->ival = (int64_t)read_char(&p);
             cur->val_ty = ty_int;
+            cur->len = (int)(p - start + 1);
             if (*p != '\'') {
                 error_at(cur_file, p, "'''ではありません");
             }
@@ -419,7 +423,7 @@ Token *tokenize(char *p) {
                 buf[i] = read_char(&p);
             }
 
-            cur = cur->next = new_token(TK_STR, start, (int)strlen(buf));
+            cur = cur->next = new_token(TK_STR, start, (int)(end - start + 1));
             cur->str = buf;
             p++; // 結びの`"`を読み飛ばす
             continue;

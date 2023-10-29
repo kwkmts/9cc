@@ -295,11 +295,25 @@ static Token *skip_until_endif() {
 static Token *read_arg() {
     Token head = {};
     Token *cur = &head;
+    int depth = 0;
 
-    while (!equal(",", TK_RESERVED, token) && !equal(")", TK_RESERVED, token)) {
+    while (!at_eof(token)) {
+        if (equal("(", TK_RESERVED, token)) {
+            depth++;
+        }
+        if (equal(")", TK_RESERVED, token)) {
+            if (depth == 0) {
+                break;
+            }
+            depth--;
+        }
+        if (equal(",", TK_RESERVED, token) && depth == 0) {
+            break;
+        }
         cur = cur->next = copy_token(token);
         token = token->next;
     }
+
     cur->next = eof_token;
 
     return head.next;
@@ -325,9 +339,6 @@ static Token *stringize(Token *arg) {
         if (t != arg && t->has_space) {
             len++;
         }
-        if (t->kind == TK_STR) {
-            len += 2;
-        }
         len += t->len;
     }
 
@@ -337,14 +348,7 @@ static Token *stringize(Token *arg) {
         if (t != arg && t->has_space) {
             buf = strcat(buf, " ");
         }
-
-        if (t->kind == TK_STR) {
-            strcat(buf, "\"");
-            strcat(buf, t->str);
-            strcat(buf, "\"");
-        } else {
-            strncat(buf, t->loc, t->len);
-        }
+        strncat(buf, t->loc, t->len);
     }
 
     len = 3;

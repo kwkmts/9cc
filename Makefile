@@ -20,12 +20,8 @@ $(PREPROCESSED_SRCS): %.i: %.c
 
 $(OBJS): 9cc.h
 
-test/macro.out: test/macro.c 9cc
-	./9cc $< > test/macro.s
-	$(CC) test/macro.s -xc test/common -o $@ -g
-
 test/%.out: test/%.c 9cc
-	$(CC) -o- -E -P -C $< | ./9cc - > test/$*.s
+	./9cc $< > test/$*.s
 	$(CC) test/$*.s -xc test/common -o $@ -g
 
 test: $(TESTS)
@@ -43,14 +39,9 @@ stage2/%.o: %.i 9cc
 stage2/9cc: $(OBJS:%=stage2/%)
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-stage2/test/macro.out: test/macro.c stage2/9cc
-	@mkdir -p stage2/test
-	./stage2/9cc $< > stage2/test/macro.s
-	$(CC) stage2/test/macro.s -xc test/common -o $@ -g
-
 stage2/test/%.out: test/%.c stage2/9cc
 	@mkdir -p stage2/test
-	$(CC) -o- -E -P -C $< | ./stage2/9cc - > stage2/test/$*.s
+	./stage2/9cc $< > stage2/test/$*.s
 	$(CC) stage2/test/$*.s -xc test/common -o $@ -g
 
 test-stage2: $(TESTS:test/%=stage2/test/%)

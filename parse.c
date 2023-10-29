@@ -1494,12 +1494,12 @@ static void union_initializer(Initializer *init) {
 // str-initializer = str
 static void str_initializer(Initializer *init) {
     if (init->is_flexible) {
-        *init =
-            *new_initializer(array_of(init->ty->base, token->len + 1), false);
+        *init = *new_initializer(
+            array_of(init->ty->base, (int)strlen(token->str) + 1), false);
         initialize_with_zero(init);
     }
 
-    int len = MIN(init->ty->ary_len, token->len + 1);
+    int len = MIN(init->ty->ary_len, (int)strlen(token->str) + 1);
     for (int i = 0; i < len; i++) {
         init->children[i]->expr = new_node_num(token->str[i], token);
     }
