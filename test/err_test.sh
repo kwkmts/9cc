@@ -42,6 +42,10 @@ assert '#include foo' 1 10 '"ファイル名" ではありません'
 assert '#if 1.2
 #endif' 1 5 '浮動小数点数は使えません'
 assert '#if 1' 1 2 '対応する#endifがありません'
+assert '#else' 1 2 '対応する#ifがありません'
+assert '#if 1
+#else
+#else' 3 2 '対応する#ifがありません'
 assert '#endif' 1 2 '対応する#ifがありません'
 assert '#define F(1)' 1 11 '識別子ではありません'
 assert '#define F(x) #foo

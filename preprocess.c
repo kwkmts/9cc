@@ -182,7 +182,9 @@ static Hashmap macros;
 typedef struct CondIncl CondIncl;
 struct CondIncl {
     CondIncl *parent;
+    enum { IN_THEN, IN_ELSE } ctx;
     Token *tok;
+    bool included;
 };
 
 static CondIncl *cond_incl;
@@ -260,10 +262,12 @@ static Token *append(Token *tok1, Token *tok2) {
     return tok1;
 }
 
-static CondIncl *push_cond_incl(Token *tok) {
+static CondIncl *push_cond_incl(Token *tok, bool included) {
     CondIncl *ci = calloc(1, sizeof(CondIncl));
     ci->parent = cond_incl;
+    ci->ctx = IN_THEN;
     ci->tok = tok;
+    ci->included = included;
     cond_incl = ci;
     return ci;
 }
@@ -271,7 +275,8 @@ static CondIncl *push_cond_incl(Token *tok) {
 static Token *skip_until_endif() {
     while (!at_eof(token)) {
         if (equal("#", TK_RESERVED, token) &&
-            equal("endif", TK_IDENT, token->next)) {
+            (equal("else", TK_KEYWORD, token->next) ||
+             equal("endif", TK_IDENT, token->next))) {
             return token;
         }
 
@@ -481,8 +486,20 @@ Token *preprocess(Token *tok) {
         if ((tok = consume("if", TK_KEYWORD))) {
             // TODO:定数式を取れるようにする
             int64_t val = expect_integer()->ival;
-            push_cond_incl(tok);
+            push_cond_incl(tok, val);
             if (!val) {
+                token = skip_until_endif();
+            }
+            continue;
+        }
+
+        if ((tok = consume("else", TK_KEYWORD))) {
+            if (!cond_incl || cond_incl->ctx == IN_ELSE) {
+                error_tok(tok, "対応する#ifがありません");
+            }
+
+            cond_incl->ctx = IN_ELSE;
+            if (cond_incl->included) {
                 token = skip_until_endif();
             }
             continue;
@@ -500,7 +517,7 @@ Token *preprocess(Token *tok) {
         if ((tok = consume("ifdef", TK_IDENT))) {
             Token *m = hashmap_get(macros, token->loc, token->len);
             token = token->next;
-            push_cond_incl(tok);
+            push_cond_incl(tok, m);
             if (!m) {
                 token = skip_until_endif();
             }
@@ -510,7 +527,7 @@ Token *preprocess(Token *tok) {
         if ((tok = consume("ifndef", TK_IDENT))) {
             Token *m = hashmap_get(macros, token->loc, token->len);
             token = token->next;
-            push_cond_incl(tok);
+            push_cond_incl(tok, !m);
             if (m) {
                 token = skip_until_endif();
             }

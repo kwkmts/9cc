@@ -28,6 +28,20 @@ int main() {
 #endif
     assert(1, x, "x");
 
+#if 1
+    x = 4;
+#else
+    x = 5;
+#endif
+    assert(4, x, "x");
+
+#if 0
+    x = 4;
+#else
+    x = 5;
+#endif
+    assert(5, x, "x");
+
 #define M1 3
     assert(3, M1, "M1");
 #define M1 3 + 4 +
@@ -73,6 +87,20 @@ int main() {
     x = 5;
 #endif
     assert(4, x, "x");
+
+#ifdef M7
+    x = 6;
+#else
+    x = 7;
+#endif
+    assert(6, x, "x");
+
+#ifndef M7
+    x = 6;
+#else
+    x = 7;
+#endif
+    assert(7, x, "x");
 
 #define M8(x) #x
     assert(0, strcmp(M8(a!b  `"def"g), "a!b `\"def\"g"), "strcmp(M8( a!b  `\"def\"g), \"a!b `\\\"def\\\"g\")");
