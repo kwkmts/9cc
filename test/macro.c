@@ -135,6 +135,14 @@ int main() {
 #endif
     assert(7, x, "x");
 
+#undef M7
+#ifndef M7
+    x = 6;
+#else
+    x = 7;
+#endif
+    assert(6, x, "x");
+
     // clang-format off
 #define M8(x) #x
     assert(0, strcmp(M8(a!b  `"def"g), "a!b `\"def\"g"), "strcmp(M8( a!b  `\"def\"g), \"a!b `\\\"def\\\"g\")");

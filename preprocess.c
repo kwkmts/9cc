@@ -588,6 +588,12 @@ Token *preprocess(Token *tok) {
             continue;
         }
 
+        if ((tok = consume("undef", TK_IDENT))) {
+            hashmap_delete(macros, tok->next->loc, tok->next->len);
+            token = token->next;
+            continue;
+        }
+
         if (token->at_bol) {
             continue;
         }
