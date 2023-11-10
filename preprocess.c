@@ -182,7 +182,7 @@ static Hashmap macros;
 typedef struct CondIncl CondIncl;
 struct CondIncl {
     CondIncl *parent;
-    enum { IN_THEN, IN_ELSE } ctx;
+    enum { IN_THEN, IN_ELIF, IN_ELSE } ctx;
     Token *tok;
     bool included;
 };
@@ -272,10 +272,11 @@ static CondIncl *push_cond_incl(Token *tok, bool included) {
     return ci;
 }
 
-static Token *skip_until_endif() {
+static Token *skip_cond_incl() {
     while (!at_eof(token)) {
         if (equal("#", TK_RESERVED, token) &&
-            (equal("else", TK_KEYWORD, token->next) ||
+            (equal("elif", TK_IDENT, token->next) ||
+             equal("else", TK_KEYWORD, token->next) ||
              equal("endif", TK_IDENT, token->next))) {
             return token;
         }
@@ -285,7 +286,7 @@ static Token *skip_until_endif() {
              equal("ifdef", TK_IDENT, token->next) ||
              equal("ifndef", TK_IDENT, token->next))) {
             token = token->next->next;
-            token = skip_until_endif();
+            token = skip_cond_incl();
             if (!at_eof(token)) {
                 token = token->next;
             }
@@ -488,7 +489,23 @@ Token *preprocess(Token *tok) {
             int64_t val = expect_integer()->ival;
             push_cond_incl(tok, val);
             if (!val) {
-                token = skip_until_endif();
+                token = skip_cond_incl();
+            }
+            continue;
+        }
+
+        if ((tok = consume("elif", TK_IDENT))) {
+            // TODO:定数式を取れるようにする
+            int64_t val = expect_integer()->ival;
+            if (!cond_incl || cond_incl->ctx == IN_ELSE) {
+                error_tok(tok, "対応する#ifがありません");
+            }
+
+            cond_incl->ctx = IN_ELIF;
+            if (cond_incl->included) {
+                token = skip_cond_incl();
+            } else if (val) {
+                cond_incl->included = true;
             }
             continue;
         }
@@ -500,7 +517,7 @@ Token *preprocess(Token *tok) {
 
             cond_incl->ctx = IN_ELSE;
             if (cond_incl->included) {
-                token = skip_until_endif();
+                token = skip_cond_incl();
             }
             continue;
         }
@@ -519,7 +536,7 @@ Token *preprocess(Token *tok) {
             token = token->next;
             push_cond_incl(tok, m);
             if (!m) {
-                token = skip_until_endif();
+                token = skip_cond_incl();
             }
             continue;
         }
@@ -529,7 +546,7 @@ Token *preprocess(Token *tok) {
             token = token->next;
             push_cond_incl(tok, !m);
             if (m) {
-                token = skip_until_endif();
+                token = skip_cond_incl();
             }
             continue;
         }

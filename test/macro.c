@@ -42,6 +42,39 @@ int main() {
 #endif
     assert(5, x, "x");
 
+#if 0
+    x = 10;
+#elif 0
+    x = 20;
+#elif 1
+    x = 30;
+#elif 2
+    x = 40;
+#endif
+    assert(30, x, "x");
+
+#if 1
+    x = 10;
+#elif 2
+    x = 20;
+#elif 3
+    x = 30;
+#endif
+    assert(10, x, "x");
+
+#if 0
+    x = 1;
+#elif 1
+#if 1
+    x = 2;
+#else
+    x = 3;
+#endif
+#else
+    x = 5;
+#endif
+    assert(2, x, "x");
+
 #define M1 3
     assert(3, M1, "M1");
 #define M1 3 + 4 +
@@ -102,8 +135,10 @@ int main() {
 #endif
     assert(7, x, "x");
 
+    // clang-format off
 #define M8(x) #x
     assert(0, strcmp(M8(a!b  `"def"g), "a!b `\"def\"g"), "strcmp(M8( a!b  `\"def\"g), \"a!b `\\\"def\\\"g\")");
+    // clang-format on
 
     return 0;
 }
