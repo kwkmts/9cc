@@ -58,6 +58,7 @@ assert '#define M ##2
 char *s = M;' 1 11 '置換規則の先頭で使うことはできません'
 assert '#define M 3##
 char *s = M;' 1 12 '置換規則の末尾で使うことはできません'
+assert '#error there is something wrong' 1 2 '#error'
 
 assert 'enum E { 42 };' 1 10 '識別子ではありません'
 

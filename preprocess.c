@@ -645,6 +645,10 @@ Token *preprocess(Token *tok) {
             continue;
         }
 
+        if ((tok = consume("error", TK_IDENT))) {
+            error_tok(tok, "#error");
+        }
+
         if (token->at_bol) {
             continue;
         }
