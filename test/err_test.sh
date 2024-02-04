@@ -54,6 +54,10 @@ assert '#endif' 1 2 '対応する#ifがありません'
 assert '#define F(1)' 1 11 '識別子ではありません'
 assert '#define F(x) #foo
 char *s = F(123);' 1 14 'マクロのパラメータが後に続く必要があります'
+assert '#define M ##2
+char *s = M;' 1 11 '置換規則の先頭で使うことはできません'
+assert '#define M 3##
+char *s = M;' 1 12 '置換規則の末尾で使うことはできません'
 
 assert 'enum E { 42 };' 1 10 '識別子ではありません'
 

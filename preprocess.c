@@ -380,12 +380,18 @@ static Token *stringize(Token *arg) {
     return tokenize(buf2);
 }
 
+static Token *paste(Token *lhs, Token *rhs) {
+    char *buf = format("%.*s%.*s", lhs->len, lhs->loc, rhs->len, rhs->loc);
+    return tokenize(buf);
+}
+
 static bool expand_macro(Token **tok) {
     Macro *m = hashmap_get(macros, token->loc, token->len);
     if (!m) {
         return false;
     }
 
+    // 一旦`#define M xxx`のxxxのトークンを複製しTokenリスト`replace`に保存する
     Token *replace;
     {
         Token head = {};
@@ -398,50 +404,95 @@ static bool expand_macro(Token **tok) {
     }
 
     token = token->next;
-    if (m->kind == FUNCLIKE) {
-        if (!consume("(", TK_RESERVED)) {
-            return false;
-        }
 
-        if (m->params) {
-            List args = list_new();
-            for (MacroParam *param = m->params; param; param = param->next) {
-                if (param != m->params) {
-                    expect(",");
-                }
+    if (m->kind == FUNCLIKE && !consume("(", TK_RESERVED)) {
+        return false;
+    }
 
-                Token *arg = read_arg();
-                list_push_back(args, arg);
+    List args = list_new();
+    if (m->params) {
+        for (MacroParam *param = m->params; param; param = param->next) {
+            if (param != m->params) {
+                expect(",");
             }
 
-            Token head = {};
-            Token *cur = &head;
-            for (Token *tok2 = replace; !at_eof(tok2); tok2 = tok2->next) {
-                if (equal("#", TK_RESERVED, tok2)) {
-                    Token *arg = find_arg(args, m->params, tok2->next);
-                    if (!arg) {
-                        error_tok(tok2,
-                                  "マクロのパラメータが後に続く必要があります");
+            Token *arg = read_arg();
+            list_push_back(args, arg);
+        }
+    }
+
+    // `replace`を編集して実際に置換される文字列に対応するTokenリストにする
+    {
+        Token head = {};
+        Token *cur = &head;
+        for (Token *tok2 = replace; !at_eof(tok2); tok2 = tok2->next) {
+            if (equal("#", TK_RESERVED, tok2)) {
+                Token *arg = find_arg(args, m->params, tok2->next);
+                if (!arg) {
+                    error_tok(tok2,
+                              "マクロのパラメータが後に続く必要があります");
+                }
+
+                Token *t = stringize(arg);
+                cur = cur->next = t;
+                tok2 = tok2->next;
+                continue;
+            }
+
+            if (equal("##", TK_RESERVED, tok2)) {
+                if (tok2 == replace) {
+                    error_tok(tok2, "置換規則の先頭で使うことはできません");
+                }
+                if (at_eof(tok2->next)) {
+                    error_tok(tok2, "置換規則の末尾で使うことはできません");
+                }
+
+                Token *arg = find_arg(args, m->params, tok2->next);
+                if (arg) {
+                    if (!at_eof(arg)) {
+                        *cur = *paste(cur, arg);
+                        for (Token *t = arg->next; !at_eof(t); t = t->next) {
+                            cur = cur->next = copy_token(t);
+                        }
                     }
 
-                    Token *t = stringize(arg);
-                    cur = cur->next = t;
                     tok2 = tok2->next;
                     continue;
                 }
 
-                Token *arg = find_arg(args, m->params, tok2);
-                if (arg) {
-                    for (Token *t = arg; !at_eof(t); t = t->next) {
-                        cur = cur->next = copy_token(t);
+                *cur = *paste(cur, tok2->next);
+                tok2 = tok2->next;
+                continue;
+            }
+
+            Token *arg = find_arg(args, m->params, tok2);
+            if (arg) {
+                if (at_eof(arg) && equal("##", TK_RESERVED, tok2->next)) {
+                    Token *rhs = tok2->next->next;
+                    Token *arg2 = find_arg(args, m->params, rhs);
+                    if (arg2) {
+                        for (Token *t = arg2; !at_eof(t); t = t->next) {
+                            cur = cur->next = copy_token(t);
+                        }
+                    } else {
+                        cur = cur->next = copy_token(rhs);
                     }
+                    tok2 = rhs;
                     continue;
                 }
 
-                cur = cur->next = tok2;
+                for (Token *t = arg; !at_eof(t); t = t->next) {
+                    cur = cur->next = copy_token(t);
+                }
+                continue;
             }
-            replace = head.next;
+
+            cur = cur->next = tok2;
         }
+        replace = head.next;
+    }
+
+    if (m->kind == FUNCLIKE) {
         expect(")");
     }
 

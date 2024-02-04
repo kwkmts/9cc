@@ -85,6 +85,7 @@ int main() {
 
 #define M3(x, y) x + y
     assert(7, M3(3, 4), "M3(3, 4)");
+    assert(4, M3(, 4), "M3(, 4)");
 
 #define M4(x, y) x *y
     assert(24, M4(3 + 4, 4 + 5), "M4(3+4, 4+5)");
@@ -147,6 +148,29 @@ int main() {
 #define M8(x) #x
     assert(0, strcmp(M8(a!b  `"def"g), "a!b `\"def\"g"), "strcmp(M8( a!b  `\"def\"g), \"a!b `\\\"def\\\"g\")");
     // clang-format on
+
+#define M9 2##3
+    assert(23, M9, "M9");
+
+#define paste(x,y) x##y
+    assert(15, paste(1,5), "paste(1,5)");
+    assert(255, paste(0,xff), "paste(0,xff)");
+    assert(3, ({ int foobar=3; paste(foo,bar); }), "({ int foobar=3; paste(foo,bar); })");
+    assert(5, paste(5,), "paste(5,)");
+    assert(5, paste(,5), "paste(,5)");
+
+#define i 5
+    assert(101, ({ int i3=100; paste(1+i,3); }), "({ int i3=100; paste(1+i,3); })");
+#undef i
+
+#define paste2(x) x##5
+    assert(26, paste2(1+2), "paste2(1+2)");
+
+#define paste3(x) 2##x
+    assert(23, paste3(1+2), "paste3(1+2)");
+
+#define paste4(x, y, z) x##y##z
+    assert(123, paste4(1,2,3), "paste4(1,2,3)");
 
     return 0;
 }
