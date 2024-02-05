@@ -186,5 +186,35 @@ int main() {
 #define paste4(x, y, z) x##y##z
     assert(123, paste4(1,2,3), "paste4(1,2,3)");
 
+#define M10
+#if defined(M10)
+    x = 3;
+#else
+    x = 4;
+#endif
+    assert(3, x, "x");
+
+#define M10
+#if defined M10
+    x = 3;
+#else
+    x = 4;
+#endif
+    assert(3, x, "x");
+
+#if defined(M10) - 1
+    x = 3;
+#else
+    x = 4;
+#endif
+    assert(4, x, "x");
+
+#if defined(NO_SUCH_MACRO)
+    x = 3;
+#else
+    x = 4;
+#endif
+    assert(4, x, "x");
+
     return 0;
 }

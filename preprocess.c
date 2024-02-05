@@ -266,6 +266,36 @@ static Token *copy_line(Token *tok) {
 
 static int64_t calc_const_expr_token(Token *tok) {
     tok = copy_line(tok);
+
+    Token head = {};
+    Token *cur = &head;
+    for (Token *t = tok; !at_eof(t); t = t->next) {
+        if (equal("defined", TK_IDENT, t)) {
+            t = t->next;
+            bool has_paren = equal("(", TK_RESERVED, t);
+            if (has_paren) {
+                t = t->next;
+            }
+            if (t->kind != TK_IDENT) {
+                error_tok(t, "識別子ではありません");
+            }
+            Token *m = hashmap_get(macros, t->loc, t->len);
+            if (has_paren) {
+                t = t->next;
+                if (!equal(")", TK_RESERVED, t)) {
+                    error_tok(t, "')'ではありません");
+                }
+            }
+
+            Token *replace = tokenize(m ? "1" : "0");
+            cur = cur->next = replace;
+            continue;
+        }
+
+        cur = cur->next = t;
+    }
+
+    tok = head.next;
     set_token_to_parse(tok);
     Node *node = conditional();
     return calc_const_expr(node, &(char *){NULL} /* dummy */);
