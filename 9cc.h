@@ -122,6 +122,7 @@ struct Token {
 
 extern File **input_files;
 Token *copy_token(Token *tok);
+void convert_keywords(Token *tok);
 Token *tokenize(char *p);
 Token *tokenize_file(char *path);
 
@@ -338,11 +339,13 @@ struct Node {
     };
 };
 
+void set_token_to_parse(Token *tok);
 bool equal(char *op, TokenKind kind, Token *tok);
 bool at_eof(Token *tok);
 int64_t calc_const_expr(Node *node, char **label);
 Node *new_node_unary(NodeKind kind, Node *expr, Token *tok);
 Node *new_node_cast(Node *expr, Type *ty, Token *tok);
+Node *conditional(void);
 void program(Token *tok);
 bool is_builtin(char *name);
 

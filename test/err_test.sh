@@ -39,8 +39,6 @@ assert 'あ' 1 1 'トークナイズできません'
 
 assert '#hoge' 1 2 '不正なディレクティブです'
 assert '#include foo' 1 10 '"ファイル名" ではありません'
-assert '#if 1.2
-#endif' 1 5 '浮動小数点数は使えません'
 assert '#if 1' 1 2 '対応する#endifがありません'
 assert '#elif 1' 1 2 '対応する#ifがありません'
 assert '#if 1

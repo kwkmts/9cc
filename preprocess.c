@@ -235,18 +235,6 @@ static Token *expect_ident() {
     return tok;
 }
 
-static Token *expect_integer() {
-    if (token->kind != TK_NUM) {
-        error_tok(token, "数ではありません");
-    }
-    if (is_flonum(token->val_ty)) {
-        error_tok(token, "浮動小数点数は使えません");
-    }
-    Token *tok = token;
-    token = token->next;
-    return tok;
-}
-
 // tok2をtok1の末尾に連結する
 static Token *append(Token *tok1, Token *tok2) {
     if (!tok1 || tok1->kind == TK_EOF) {
@@ -260,6 +248,27 @@ static Token *append(Token *tok1, Token *tok2) {
     cur->next = tok2;
 
     return tok1;
+}
+
+// 行末までのトークン列を複製する
+static Token *copy_line(Token *tok) {
+    Token head = {};
+    Token *cur = &head;
+
+    for (; !tok->at_bol; tok = tok->next) {
+        cur = cur->next = copy_token(tok);
+    }
+
+    cur->next = eof_token;
+    token = tok;
+    return head.next;
+}
+
+static int64_t calc_const_expr_token(Token *tok) {
+    tok = copy_line(tok);
+    set_token_to_parse(tok);
+    Node *node = conditional();
+    return calc_const_expr(node, &(char *){NULL} /* dummy */);
 }
 
 static CondIncl *push_cond_incl(Token *tok, bool included) {
@@ -276,13 +285,13 @@ static Token *skip_cond_incl() {
     while (!at_eof(token)) {
         if (equal("#", TK_RESERVED, token) &&
             (equal("elif", TK_IDENT, token->next) ||
-             equal("else", TK_KEYWORD, token->next) ||
+             equal("else", TK_IDENT, token->next) ||
              equal("endif", TK_IDENT, token->next))) {
             return token;
         }
 
         if (equal("#", TK_RESERVED, token) &&
-            (equal("if", TK_KEYWORD, token->next) ||
+            (equal("if", TK_IDENT, token->next) ||
              equal("ifdef", TK_IDENT, token->next) ||
              equal("ifndef", TK_IDENT, token->next))) {
             token = token->next->next;
@@ -535,9 +544,8 @@ Token *preprocess(Token *tok) {
             continue;
         }
 
-        if ((tok = consume("if", TK_KEYWORD))) {
-            // TODO:定数式を取れるようにする
-            int64_t val = expect_integer()->ival;
+        if ((tok = consume("if", TK_IDENT))) {
+            int64_t val = calc_const_expr_token(tok->next);
             push_cond_incl(tok, val);
             if (!val) {
                 token = skip_cond_incl();
@@ -546,8 +554,7 @@ Token *preprocess(Token *tok) {
         }
 
         if ((tok = consume("elif", TK_IDENT))) {
-            // TODO:定数式を取れるようにする
-            int64_t val = expect_integer()->ival;
+            int64_t val = calc_const_expr_token(tok->next);
             if (!cond_incl || cond_incl->ctx == IN_ELSE) {
                 error_tok(tok, "対応する#ifがありません");
             }
@@ -561,7 +568,7 @@ Token *preprocess(Token *tok) {
             continue;
         }
 
-        if ((tok = consume("else", TK_KEYWORD))) {
+        if ((tok = consume("else", TK_IDENT))) {
             if (!cond_incl || cond_incl->ctx == IN_ELSE) {
                 error_tok(tok, "対応する#ifがありません");
             }
@@ -661,5 +668,7 @@ Token *preprocess(Token *tok) {
     }
 
     cur->next = token;
+
+    convert_keywords(head.next);
     return head.next;
 }

@@ -111,7 +111,7 @@ static bool is_alpha(char c) {
 
 static bool is_alnum(char c) { return is_alpha(c) || ('0' <= c && c <= '9'); }
 
-static int read_keyword(char *c) {
+static bool is_keyword(Token *tok) {
     static char *kw[] = {
         "if",       "else",
         "switch",   "case",
@@ -133,11 +133,19 @@ static int read_keyword(char *c) {
     };
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = (int)strlen(kw[i]);
-        if (strncmp(c, kw[i], len) == 0 && !is_alnum(c[len])) {
-            return len;
+        if (strncmp(tok->loc, kw[i], len) == 0 && !is_alnum(tok->loc[len])) {
+            return true;
         }
     }
-    return 0;
+    return false;
+}
+
+void convert_keywords(Token *tok) {
+    for (Token *t = tok; !at_eof(t); t = t->next) {
+        if (is_keyword(t)) {
+            t->kind = TK_KEYWORD;
+        }
+    }
 }
 
 static int read_punct(char *p) {
@@ -375,14 +383,6 @@ Token *tokenize(char *p) {
             continue;
         }
 
-        // 予約語
-        int length = read_keyword(p);
-        if (length) {
-            cur = cur->next = new_token(TK_KEYWORD, p, length);
-            p += length;
-            continue;
-        }
-
         // 数値リテラル
         if (isdigit(*p) || (*p == '.' && isdigit(p[1]))) {
             char *start = p;
@@ -393,7 +393,7 @@ Token *tokenize(char *p) {
         }
 
         // 区切り文字
-        length = read_punct(p);
+        int length = read_punct(p);
         if (length) {
             cur = cur->next = new_token(TK_RESERVED, p, length);
             p += length;

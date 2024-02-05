@@ -75,6 +75,20 @@ int main() {
 #endif
     assert(2, x, "x");
 
+#if 1-1
+    x = 1;
+#elif 1*1
+    x = 2;
+#endif
+    assert(2, x, "x");
+
+#if 10?1:0
+    x = 1;
+#elif 0/1
+    x = 2;
+#endif
+    assert(1, x, "x");
+
 #define M1 3
     assert(3, M1, "M1");
 #define M1 3 + 4 +

@@ -5,6 +5,8 @@
 //
 
 static Token *token; // 現在着目しているトークン
+void set_token_to_parse(Token *tok) { token = tok; }
+
 Obj locals = (Obj){};
 Obj globals = (Obj){};
 Obj functions = (Obj){};
@@ -687,7 +689,7 @@ static Node *stmt(void);
 static Node *compound_stmt(bool is_fn_def);
 static Node *expr(void);
 static Node *assign(void);
-static Node *conditional(void);
+Node *conditional(void);
 static Node *logor(void);
 static Node *logand(void);
 static Node * bitor (void);
@@ -705,7 +707,7 @@ static Node *primary(void);
 
 // program = declaration*
 void program(Token *tok) {
-    token = tok;
+    set_token_to_parse(tok);
 
     push_builtin_obj_into_var_scope();
 
@@ -2132,7 +2134,7 @@ static Node *assign() {
 }
 
 // conditional = logor ("?" expr ":" conditional)?
-static Node *conditional() {
+Node *conditional() {
     Node *cond = logor();
     Token *tok;
 
