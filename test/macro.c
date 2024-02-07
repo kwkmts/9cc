@@ -3,6 +3,7 @@ int printf(const char *, ...);
 int strcmp(const char *, const char *);
 
 #include "include1.h"
+#include <include3.h>
 
 #
 /**/ #
@@ -10,6 +11,8 @@ int strcmp(const char *, const char *);
 int main() {
     assert(5, include1, "include1");
     assert(7, include2, "include2");
+    assert(9, include3, "include3");
+    assert(11, include4, "include4");
 
 #if 0
     printf("should not be printed!\n");

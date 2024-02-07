@@ -563,12 +563,42 @@ Token *preprocess(Token *tok) {
         }
 
         if (consume("include", TK_IDENT)) {
-            if (token->kind != TK_STR) {
-                error_tok(token, "\"ファイル名\" ではありません");
+            char *path;
+            if ((tok = consume("<", TK_RESERVED))) {
+                int len = 1;
+                for (; !equal(">", TK_RESERVED, token); token = token->next) {
+                    len += token->len;
+                    if (token->has_space) {
+                        len++;
+                    }
+
+                    if (token->at_bol || at_eof(token)) {
+                        error_tok(tok, "'>'で閉じられていません");
+                    }
+                }
+
+                tok = tok->next;
+
+                char *buf = calloc(1, len);
+                for (char *p = buf; !equal(">", TK_RESERVED, tok);
+                     tok = tok->next) {
+                    if (tok->has_space) {
+                        *p++ = ' ';
+                    }
+                    memcpy(p, tok->loc, tok->len);
+                    p += tok->len;
+                }
+
+                // TODO: デフォルトインクルードパスから探す
+                path = format("%s/%s", dirname(strdup(token->file->name)), buf);
+            } else {
+                if (token->kind != TK_STR) {
+                    error_tok(token, "\"ファイル名\" ではありません");
+                }
+                path = format("%s/%s", dirname(strdup(token->file->name)),
+                              token->str);
             }
 
-            char *path =
-                format("%s/%s", dirname(strdup(token->file->name)), token->str);
             Token *tok2 = tokenize_file(path);
             token = append(tok2, token->next);
             continue;
