@@ -1,5 +1,44 @@
 #include "9cc.h"
 
+//
+// 動的配列の実装
+//
+
+struct Vector {
+    void **data;
+    int capacity;
+    int size;
+};
+
+Vector vector_new() {
+    Vector vec = calloc(1, sizeof(struct Vector));
+    vec->capacity = 8;
+    vec->data = calloc(vec->capacity, sizeof(void *));
+    return vec;
+}
+
+void vector_push(Vector vec, void *val) {
+    if (vec->size == vec->capacity) {
+        vec->capacity *= 2;
+        vec->data = realloc(vec->data, sizeof(void *) * vec->capacity);
+    }
+    vec->data[vec->size++] = val;
+}
+
+void *vector_get(Vector vec, int idx) { return vec->data[idx]; }
+
+int vector_size(Vector vec) { return vec->size; }
+
+Vector include_paths;
+
+void add_default_include_paths(char *argv0) {
+    include_paths = vector_new();
+    vector_push(include_paths, format("%s/include", dirname(strdup(argv0))));
+    vector_push(include_paths, "/usr/local/include");
+    vector_push(include_paths, "/usr/include/x86_64-linux-gnu");
+    vector_push(include_paths, "/usr/include");
+}
+
 char *read_file(char *path) {
     FILE *fp;
     if (strcmp(path, "-") == 0) {
@@ -45,6 +84,7 @@ int main(int argc, char **argv) {
     }
 
     char *filepath = argv[1];
+    add_default_include_paths(argv[0]);
 
     // トークナイズ
     Token *token = tokenize_file(filepath);

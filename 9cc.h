@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
 
 #define unreachable() error("internal error at %s:%d", __FILE__, __LINE__)
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
@@ -414,5 +415,14 @@ void codegen(void);
 //
 // main.c
 //
+
+// 動的配列
+typedef struct Vector *Vector;
+Vector vector_new(void);
+void vector_push(Vector vec, void *val);
+void *vector_get(Vector vec, int idx);
+int vector_size(Vector vec);
+
+extern Vector include_paths;
 
 char *read_file(char *path);

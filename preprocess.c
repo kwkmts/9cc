@@ -235,6 +235,16 @@ static Token *expect_ident() {
     return tok;
 }
 
+static char *search_include_paths(char *filename) {
+    for (int i = 0; i < vector_size(include_paths); i++) {
+        char *path = format("%s/%s", vector_get(include_paths, i), filename);
+        if (access(path, R_OK) == 0) {
+            return path;
+        }
+    }
+    return NULL;
+}
+
 // tok2をtok1の末尾に連結する
 static Token *append(Token *tok1, Token *tok2) {
     if (!tok1 || tok1->kind == TK_EOF) {
@@ -577,6 +587,7 @@ Token *preprocess(Token *tok) {
                     }
                 }
 
+                Token *start = tok;
                 tok = tok->next;
 
                 char *buf = calloc(1, len);
@@ -589,14 +600,23 @@ Token *preprocess(Token *tok) {
                     p += tok->len;
                 }
 
-                // TODO: デフォルトインクルードパスから探す
-                path = format("%s/%s", dirname(strdup(token->file->name)), buf);
+                path = search_include_paths(buf);
+                if (!path) {
+                    error_tok(start, "ファイルが見つかりません: %s", buf);
+                }
             } else {
                 if (token->kind != TK_STR) {
                     error_tok(token, "\"ファイル名\" ではありません");
                 }
                 path = format("%s/%s", dirname(strdup(token->file->name)),
                               token->str);
+                if (access(path, R_OK) != 0) {
+                    path = search_include_paths(token->str);
+                    if (!path) {
+                        error_tok(token, "ファイルが見つかりません: %s",
+                                  token->str);
+                    }
+                }
             }
 
             Token *tok2 = tokenize_file(path);

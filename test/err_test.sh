@@ -40,6 +40,8 @@ assert 'あ' 1 1 'トークナイズできません'
 assert '#hoge' 1 2 '不正なディレクティブです'
 assert '#include foo' 1 10 '"ファイル名" ではありません'
 assert '#include <foo' 1 10 "'>'で閉じられていません"
+assert '#include "no_such_file.h"' 1 10 'ファイルが見つかりません: no_such_file.h'
+assert '#include <no_such_file.h>' 1 10 'ファイルが見つかりません: no_such_file.h'
 assert '#if 1' 1 2 '対応する#endifがありません'
 assert '#elif 1' 1 2 '対応する#ifがありません'
 assert '#if 1

@@ -41,6 +41,7 @@ stage2/9cc: $(OBJS:%=stage2/%)
 
 stage2/test/%.out: test/%.c stage2/9cc
 	@mkdir -p stage2/test
+	@cp -r include/ stage2/
 	./stage2/9cc $< > stage2/test/$*.s
 	$(CC) stage2/test/$*.s -xc test/common -o $@ -g
 
