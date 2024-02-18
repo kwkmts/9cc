@@ -449,6 +449,34 @@ Token *tokenize(char *p) {
     return head.next;
 }
 
+void remove_backslash_newline(char *p) {
+    int i = 0, j = 0;
+    int n = 0; // 連続するバックスラッシュと改行のカウンタ
+
+    while (p[i]) {
+        if (p[i] == '\\' && p[i + 1] == '\n') {
+            i += 2;
+            n++;
+            continue;
+        }
+
+        if (p[i] == '\n') {
+            p[j++] = p[i++];
+            for (; n > 0; n--) {
+                p[j++] = '\n';
+            }
+            continue;
+        }
+
+        p[j++] = p[i++];
+    }
+
+    for (; n > 0; n--) {
+        p[j++] = '\n';
+    }
+    p[j] = '\0';
+}
+
 static File *new_file(char *name, char *content, int number) {
     File *file = calloc(1, sizeof(File));
     file->name = name;
@@ -459,6 +487,7 @@ static File *new_file(char *name, char *content, int number) {
 
 Token *tokenize_file(char *path) {
     char *p = read_file(path);
+    remove_backslash_newline(p);
 
     static int input_file_count;
 

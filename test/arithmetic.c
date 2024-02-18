@@ -318,5 +318,10 @@ int main() {
     ASSERT(5, 0.0 ? 3 : 5);
     ASSERT(3, 1.2 ? 3 : 5);
 
+
+    assert(1, size\
+of(char), \
+           "sizeof(char)");
+
     return 0;
 }
