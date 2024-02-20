@@ -220,5 +220,7 @@ int main() {
 #endif
     assert(4, x, "x");
 
+    assert(1, __STDC__, "__STDC__");
+
     return 0;
 }

@@ -445,7 +445,7 @@ static bool expand_macro(Token **tok) {
     {
         Token head = {};
         Token *cur = &head;
-        for (Token *t = m->body; !t->at_bol; t = t->next) {
+        for (Token *t = m->body; !t->at_bol && !at_eof(t); t = t->next) {
             cur = cur->next = copy_token(t);
         }
         cur->next = eof_token;
@@ -552,9 +552,54 @@ static bool expand_macro(Token **tok) {
     return true;
 }
 
+void define_macro(char *name, char *buf) {
+    Token *tok = tokenize(buf);
+    tok->at_bol = false;
+
+    Macro *m = calloc(1, sizeof(Macro));
+    m->kind = OBJLIKE;
+    m->body = tok;
+
+    hashmap_put(macros, name, (int)strlen(name), m);
+}
+
+void init_macros() {
+    macros = hashmap_new();
+
+    define_macro("__STDC__", "1");
+    define_macro("__STDC_HOSTED__", "1");
+    define_macro("__STDC_VERSION__", "201112L");
+    define_macro("__STDC_NO_ATOMICS__", "1");
+    define_macro("__STDC_NO_COMPLEX__", "1");
+    define_macro("__STDC_NO_THREADS__", "1");
+    define_macro("__STDC_NO_VLA__", "1");
+    define_macro("__LP64__", "1");
+    define_macro("_LP64", "1");
+    define_macro("__SIZEOF_SHORT__", "2");
+    define_macro("__SIZEOF_INT__", "4");
+    define_macro("__SIZEOF_LONG__", "8");
+    define_macro("__SIZEOF_LONG_LONG__", "8");
+    define_macro("__SIZEOF_POINTER__", "8");
+    define_macro("__SIZEOF_FLOAT__", "4");
+    define_macro("__SIZEOF_DOUBLE__", "8");
+    define_macro("__SIZEOF_LONG_DOUBLE__", "8");
+    define_macro("__ELF__", "1");
+    define_macro("__linux", "1");
+    define_macro("__linux__", "1");
+    define_macro("__gnu_linux__", "1");
+    define_macro("linux", "1");
+    define_macro("__unix", "1");
+    define_macro("__unix__", "1");
+    define_macro("unix", "1");
+    define_macro("__amd64", "1");
+    define_macro("__amd64__", "1");
+    define_macro("__x86_64", "1");
+    define_macro("__x86_64__", "1");
+}
+
 Token *preprocess(Token *tok) {
     token = tok;
-    macros = hashmap_new();
+    init_macros();
 
     Token head = {};
     Token *cur = &head;
