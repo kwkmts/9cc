@@ -21,7 +21,7 @@ $(PREPROCESSED_SRCS): %.i: %.c
 $(OBJS): 9cc.h
 
 test/%.out: test/%.c 9cc
-	./9cc $< > test/$*.s
+	./9cc $< -o test/$*.s
 	$(CC) test/$*.s -xc test/common -o $@ -g
 
 test: $(TESTS)
@@ -33,7 +33,7 @@ test: $(TESTS)
 
 stage2/%.o: %.i 9cc
 	@mkdir -p stage2
-	./9cc $< > stage2/$*.s
+	./9cc $< -o stage2/$*.s
 	$(CC) -c -o $@ stage2/$*.s -g
 
 stage2/9cc: $(OBJS:%=stage2/%)
@@ -42,7 +42,7 @@ stage2/9cc: $(OBJS:%=stage2/%)
 stage2/test/%.out: test/%.c stage2/9cc
 	@mkdir -p stage2/test
 	@cp -r include/ stage2/
-	./stage2/9cc $< > stage2/test/$*.s
+	./stage2/9cc $< -o stage2/test/$*.s
 	$(CC) stage2/test/$*.s -xc test/common -o $@ -g
 
 test-stage2: $(TESTS:test/%=stage2/test/%)
@@ -54,7 +54,7 @@ test-stage2: $(TESTS:test/%=stage2/test/%)
 
 stage3/%.o: %.i stage2/9cc
 	@mkdir -p stage3
-	./stage2/9cc $< > stage3/$*.s
+	./stage2/9cc $< -o stage3/$*.s
 	$(CC) -c -o $@ stage3/$*.s -g
 
 stage3/9cc: $(OBJS:%=stage3/%)
@@ -72,6 +72,9 @@ err-test: 9cc
 err-test-stage2: stage2/9cc
 	test/err_test.sh ./$^
 
+driver-test: 9cc
+	test/driver_test.sh
+
 hashmap-test:
 	cc -e hashmap_test -o hashmap_test *.c && ./hashmap_test
 	@echo "OK"; echo
@@ -79,4 +82,4 @@ hashmap-test:
 clean:
 	$(RM) 9cc hashmap_test $(PREPROCESSED_SRCS) *.o *~ test/*.s test/*.out stage2 stage3
 
-.PHONY: all test-all test test-stage2 cmp-stage23 err-test clean
+.PHONY: all test-all err-test-all test test-stage2 cmp-stage23 err-test err-test-stage2 driver-test clean

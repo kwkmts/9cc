@@ -423,6 +423,7 @@ void vector_push(Vector vec, void *val);
 void *vector_get(Vector vec, int idx);
 int vector_size(Vector vec);
 
+extern FILE *outfp;
 extern Vector include_paths;
 
 char *read_file(char *path);

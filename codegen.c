@@ -155,9 +155,9 @@ char *format(const char *fmt, ...) {
 static void println(const char *format, ...) {
     va_list ap;
     va_start(ap, format);
-    vprintf(format, ap);
+    vfprintf(outfp, format, ap);
     va_end(ap);
-    putchar('\n');
+    putc('\n', outfp);
 }
 
 // nをalignの直近の倍数に切り上げる
