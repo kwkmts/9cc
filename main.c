@@ -34,6 +34,7 @@ FILE *outfp;
 
 static struct {
     char *o;
+    bool E;
 } option;
 
 static void parse_args(int argc, char **argv) {
@@ -45,6 +46,11 @@ static void parse_args(int argc, char **argv) {
 
         if (!strncmp(argv[i], "-o", 2)) {
             option.o = argv[i] + 2;
+            continue;
+        }
+
+        if (!strcmp(argv[i], "-E")) {
+            option.E = true;
             continue;
         }
 
@@ -108,6 +114,19 @@ char *read_file(char *path) {
     return buf;
 }
 
+void print_tokens(Token *tok) {
+    for (Token *t = tok; !at_eof(t); t = t->next) {
+        if (t->at_bol && t != tok) {
+            putc('\n', outfp);
+        }
+        if (t->has_space && !t->at_bol) {
+            putc(' ', outfp);
+        }
+        fprintf(outfp, "%.*s", t->len, t->loc);
+    }
+    putc('\n', outfp);
+}
+
 static char *replace_extension(char *path, char *ext) {
     char *p = strrchr(path, '.');
     if (!p) {
@@ -118,8 +137,7 @@ static char *replace_extension(char *path, char *ext) {
     return format("%s.%s", path, ext);
 }
 
-static FILE *open_output_file() {
-    char *path = option.o ? option.o : replace_extension(input_path, "s");
+static FILE *open_output_file(char *path) {
     if (strcmp(path, "-") == 0) {
         return stdout;
     }
@@ -142,12 +160,18 @@ int main(int argc, char **argv) {
 
     // プリプロセス
     token = preprocess(token);
+    if (option.E) {
+        outfp = open_output_file(option.o ? option.o : "-");
+        print_tokens(token);
+        return 0;
+    }
 
     // パース
     program(token);
 
     // コード生成
-    outfp = open_output_file();
+    outfp = open_output_file(option.o ? option.o
+                                      : replace_extension(input_path, "s"));
     codegen();
     if (outfp != stdout) {
         fclose(outfp);

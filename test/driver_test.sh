@@ -30,3 +30,15 @@ rm -f "$tmp"/empty.s
 ./9cc -o"$tmp"/empty.s "$tmp"/empty.c
 [ -f "$tmp"/empty.s ]
 check "-o<file>"
+
+# -E
+echo '#define M foo
+M' >"$tmp"/out
+./9cc -E "$tmp"/out | grep -q foo
+check -E
+
+echo '#define M foo
+M' >"$tmp"/out1
+./9cc -E -o "$tmp"/out2 "$tmp"/out1
+grep -q foo "$tmp"/out2
+check "-E -o"
