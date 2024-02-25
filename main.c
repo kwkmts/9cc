@@ -54,6 +54,16 @@ static void parse_args(int argc, char **argv) {
             continue;
         }
 
+        if (!strcmp(argv[i], "-I")) {
+            vector_push(include_paths, argv[++i]);
+            continue;
+        }
+
+        if (!strncmp(argv[i], "-I", 2)) {
+            vector_push(include_paths, argv[i] + 2);
+            continue;
+        }
+
         if (argv[i][0] == '-' && argv[i][1] != '\0') {
             error("無効な引数です: %s", argv[i]);
         }
@@ -68,7 +78,6 @@ static void parse_args(int argc, char **argv) {
 Vector include_paths;
 
 void add_default_include_paths(char *argv0) {
-    include_paths = vector_new();
     vector_push(include_paths, format("%s/include", dirname(strdup(argv0))));
     vector_push(include_paths, "/usr/local/include");
     vector_push(include_paths, "/usr/include/x86_64-linux-gnu");
@@ -151,6 +160,8 @@ static FILE *open_output_file(char *path) {
 }
 
 int main(int argc, char **argv) {
+    include_paths = vector_new();
+
     parse_args(argc, argv);
 
     add_default_include_paths(argv[0]);

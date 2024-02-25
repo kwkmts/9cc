@@ -653,14 +653,23 @@ Token *preprocess(Token *tok) {
                 if (token->kind != TK_STR) {
                     error_tok(token, "\"ファイル名\" ではありません");
                 }
-                path = format("%s/%s", dirname(strdup(token->file->name)),
-                              token->str);
-                if (access(path, R_OK) != 0) {
-                    path = search_include_paths(token->str);
-                    if (!path) {
-                        error_tok(token, "ファイルが見つかりません: %s",
-                                  token->str);
+
+                if (token->str[0] == '/') {
+                    path = token->str;
+                    if (access(path, R_OK) != 0) {
+                        path = NULL;
                     }
+                } else {
+                    path = format("%s/%s", dirname(strdup(token->file->name)),
+                                  token->str);
+                    if (access(path, R_OK) != 0) {
+                        path = search_include_paths(token->str);
+                    }
+                }
+
+                if (!path) {
+                    error_tok(token, "ファイルが見つかりません: %s",
+                              token->str);
                 }
             }
 

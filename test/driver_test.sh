@@ -42,3 +42,9 @@ M' >"$tmp"/out1
 ./9cc -E -o "$tmp"/out2 "$tmp"/out1
 grep -q foo "$tmp"/out2
 check "-E -o"
+
+# -I
+mkdir "$tmp"/include
+echo foo >"$tmp"/include/I_opt_test
+echo '#include "I_opt_test"' | ./9cc -I"$tmp"/include -E - | grep -q foo
+check -I
