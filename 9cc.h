@@ -32,6 +32,7 @@ Hashmap hashmap_new(void);
 void hashmap_put(Hashmap map, char *key, int keylen, void *val);
 void *hashmap_get(Hashmap map, char *key, int keylen);
 void hashmap_delete(Hashmap map, char *key, int keylen);
+int hashmap_test(void);
 
 typedef struct Token Token;
 typedef struct Obj Obj;

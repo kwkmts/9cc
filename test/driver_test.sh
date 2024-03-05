@@ -64,3 +64,7 @@ check -U
 echo foo >"$tmp"/out.h
 echo bar | ./9cc -include "$tmp"/out.h -E -o- - | grep -q -z 'foo.*bar'
 check -include
+
+# ハッシュマップのテスト
+./9cc -hashmap-test
+check "hashmap test"

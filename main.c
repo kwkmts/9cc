@@ -111,6 +111,11 @@ static void parse_args(int argc, char **argv) {
             continue;
         }
 
+        if (!strcmp(argv[i], "-hashmap-test")) {
+            hashmap_test();
+            exit(0);
+        }
+
         if (argv[i][0] == '-' && argv[i][1] != '\0') {
             error("無効な引数です: %s", argv[i]);
         }
