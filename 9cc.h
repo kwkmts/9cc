@@ -26,6 +26,10 @@ ListIter list_begin(List list);
 ListIter list_next(ListIter it);
 int list_size(List list);
 
+// ハッシュマップ
+typedef struct Hashmap *Hashmap;
+Hashmap hashmap_new(void);
+
 typedef struct Token Token;
 typedef struct Obj Obj;
 typedef struct Node Node;
@@ -124,13 +128,16 @@ struct Token {
 extern File **input_files;
 Token *copy_token(Token *tok);
 void convert_keywords(Token *tok);
-Token *tokenize(char *p);
+File *new_file(char *name, char *content, int number);
+Token *tokenize(File *file);
 Token *tokenize_file(char *path);
 
 //
 // preprocess.c
 //
 
+extern Hashmap macros;
+void define_macro(char *name, char *buf);
 Token *preprocess(Token *tok);
 
 //

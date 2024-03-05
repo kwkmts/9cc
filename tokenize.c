@@ -343,10 +343,11 @@ static void add_line_column_no(Token *tok) {
     }
 }
 
-// 入力文字列pをトークナイズしてそれを返す
-Token *tokenize(char *p) {
+Token *tokenize(File *file) {
     at_bol = true;
     has_space = false;
+    cur_file = file;
+    char *p = file->content;
     Token head = {};
     Token *cur = &head;
 
@@ -477,7 +478,7 @@ void remove_backslash_newline(char *p) {
     p[j] = '\0';
 }
 
-static File *new_file(char *name, char *content, int number) {
+File *new_file(char *name, char *content, int number) {
     File *file = calloc(1, sizeof(File));
     file->name = name;
     file->content = content;
@@ -498,6 +499,5 @@ Token *tokenize_file(char *path) {
     input_files[input_file_count + 1] = NULL;
     input_file_count++;
 
-    cur_file = file;
-    return tokenize(file->content);
+    return tokenize(file);
 }

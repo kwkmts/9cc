@@ -29,6 +29,11 @@ void *vector_get(Vector vec, int idx) { return vec->data[idx]; }
 
 int vector_size(Vector vec) { return vec->size; }
 
+void initialize_global_objects() {
+    include_paths = vector_new();
+    macros = hashmap_new();
+}
+
 static char *input_path;
 FILE *outfp;
 
@@ -36,6 +41,15 @@ static struct {
     char *o;
     bool E;
 } option;
+
+static void read_D_option(char *s) {
+    char *eq = strchr(s, '=');
+    if (eq) {
+        define_macro(strndup(s, eq - s), eq + 1);
+    } else {
+        define_macro(s, "1");
+    }
+}
 
 static void parse_args(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
@@ -61,6 +75,16 @@ static void parse_args(int argc, char **argv) {
 
         if (!strncmp(argv[i], "-I", 2)) {
             vector_push(include_paths, argv[i] + 2);
+            continue;
+        }
+
+        if (!strcmp(argv[i], "-D")) {
+            read_D_option(argv[++i]);
+            continue;
+        }
+
+        if (!strncmp(argv[i], "-D", 2)) {
+            read_D_option(argv[i] + 2);
             continue;
         }
 
@@ -160,7 +184,7 @@ static FILE *open_output_file(char *path) {
 }
 
 int main(int argc, char **argv) {
-    include_paths = vector_new();
+    initialize_global_objects();
 
     parse_args(argc, argv);
 

@@ -14,7 +14,6 @@ typedef struct {
     void *val;
 } HashmapEntry;
 
-typedef struct Hashmap *Hashmap;
 struct Hashmap {
     HashmapEntry *buckets;
     int capacity;
@@ -177,7 +176,7 @@ int hashmap_test() {
 
 static Token *token; // 現在着目しているトークン
 static Token *eof_token = &(Token){TK_EOF};
-static Hashmap macros;
+Hashmap macros;
 
 typedef struct CondIncl CondIncl;
 struct CondIncl {
@@ -281,6 +280,7 @@ static int64_t calc_const_expr_token(Token *tok) {
     Token *cur = &head;
     for (Token *t = tok; !at_eof(t); t = t->next) {
         if (equal("defined", TK_IDENT, t)) {
+            Token *start = t;
             t = t->next;
             bool has_paren = equal("(", TK_RESERVED, t);
             if (has_paren) {
@@ -297,7 +297,8 @@ static int64_t calc_const_expr_token(Token *tok) {
                 }
             }
 
-            Token *replace = tokenize(m ? "1" : "0");
+            Token *replace = tokenize(new_file(start->file->name, m ? "1" : "0",
+                                               start->file->number));
             cur = cur->next = replace;
             continue;
         }
@@ -388,7 +389,7 @@ static Token *find_arg(List args, MacroParam *params, Token *tok) {
     return NULL;
 }
 
-static Token *stringize(Token *arg) {
+static Token *stringize(Token *hash, Token *arg) {
     int len = 1;
     for (Token *t = arg; !at_eof(t); t = t->next) {
         if (t != arg && t->has_space) {
@@ -426,12 +427,12 @@ static Token *stringize(Token *arg) {
     }
     *q = '"';
 
-    return tokenize(buf2);
+    return tokenize(new_file(hash->file->name, buf2, hash->file->number));
 }
 
 static Token *paste(Token *lhs, Token *rhs) {
     char *buf = format("%.*s%.*s", lhs->len, lhs->loc, rhs->len, rhs->loc);
-    return tokenize(buf);
+    return tokenize(new_file(lhs->file->name, buf, lhs->file->number));
 }
 
 static bool expand_macro(Token **tok) {
@@ -476,13 +477,14 @@ static bool expand_macro(Token **tok) {
         Token *cur = &head;
         for (Token *tok2 = replace; !at_eof(tok2); tok2 = tok2->next) {
             if (equal("#", TK_RESERVED, tok2)) {
+                Token *hash = tok2;
                 Token *arg = find_arg(args, m->params, tok2->next);
                 if (!arg) {
                     error_tok(tok2,
                               "マクロのパラメータが後に続く必要があります");
                 }
 
-                Token *t = stringize(arg);
+                Token *t = stringize(hash, arg);
                 cur = cur->next = t;
                 tok2 = tok2->next;
                 continue;
@@ -553,7 +555,7 @@ static bool expand_macro(Token **tok) {
 }
 
 void define_macro(char *name, char *buf) {
-    Token *tok = tokenize(buf);
+    Token *tok = tokenize(new_file("<built-in>", buf, 0));
     tok->at_bol = false;
 
     Macro *m = calloc(1, sizeof(Macro));
@@ -564,8 +566,6 @@ void define_macro(char *name, char *buf) {
 }
 
 void init_macros() {
-    macros = hashmap_new();
-
     define_macro("__STDC__", "1");
     define_macro("__STDC_HOSTED__", "1");
     define_macro("__STDC_VERSION__", "201112L");
