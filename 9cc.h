@@ -140,6 +140,8 @@ Token *tokenize_file(char *path);
 //
 
 extern Hashmap macros;
+char *search_include_paths(char *filename);
+Token *append(Token *tok1, Token *tok2);
 void define_macro(char *name, char *buf);
 Token *preprocess(Token *tok);
 

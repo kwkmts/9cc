@@ -29,18 +29,20 @@ void *vector_get(Vector vec, int idx) { return vec->data[idx]; }
 
 int vector_size(Vector vec) { return vec->size; }
 
-void initialize_global_objects() {
-    include_paths = vector_new();
-    macros = hashmap_new();
-}
-
 static char *input_path;
 FILE *outfp;
 
 static struct {
     char *o;
     bool E;
+    Vector include;
 } option;
+
+void initialize_global_objects() {
+    include_paths = vector_new();
+    macros = hashmap_new();
+    option.include = vector_new();
+}
 
 static void read_D_option(char *s) {
     char *eq = strchr(s, '=');
@@ -96,6 +98,16 @@ static void parse_args(int argc, char **argv) {
 
         if (!strncmp(argv[i], "-U", 2)) {
             hashmap_delete(macros, argv[i] + 2, (int)strlen(argv[i] + 2));
+            continue;
+        }
+
+        if (!strcmp(argv[i], "-include")) {
+            vector_push(option.include, argv[++i]);
+            continue;
+        }
+
+        if (!strncmp(argv[i], "-include", 8)) {
+            vector_push(option.include, argv[i] + 8);
             continue;
         }
 
@@ -202,7 +214,25 @@ int main(int argc, char **argv) {
     add_default_include_paths(argv[0]);
 
     // トークナイズ
-    Token *token = tokenize_file(input_path);
+    Token *token = NULL, *token2;
+    for (int i = 0; i < vector_size(option.include); i++) {
+        char *incl = vector_get(option.include, i);
+        char *path;
+        if (access(incl, R_OK) == 0) {
+            path = incl;
+        } else {
+            path = search_include_paths(incl);
+            if (!path) {
+                error("ファイルが見つかりません: %s", incl);
+            }
+        }
+
+        token2 = tokenize_file(path);
+        token = append(token, token2);
+    }
+
+    token2 = tokenize_file(input_path);
+    token = append(token, token2);
 
     // プリプロセス
     token = preprocess(token);

@@ -232,7 +232,7 @@ static Token *expect_ident() {
     return tok;
 }
 
-static char *search_include_paths(char *filename) {
+char *search_include_paths(char *filename) {
     for (int i = 0; i < vector_size(include_paths); i++) {
         char *path = format("%s/%s", vector_get(include_paths, i), filename);
         if (access(path, R_OK) == 0) {
@@ -243,7 +243,7 @@ static char *search_include_paths(char *filename) {
 }
 
 // tok2をtok1の末尾に連結する
-static Token *append(Token *tok1, Token *tok2) {
+Token *append(Token *tok1, Token *tok2) {
     if (!tok1 || tok1->kind == TK_EOF) {
         return tok2;
     }

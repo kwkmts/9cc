@@ -59,3 +59,8 @@ check "-D<macro>=<value>"
 # -U
 echo FOO | ./9cc -D FOO=BAR -U FOO -E - | grep -q FOO
 check -U
+
+# -include
+echo foo >"$tmp"/out.h
+echo bar | ./9cc -include "$tmp"/out.h -E -o- - | grep -q -z 'foo.*bar'
+check -include
