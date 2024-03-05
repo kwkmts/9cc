@@ -88,6 +88,17 @@ static void parse_args(int argc, char **argv) {
             continue;
         }
 
+        if (!strcmp(argv[i], "-U")) {
+            i++;
+            hashmap_delete(macros, argv[i], (int)strlen(argv[i]));
+            continue;
+        }
+
+        if (!strncmp(argv[i], "-U", 2)) {
+            hashmap_delete(macros, argv[i] + 2, (int)strlen(argv[i] + 2));
+            continue;
+        }
+
         if (argv[i][0] == '-' && argv[i][1] != '\0') {
             error("無効な引数です: %s", argv[i]);
         }

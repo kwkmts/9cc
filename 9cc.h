@@ -29,6 +29,9 @@ int list_size(List list);
 // ハッシュマップ
 typedef struct Hashmap *Hashmap;
 Hashmap hashmap_new(void);
+void hashmap_put(Hashmap map, char *key, int keylen, void *val);
+void *hashmap_get(Hashmap map, char *key, int keylen);
+void hashmap_delete(Hashmap map, char *key, int keylen);
 
 typedef struct Token Token;
 typedef struct Obj Obj;

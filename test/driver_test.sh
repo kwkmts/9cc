@@ -55,3 +55,7 @@ check -D
 
 echo FOO | ./9cc -DFOO=BAR -E - | grep -q BAR
 check "-D<macro>=<value>"
+
+# -U
+echo FOO | ./9cc -D FOO=BAR -U FOO -E - | grep -q FOO
+check -U

@@ -36,8 +36,6 @@ static uint64_t fnv_hash(char *key, int keylen) {
     return hash;
 }
 
-void hashmap_put(Hashmap map, char *key, int keylen, void *val);
-
 static void rehash(Hashmap map) {
     int oldcap = map->capacity;
     HashmapEntry *oldbuckets = map->buckets;
