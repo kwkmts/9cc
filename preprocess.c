@@ -1,174 +1,6 @@
 #include "9cc.h"
 
 //
-// ハッシュマップ(オープンアドレス法)の実装
-//
-
-#define HASHMAP_INIT_SIZE 16
-#define HASHMAP_MAX_LOAD 75
-#define TOMBSTONE ((void *)-1)
-
-typedef struct {
-    char *key;
-    int keylen;
-    void *val;
-} HashmapEntry;
-
-struct Hashmap {
-    HashmapEntry *buckets;
-    int capacity;
-    int used;
-};
-
-Hashmap hashmap_new() {
-    Hashmap map = calloc(1, sizeof(struct Hashmap));
-    map->capacity = HASHMAP_INIT_SIZE;
-    map->buckets = calloc(HASHMAP_INIT_SIZE, sizeof(HashmapEntry));
-    return map;
-}
-
-static uint64_t fnv_hash(char *key, int keylen) {
-    uint64_t hash = 0xcbf29ce484222325;
-    for (int i = 0; i < keylen; i++) {
-        hash *= 0x100000001b3;
-        hash ^= *key++;
-    }
-    return hash;
-}
-
-static void rehash(Hashmap map) {
-    int oldcap = map->capacity;
-    HashmapEntry *oldbuckets = map->buckets;
-
-    map->capacity *= 2;
-    map->buckets = calloc(map->capacity, sizeof(HashmapEntry));
-    map->used = 0;
-
-    for (int i = 0; i < oldcap; i++) {
-        HashmapEntry *e = &oldbuckets[i];
-        if (e->key && e->key != TOMBSTONE) {
-            hashmap_put(map, e->key, e->keylen, e->val);
-        }
-    }
-}
-
-static bool match(HashmapEntry *entry, char *key, int keylen) {
-    return entry->key != TOMBSTONE && entry->keylen == keylen &&
-           !memcmp(entry->key, key, keylen);
-}
-
-static HashmapEntry *get_entry(Hashmap map, char *key, int keylen) {
-    uint64_t hash = fnv_hash(key, keylen);
-
-    for (uint64_t i = hash % map->capacity; i < map->capacity;
-         i = (i + 1) % map->capacity) {
-        HashmapEntry *e = &map->buckets[i];
-        if (!e->key) {
-            return NULL;
-        }
-        if (match(e, key, keylen)) {
-            return e;
-        }
-    }
-
-    unreachable();
-}
-
-static HashmapEntry *get_or_insert_entry(Hashmap map, char *key, int keylen) {
-    if (map->used * 100 / map->capacity >= HASHMAP_MAX_LOAD) {
-        rehash(map);
-    }
-
-    uint64_t hash = fnv_hash(key, keylen);
-
-    for (uint64_t i = hash % map->capacity;; i = (i + 1) % map->capacity) {
-        HashmapEntry *e = &map->buckets[i];
-        if (!e->key) {
-            map->used++;
-            e->key = key;
-            e->keylen = keylen;
-            return e;
-        }
-        if (e->key == TOMBSTONE) {
-            e->key = key;
-            e->keylen = keylen;
-            return e;
-        }
-        if (match(e, key, keylen)) {
-            return e;
-        }
-    }
-}
-
-void *hashmap_get(Hashmap map, char *key, int keylen) {
-    HashmapEntry *e = get_entry(map, key, keylen);
-    return e ? e->val : NULL;
-}
-
-void hashmap_put(Hashmap map, char *key, int keylen, void *val) {
-    HashmapEntry *e = get_or_insert_entry(map, key, keylen);
-    e->val = val;
-}
-
-void hashmap_delete(Hashmap map, char *key, int keylen) {
-    HashmapEntry *e = get_entry(map, key, keylen);
-    if (e) {
-        e->key = TOMBSTONE;
-    }
-}
-
-int hashmap_test() {
-    Hashmap map = hashmap_new();
-
-    for (int i = 0; i < 5000; i++) {
-        char *key = format("key %d", i);
-        hashmap_put(map, key, (int)strlen(key), (void *)(size_t)i);
-    }
-    for (int i = 1000; i < 2000; i++) {
-        char *key = format("key %d", i);
-        hashmap_delete(map, key, (int)strlen(key));
-    }
-    for (int i = 1500; i < 1600; i++) {
-        char *key = format("key %d", i);
-        hashmap_put(map, key, (int)strlen(key), (void *)(size_t)i);
-    }
-    for (int i = 6000; i < 7000; i++) {
-        char *key = format("key %d", i);
-        hashmap_put(map, key, (int)strlen(key), (void *)(size_t)i);
-    }
-
-    for (int i = 0; i < 1000; i++) {
-        char *key = format("key %d", i);
-        assert((size_t)hashmap_get(map, key, (int)strlen(key)) == i);
-    }
-    for (int i = 1000; i < 1500; i++) {
-        assert(!hashmap_get(map, "no such key", 11));
-    }
-    for (int i = 1500; i < 1600; i++) {
-        char *key = format("key %d", i);
-        assert((size_t)hashmap_get(map, key, (int)strlen(key)) == i);
-    }
-    for (int i = 1600; i < 2000; i++) {
-        assert(!hashmap_get(map, "no such key", 11));
-    }
-    for (int i = 2000; i < 5000; i++) {
-        char *key = format("key %d", i);
-        assert((size_t)hashmap_get(map, key, (int)strlen(key)) == i);
-    }
-    for (int i = 5000; i < 6000; i++) {
-        assert(!hashmap_get(map, "no such key", 11));
-    }
-    for (int i = 6000; i < 7000; i++) {
-        char *key = format("key %d", i);
-        hashmap_put(map, key, (int)strlen(key), (void *)(size_t)i);
-    }
-
-    assert(!hashmap_get(map, "no such key", 11));
-
-    exit(0);
-}
-
-//
 // プリプロセッサ
 //
 
@@ -232,6 +64,14 @@ static Token *expect_ident() {
     return tok;
 }
 
+static Macro *find_macro(Token *tok) {
+    return hashmap_get(macros, tok->loc, tok->len);
+}
+
+static void add_macro(Token *tok, Macro *m) {
+    hashmap_put(macros, tok->loc, tok->len, m);
+}
+
 char *search_include_paths(char *filename) {
     for (int i = 0; i < vector_size(include_paths); i++) {
         char *path = format("%s/%s", vector_get(include_paths, i), filename);
@@ -240,6 +80,57 @@ char *search_include_paths(char *filename) {
         }
     }
     return NULL;
+}
+
+static char *read_include_filename(char **filename) {
+    Token *tok;
+    if ((tok = consume("<", TK_RESERVED))) {
+        int len = 1;
+        for (; !equal(">", TK_RESERVED, token); token = token->next) {
+            len += token->len;
+            if (token->has_space) {
+                len++;
+            }
+
+            if (token->at_bol || at_eof(token)) {
+                error_tok(tok, "'>'で閉じられていません");
+            }
+        }
+
+        tok = tok->next;
+
+        *filename = calloc(1, len);
+        for (char *p = *filename; !equal(">", TK_RESERVED, tok);
+             tok = tok->next) {
+            if (tok->has_space) {
+                *p++ = ' ';
+            }
+            memcpy(p, tok->loc, tok->len);
+            p += tok->len;
+        }
+
+        return search_include_paths(*filename);
+    }
+
+    char *path;
+    if (token->kind != TK_STR) {
+        error_tok(token, "\"ファイル名\" ではありません");
+    }
+
+    *filename = token->str;
+    if ((*filename)[0] == '/') {
+        path = *filename;
+        if (access(path, R_OK) != 0) {
+            path = NULL;
+        }
+    } else {
+        path = format("%s/%s", dirname(strdup(token->file->name)), *filename);
+        if (access(path, R_OK) != 0) {
+            path = search_include_paths(*filename);
+        }
+    }
+
+    return path;
 }
 
 // tok2をtok1の末尾に連結する
@@ -287,7 +178,7 @@ static int64_t calc_const_expr_token(Token *tok) {
             if (t->kind != TK_IDENT) {
                 error_tok(t, "識別子ではありません");
             }
-            Token *m = hashmap_get(macros, t->loc, t->len);
+            Macro *m = find_macro(t);
             if (has_paren) {
                 t = t->next;
                 if (!equal(")", TK_RESERVED, t)) {
@@ -344,6 +235,23 @@ static Token *skip_cond_incl() {
         token = token->next;
     }
     return token;
+}
+
+static MacroParam *read_params() {
+    MacroParam head = {};
+    MacroParam *cur = &head;
+
+    while (!consume(")", TK_RESERVED)) {
+        if (cur != &head) {
+            expect(",");
+        }
+
+        MacroParam *param = calloc(1, sizeof(MacroParam));
+        param->name = expect_ident();
+        cur = cur->next = param;
+    }
+
+    return head.next;
 }
 
 static Token *read_arg() {
@@ -428,13 +336,99 @@ static Token *stringize(Token *hash, Token *arg) {
     return tokenize(new_file(hash->file->name, buf2, hash->file->number));
 }
 
+static List collect_args(MacroParam *params) {
+    List args = list_new();
+    if (params) {
+        for (MacroParam *param = params; param; param = param->next) {
+            if (param != params) {
+                expect(",");
+            }
+
+            Token *arg = read_arg();
+            list_push_back(args, arg);
+        }
+    }
+
+    return args;
+}
+
 static Token *paste(Token *lhs, Token *rhs) {
     char *buf = format("%.*s%.*s", lhs->len, lhs->loc, rhs->len, rhs->loc);
     return tokenize(new_file(lhs->file->name, buf, lhs->file->number));
 }
 
+// `tok`を編集して実際に置換される文字列に対応するTokenリストにする
+static Token *subst(Token *tok, List args, MacroParam *params) {
+    Token head = {};
+    Token *cur = &head;
+    for (Token *tok2 = tok; !at_eof(tok2); tok2 = tok2->next) {
+        if (equal("#", TK_RESERVED, tok2)) {
+            Token *hash = tok2;
+            Token *arg = find_arg(args, params, tok2->next);
+            if (!arg) {
+                error_tok(tok2, "マクロのパラメータが後に続く必要があります");
+            }
+
+            cur = cur->next = stringize(hash, arg);
+            tok2 = tok2->next;
+            continue;
+        }
+
+        if (equal("##", TK_RESERVED, tok2)) {
+            if (tok2 == tok) {
+                error_tok(tok2, "置換規則の先頭で使うことはできません");
+            }
+            if (at_eof(tok2->next)) {
+                error_tok(tok2, "置換規則の末尾で使うことはできません");
+            }
+
+            Token *arg = find_arg(args, params, tok2->next);
+            if (arg) {
+                if (!at_eof(arg)) {
+                    *cur = *paste(cur, arg);
+                    for (Token *t = arg->next; !at_eof(t); t = t->next) {
+                        cur = cur->next = copy_token(t);
+                    }
+                }
+
+                tok2 = tok2->next;
+                continue;
+            }
+
+            *cur = *paste(cur, tok2->next);
+            tok2 = tok2->next;
+            continue;
+        }
+
+        Token *arg = find_arg(args, params, tok2);
+        if (arg) {
+            if (at_eof(arg) && equal("##", TK_RESERVED, tok2->next)) {
+                Token *rhs = tok2->next->next;
+                Token *arg2 = find_arg(args, params, rhs);
+                if (arg2) {
+                    for (Token *t = arg2; !at_eof(t); t = t->next) {
+                        cur = cur->next = copy_token(t);
+                    }
+                } else {
+                    cur = cur->next = copy_token(rhs);
+                }
+                tok2 = rhs;
+                continue;
+            }
+
+            for (Token *t = arg; !at_eof(t); t = t->next) {
+                cur = cur->next = copy_token(t);
+            }
+            continue;
+        }
+
+        cur = cur->next = tok2;
+    }
+    return head.next;
+}
+
 static bool expand_macro(Token **tok) {
-    Macro *m = hashmap_get(macros, token->loc, token->len);
+    Macro *m = find_macro(token);
     if (!m) {
         return false;
     }
@@ -457,89 +451,8 @@ static bool expand_macro(Token **tok) {
         return false;
     }
 
-    List args = list_new();
-    if (m->params) {
-        for (MacroParam *param = m->params; param; param = param->next) {
-            if (param != m->params) {
-                expect(",");
-            }
-
-            Token *arg = read_arg();
-            list_push_back(args, arg);
-        }
-    }
-
-    // `replace`を編集して実際に置換される文字列に対応するTokenリストにする
-    {
-        Token head = {};
-        Token *cur = &head;
-        for (Token *tok2 = replace; !at_eof(tok2); tok2 = tok2->next) {
-            if (equal("#", TK_RESERVED, tok2)) {
-                Token *hash = tok2;
-                Token *arg = find_arg(args, m->params, tok2->next);
-                if (!arg) {
-                    error_tok(tok2,
-                              "マクロのパラメータが後に続く必要があります");
-                }
-
-                Token *t = stringize(hash, arg);
-                cur = cur->next = t;
-                tok2 = tok2->next;
-                continue;
-            }
-
-            if (equal("##", TK_RESERVED, tok2)) {
-                if (tok2 == replace) {
-                    error_tok(tok2, "置換規則の先頭で使うことはできません");
-                }
-                if (at_eof(tok2->next)) {
-                    error_tok(tok2, "置換規則の末尾で使うことはできません");
-                }
-
-                Token *arg = find_arg(args, m->params, tok2->next);
-                if (arg) {
-                    if (!at_eof(arg)) {
-                        *cur = *paste(cur, arg);
-                        for (Token *t = arg->next; !at_eof(t); t = t->next) {
-                            cur = cur->next = copy_token(t);
-                        }
-                    }
-
-                    tok2 = tok2->next;
-                    continue;
-                }
-
-                *cur = *paste(cur, tok2->next);
-                tok2 = tok2->next;
-                continue;
-            }
-
-            Token *arg = find_arg(args, m->params, tok2);
-            if (arg) {
-                if (at_eof(arg) && equal("##", TK_RESERVED, tok2->next)) {
-                    Token *rhs = tok2->next->next;
-                    Token *arg2 = find_arg(args, m->params, rhs);
-                    if (arg2) {
-                        for (Token *t = arg2; !at_eof(t); t = t->next) {
-                            cur = cur->next = copy_token(t);
-                        }
-                    } else {
-                        cur = cur->next = copy_token(rhs);
-                    }
-                    tok2 = rhs;
-                    continue;
-                }
-
-                for (Token *t = arg; !at_eof(t); t = t->next) {
-                    cur = cur->next = copy_token(t);
-                }
-                continue;
-            }
-
-            cur = cur->next = tok2;
-        }
-        replace = head.next;
-    }
+    List args = collect_args(m->params);
+    replace = subst(replace, args, m->params);
 
     if (m->kind == FUNCLIKE) {
         expect(")");
@@ -595,10 +508,7 @@ void init_macros() {
     define_macro("__x86_64__", "1");
 }
 
-Token *preprocess(Token *tok) {
-    token = tok;
-    init_macros();
-
+Token *preprocess2() {
     Token head = {};
     Token *cur = &head;
 
@@ -616,59 +526,11 @@ Token *preprocess(Token *tok) {
         }
 
         if (consume("include", TK_IDENT)) {
-            char *path;
-            if ((tok = consume("<", TK_RESERVED))) {
-                int len = 1;
-                for (; !equal(">", TK_RESERVED, token); token = token->next) {
-                    len += token->len;
-                    if (token->has_space) {
-                        len++;
-                    }
-
-                    if (token->at_bol || at_eof(token)) {
-                        error_tok(tok, "'>'で閉じられていません");
-                    }
-                }
-
-                Token *start = tok;
-                tok = tok->next;
-
-                char *buf = calloc(1, len);
-                for (char *p = buf; !equal(">", TK_RESERVED, tok);
-                     tok = tok->next) {
-                    if (tok->has_space) {
-                        *p++ = ' ';
-                    }
-                    memcpy(p, tok->loc, tok->len);
-                    p += tok->len;
-                }
-
-                path = search_include_paths(buf);
-                if (!path) {
-                    error_tok(start, "ファイルが見つかりません: %s", buf);
-                }
-            } else {
-                if (token->kind != TK_STR) {
-                    error_tok(token, "\"ファイル名\" ではありません");
-                }
-
-                if (token->str[0] == '/') {
-                    path = token->str;
-                    if (access(path, R_OK) != 0) {
-                        path = NULL;
-                    }
-                } else {
-                    path = format("%s/%s", dirname(strdup(token->file->name)),
-                                  token->str);
-                    if (access(path, R_OK) != 0) {
-                        path = search_include_paths(token->str);
-                    }
-                }
-
-                if (!path) {
-                    error_tok(token, "ファイルが見つかりません: %s",
-                              token->str);
-                }
+            Token *start = token;
+            char *filename;
+            char *path = read_include_filename(&filename);
+            if (!path) {
+                error_tok(start, "ファイルが見つかりません: %s", filename);
             }
 
             Token *tok2 = tokenize_file(path);
@@ -722,7 +584,7 @@ Token *preprocess(Token *tok) {
         }
 
         if ((tok = consume("ifdef", TK_IDENT))) {
-            Token *m = hashmap_get(macros, token->loc, token->len);
+            Macro *m = find_macro(token);
             token = token->next;
             push_cond_incl(tok, m);
             if (!m) {
@@ -732,7 +594,7 @@ Token *preprocess(Token *tok) {
         }
 
         if ((tok = consume("ifndef", TK_IDENT))) {
-            Token *m = hashmap_get(macros, token->loc, token->len);
+            Macro *m = find_macro(token);
             token = token->next;
             push_cond_incl(tok, !m);
             if (m) {
@@ -748,21 +610,8 @@ Token *preprocess(Token *tok) {
 
             token = token->next;
             if (consume("(", TK_RESERVED)) {
-                MacroParam head2 = {};
-                MacroParam *cur2 = &head2;
-
-                while (!consume(")", TK_RESERVED)) {
-                    if (cur2 != &head2) {
-                        expect(",");
-                    }
-
-                    MacroParam *param = calloc(1, sizeof(MacroParam));
-                    param->name = expect_ident();
-                    cur2 = cur2->next = param;
-                }
-
+                params = read_params();
                 is_objlike = false;
-                params = head2.next;
             }
 
             Token *body = token;
@@ -774,7 +623,7 @@ Token *preprocess(Token *tok) {
             m->kind = is_objlike ? OBJLIKE : FUNCLIKE;
             m->body = body;
             m->params = params;
-            hashmap_put(macros, name->loc, name->len, m);
+            add_macro(name, m);
             continue;
         }
 
@@ -795,12 +644,20 @@ Token *preprocess(Token *tok) {
         error_tok(token, "不正なディレクティブです");
     }
 
+    cur->next = token;
+    return head.next;
+}
+
+Token *preprocess(Token *tok) {
+    token = tok;
+    init_macros();
+
+    tok = preprocess2();
+
     if (cond_incl) {
         error_tok(cond_incl->tok, "対応する#endifがありません");
     }
 
-    cur->next = token;
-
-    convert_keywords(head.next);
-    return head.next;
+    convert_keywords(tok);
+    return tok;
 }

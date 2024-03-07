@@ -621,56 +621,6 @@ static void gen_builtin_funcall(Node *node) {
     unreachable();
 }
 
-typedef struct ListNode ListNode;
-
-struct ListNode {
-    void *val;
-    ListNode *next;
-};
-
-// 単方向リストの試験的実装
-struct List {
-    ListNode *head;
-    ListNode *tail;
-    int size;
-};
-
-List list_new() {
-    List list = calloc(1, sizeof(struct List));
-    return list;
-}
-
-void list_push_front(List list, void *val) {
-    ListNode *node = calloc(1, sizeof(ListNode));
-    node->val = val;
-    list->size++;
-    if (!list->head) {
-        list->head = node;
-        list->tail = node;
-        return;
-    }
-    node->next = list->head;
-    list->head = node;
-}
-
-void list_push_back(List list, void *val) {
-    ListNode *node = calloc(1, sizeof(ListNode));
-    node->val = val;
-    list->size++;
-    if (!list->head) {
-        list->head = node;
-        list->tail = node;
-        return;
-    }
-    list->tail = list->tail->next = node;
-}
-
-ListIter list_begin(List list) { return (ListIter)list->head; }
-
-ListIter list_next(ListIter it) { return (ListIter)((ListNode *)it)->next; }
-
-int list_size(List list) { return list->size; }
-
 static int push_args(Node *args, List *reg_iargs, List *reg_fargs) {
     int stack = 0, iarg = 0, farg = 0;
     List stack_args = list_new();

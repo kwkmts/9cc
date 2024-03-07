@@ -16,6 +16,10 @@
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
+//
+// collections.c
+//
+
 // 単方向リスト
 typedef struct List *List;
 typedef void **ListIter;
@@ -33,6 +37,13 @@ void hashmap_put(Hashmap map, char *key, int keylen, void *val);
 void *hashmap_get(Hashmap map, char *key, int keylen);
 void hashmap_delete(Hashmap map, char *key, int keylen);
 int hashmap_test(void);
+
+// 動的配列
+typedef struct Vector *Vector;
+Vector vector_new(void);
+void vector_push(Vector vec, void *val);
+void *vector_get(Vector vec, int idx);
+int vector_size(Vector vec);
 
 typedef struct Token Token;
 typedef struct Obj Obj;
@@ -428,13 +439,6 @@ void codegen(void);
 //
 // main.c
 //
-
-// 動的配列
-typedef struct Vector *Vector;
-Vector vector_new(void);
-void vector_push(Vector vec, void *val);
-void *vector_get(Vector vec, int idx);
-int vector_size(Vector vec);
 
 extern FILE *outfp;
 extern Vector include_paths;

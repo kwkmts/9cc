@@ -1,34 +1,5 @@
 #include "9cc.h"
 
-//
-// 動的配列の実装
-//
-
-struct Vector {
-    void **data;
-    int capacity;
-    int size;
-};
-
-Vector vector_new() {
-    Vector vec = calloc(1, sizeof(struct Vector));
-    vec->capacity = 8;
-    vec->data = calloc(vec->capacity, sizeof(void *));
-    return vec;
-}
-
-void vector_push(Vector vec, void *val) {
-    if (vec->size == vec->capacity) {
-        vec->capacity *= 2;
-        vec->data = realloc(vec->data, sizeof(void *) * vec->capacity);
-    }
-    vec->data[vec->size++] = val;
-}
-
-void *vector_get(Vector vec, int idx) { return vec->data[idx]; }
-
-int vector_size(Vector vec) { return vec->size; }
-
 static char *input_path;
 FILE *outfp;
 
