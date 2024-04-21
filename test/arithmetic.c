@@ -167,6 +167,16 @@ int main() {
     ASSERT(48, sizeof(int[3][4]));
     ASSERT(8, sizeof(struct {int a; int b;}));
 
+    ASSERT(1, _Alignof(char));
+    ASSERT(2, _Alignof(short));
+    ASSERT(4, _Alignof(int));
+    ASSERT(8, _Alignof(long));
+    ASSERT(8, _Alignof(long long));
+    ASSERT(1, _Alignof(char[3]));
+    ASSERT(4, _Alignof(int[3]));
+    ASSERT(1, _Alignof(struct {char a; char b;}[2]));
+    ASSERT(8, _Alignof(struct {char a; long b;}[2]));
+
     ASSERT(131585, (int)8590066177);
     ASSERT(513, (short)8590066177);
     ASSERT(1, (char)8590066177);

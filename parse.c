@@ -2355,6 +2355,7 @@ static Node *cast() {
 
 // unary = "sizeof" unary
 //       | "sizeof" "(" (declspec abstract-declarator) | expr ")"
+//       | "_Alignof" "(" declspec abstract-declarator ")"
 //       | ("+" | "-" | "*" | "&" | "!" | "~") cast
 //       | ("++" | "--") unary
 //       | postfix
@@ -2380,6 +2381,13 @@ static Node *unary() {
         Node *node = unary();
         add_type(node);
         return new_node_num(node->ty->size, tok);
+    }
+
+    if ((tok = consume("_Alignof", TK_KEYWORD))) {
+        expect("(");
+        Type *ty = expand_pseudo(abstract_declarator(declspec(NULL)));
+        expect(")");
+        return new_node_num(ty->align, tok);
     }
 
     if ((tok = consume("+", TK_RESERVED))) {
