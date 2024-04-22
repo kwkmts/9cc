@@ -127,9 +127,10 @@ static bool is_keyword(Token *tok) {
         "struct",   "union",
         "enum",     "__builtin_va_list",
         "sizeof",   "_Alignof",
-        "typedef",  "static",
-        "extern",   "const",
-        "volatile", "restrict",
+        "_Alignas", "typedef",
+        "static",   "extern",
+        "const",    "volatile",
+        "restrict",
     };
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         int len = (int)strlen(kw[i]);

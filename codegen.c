@@ -1221,7 +1221,7 @@ static void emit_functions() {
                 if (is_flonum(var->ty)) {
                     if (fparam < FP_MAX) {
                         offset += var->ty->size;
-                        offset = var->offset = align_to(offset, var->ty->align);
+                        offset = var->offset = align_to(offset, var->align);
                     } else {
                         var->offset = -16 - 8 * stack++;
                     }
@@ -1231,7 +1231,7 @@ static void emit_functions() {
 
                 if (iparam < GP_MAX) {
                     offset += var->ty->size;
-                    offset = var->offset = align_to(offset, var->ty->align);
+                    offset = var->offset = align_to(offset, var->align);
                 } else {
                     var->offset = -16 - 8 * stack++;
                 }
@@ -1240,7 +1240,7 @@ static void emit_functions() {
 
             for (; var; var = var->next) {
                 offset += var->ty->size;
-                offset = var->offset = align_to(offset, var->ty->align);
+                offset = var->offset = align_to(offset, var->align);
             }
 
             fn->stack_size = align_to(offset, 16);

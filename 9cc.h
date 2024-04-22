@@ -181,6 +181,7 @@ struct Obj {
     char *name;      // 識別子名
     Type *ty;        // expand_pseudo()によって得られる実質的な型
     PseudoType *pty; // TY_PSEUDO_*を含む型(グローバル変数のみ)
+    int align;       // アライメント
     Token *tok;
 
     int offset; // RBPからのオフセット
@@ -383,6 +384,7 @@ struct Member {
     int idx;
     Type *ty;
     PseudoType *pty;
+    int align;
     Token *name;
     int offset;
 };

@@ -121,6 +121,7 @@ Member *new_member(int idx, Type *ty, Token *name) {
     Member *mem = calloc(1, sizeof(Member));
     mem->idx = idx;
     mem->ty = ty;
+    mem->align = ty->align;
     mem->name = name;
     return mem;
 }

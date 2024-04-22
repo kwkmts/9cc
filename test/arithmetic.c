@@ -177,6 +177,13 @@ int main() {
     ASSERT(1, _Alignof(struct {char a; char b;}[2]));
     ASSERT(8, _Alignof(struct {char a; long b;}[2]));
 
+    ASSERT(1, ({ _Alignas(char) char x, y; &x-&y; }));
+    ASSERT(8, ({ _Alignas(long) char x, y; &x-&y; }));
+    ASSERT(32, ({ _Alignas(32) char x, y; &x-&y; }));
+    ASSERT(32, ({ _Alignas(32) int *x, *y; ((char *)&x)-((char *)&y); }));
+    ASSERT(16, ({ struct { _Alignas(16) char x, y; } a; &a.y-&a.x; }));
+    ASSERT(8, ({ struct T { _Alignas(8) char a; }; _Alignof(struct T); }));
+
     ASSERT(131585, (int)8590066177);
     ASSERT(513, (short)8590066177);
     ASSERT(1, (char)8590066177);

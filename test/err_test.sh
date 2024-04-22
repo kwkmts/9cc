@@ -91,6 +91,8 @@ assert 'int *volatile volatile p;' 1 15 'volatileを複数指定することは�
 assert 'int *restrict restrict P;' 1 15 'restrictを複数指定することはできません'
 assert 'int f(static int x) {}' 1 7 'ここで記憶クラス指定子を使うことはできません'
 assert 'static static int x;' 1 8 '記憶クラス指定子を複数指定することはできません'
+assert 'int f(_Alignas(8) int x) {}' 1 7 'ここで_Alignasを使うことはできません'
+assert '_Alignas(5) int x;' 1 1 'アライメントが2のべき乗ではありません'
 assert 'int int x;' 1 5 '型の指定が正しくありません'
 
 assert 'int main() { int x; y; }' 1 21 '定義されていない変数です'

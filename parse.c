@@ -59,8 +59,10 @@ struct InitDesg {
     Obj *var;
 };
 
-typedef int VarAttr;
-#define NOATTR 0x00
+typedef struct {
+    int storage; // 記憶クラス指定子のフラグ
+    int align;   // _Alignas指定子の値
+} VarAttr;
 #define TYPEDEF 0x01
 #define STATIC 0x04
 #define EXTERN 0x10
@@ -533,6 +535,7 @@ static Obj *new_obj(Token *tok, char *name, Type *ty) {
     Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
     var->ty = ty;
+    var->align = ty->align;
     var->tok = tok;
 
     // 入力プログラム中に書かれた変数のみを変数スコープに登録する
@@ -786,7 +789,8 @@ static Member *member_list(Type *ty) {
 
     int idx = 0;
     while (!consume("}", TK_RESERVED)) {
-        PseudoType *pbasety = declspec(NULL);
+        VarAttr attr = {};
+        PseudoType *pbasety = declspec(&attr);
 
         int i = 0;
         do {
@@ -807,9 +811,12 @@ static Member *member_list(Type *ty) {
 
             Member *mem = new_member(idx++, mem_ty, pair->ident);
             mem->pty = pair->pty;
+            if (attr.align) {
+                mem->align = attr.align;
+            }
 
-            if (ty->align < mem_ty->align) {
-                ty->align = mem_ty->align;
+            if (ty->align < mem->align) {
+                ty->align = mem->align;
             }
 
             cur = cur->next = mem;
@@ -833,7 +840,7 @@ static Type *struct_decl() {
     int offset = 0;
     Member *mems = member_list(ty);
     for (Member *mem = mems; mem; mem = mem->next) {
-        mem->offset = offset = align_to(offset, mem->ty->align);
+        mem->offset = offset = align_to(offset, mem->align);
         offset += mem->ty->size;
     }
 
@@ -904,6 +911,13 @@ static Type *enum_specifier() {
     return ty;
 }
 
+typedef enum {
+    STORAGE_CLASS_SPEC = 1,
+    TYPE_QUALIFIER,
+    TYPE_SPEC,
+    ALIGNMENT_SPEC,
+} SpecifierKind;
+
 static bool is_storage_class_spec() {
     static char *kw[] = {"typedef", "static", "extern"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
@@ -924,7 +938,7 @@ static bool is_type_qualifier() {
     return false;
 }
 
-static bool is_typename() {
+static bool is_type_spec() {
     static char *kw[] = {"unsigned", "signed",
                          "void",     "int",
                          "char",     "short",
@@ -937,11 +951,39 @@ static bool is_typename() {
             return true;
         }
     }
-    return find_typedef(token) || is_storage_class_spec() ||
-           is_type_qualifier();
+    return false;
 }
 
+static bool is_typename() {
+    return find_typedef(token) || is_storage_class_spec() ||
+           is_type_qualifier() || is_type_spec() ||
+           equal("_Alignas", TK_KEYWORD, token);
+}
+
+static SpecifierKind get_declspec_kind() {
+    if (is_storage_class_spec()) {
+        return STORAGE_CLASS_SPEC;
+    }
+
+    if (is_type_qualifier()) {
+        return TYPE_QUALIFIER;
+    }
+
+    if (is_type_spec() || find_typedef(token)) {
+        return TYPE_SPEC;
+    }
+
+    if (equal("_Alignas", TK_KEYWORD, token)) {
+        return ALIGNMENT_SPEC;
+    }
+
+    return 0;
+}
+
+static bool is_pow2(int n) { return n && !(n & (n - 1)); }
+
 // declspec = ("typedef" | "static" | "extern"
+//             | "_Alignas" "(" (type-name | expr) ")"
 //             | "unsigned" | "signed"
 //             | "void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "float" | "double"
@@ -970,8 +1012,9 @@ static PseudoType *declspec(VarAttr *attr) {
     bool is_const = false;
     bool is_volatile = false;
 
-    while (is_typename()) {
-        if (is_type_qualifier()) {
+    SpecifierKind kind;
+    while ((kind = get_declspec_kind())) {
+        if (kind == TYPE_QUALIFIER) {
             if ((tok = consume("const", TK_KEYWORD))) {
                 if (is_const) {
                     error_tok(tok, "constを複数指定することはできません");
@@ -991,23 +1034,23 @@ static PseudoType *declspec(VarAttr *attr) {
             }
         }
 
-        if (is_storage_class_spec()) {
+        if (kind == STORAGE_CLASS_SPEC) {
             if (!attr) {
                 error_tok(token,
                           "ここで記憶クラス指定子を使うことはできません");
             }
 
             if ((tok = consume("typedef", TK_KEYWORD))) {
-                *attr += TYPEDEF;
+                attr->storage += TYPEDEF;
 
             } else if ((tok = consume("static", TK_KEYWORD))) {
-                *attr += STATIC;
+                attr->storage += STATIC;
 
             } else if ((tok = consume("extern", TK_KEYWORD))) {
-                *attr += EXTERN;
+                attr->storage += EXTERN;
             }
 
-            switch (*attr) {
+            switch (attr->storage) {
             case TYPEDEF:
             case STATIC:
             case EXTERN:
@@ -1016,6 +1059,24 @@ static PseudoType *declspec(VarAttr *attr) {
                 error_tok(tok,
                           "記憶クラス指定子を複数指定することはできません");
             }
+        }
+
+        if (kind == ALIGNMENT_SPEC) {
+            if (!attr) {
+                error_tok(token, "ここで_Alignasを使うことはできません");
+            }
+
+            tok = consume("_Alignas", TK_KEYWORD);
+            expect("(");
+
+            attr->align = is_typename() ? expand_pseudo(declspec(NULL))->align
+                                        : (int)calc_const_expr(assign(), NULL);
+            if (!is_pow2(attr->align)) {
+                error_tok(tok, "アライメントが2のべき乗ではありません");
+            }
+
+            expect(")");
+            continue;
         }
 
         Type *ty2;
@@ -1643,7 +1704,7 @@ static Node *declaration() {
     Node head = {};
     Node *cur = &head;
 
-    VarAttr attr = NOATTR;
+    VarAttr attr = {};
     PseudoType *basety = declspec(&attr);
 
     for (int i = 0; !equal(";", TK_RESERVED, token); i++) {
@@ -1654,12 +1715,12 @@ static Node *declaration() {
         TypeIdentPair *pair = declarator(basety);
         Type *ty = expand_pseudo(pair->pty);
 
-        if (!(attr & TYPEDEF) && ty->kind == TY_VOID) {
+        if (!(attr.storage & TYPEDEF) && ty->kind == TY_VOID) {
             error_tok(pair->ident, "void型の変数を宣言することはできません");
         }
 
         // typedef
-        if (attr & TYPEDEF) {
+        if (attr.storage & TYPEDEF) {
             Type *td = typedef_of((Type *)pair->pty, pair->ident);
             push_typedef_into_var_scope(td->name, td);
             continue;
@@ -1668,14 +1729,14 @@ static Node *declaration() {
         // 関数
         if (is_any_type_of(ty, 1, TY_FUNC)) {
             Obj *fn = function(pair->pty, pair->ident);
-            fn->is_static = attr & STATIC;
+            fn->is_static = attr.storage & STATIC;
             return NULL;
         }
 
         // 変数
         Obj *var;
         if (scope->parent) {
-            if (attr & STATIC) {
+            if (attr.storage & STATIC) {
                 static int static_count = 0;
                 char *name = get_ident(pair->ident);
                 char *unique_name =
@@ -1705,14 +1766,18 @@ static Node *declaration() {
             }
         } else {
             var = new_gvar(pair->ident, get_ident(pair->ident), ty);
-            var->is_static = attr & STATIC;
-            var->has_definition = !(attr & EXTERN);
+            var->is_static = attr.storage & STATIC;
+            var->has_definition = !(attr.storage & EXTERN);
             if (consume("=", TK_RESERVED)) {
                 gvar_initializer(var);
             }
 
             var->pty =
                 var->ty->kind == TY_ARY ? (PseudoType *)var->ty : pair->pty;
+        }
+
+        if (attr.align) {
+            var->align = attr.align;
         }
     }
 
