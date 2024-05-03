@@ -96,7 +96,7 @@ int main() {
 #define M1 3
     assert(3, M1, "M1");
 #define M1 3 + 4 +
-    assert(12, M1 5, "5");
+    assert(12, M1 5, "M1 5");
 
 #define M2() 1
     assert(1, M2(), "M2()");
@@ -221,6 +221,18 @@ int main() {
     assert(4, x, "x");
 
     assert(1, __STDC__, "__STDC__");
+
+    int M11 = 6;
+#define M11 M11 + 3
+    assert(9, M11, "M11");
+
+#define M12 M11 + 3
+    assert(12, M12, "M12");
+
+    int M13 = 3;
+#define M13 M14 * 5
+#define M14 M13 + 2
+    assert(13, M13, "M13");
 
     return 0;
 }

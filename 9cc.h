@@ -45,6 +45,7 @@ void vector_push(Vector vec, void *val);
 void *vector_get(Vector vec, int idx);
 int vector_size(Vector vec);
 
+typedef struct Hideset Hideset;
 typedef struct Token Token;
 typedef struct Obj Obj;
 typedef struct Node Node;
@@ -108,10 +109,10 @@ typedef struct {
 } File;
 
 void error(char *fmt, ...);
-
 void error_at(File *file, char *loc, char *fmt, ...);
-
 void error_tok(Token *tok, char *fmt, ...);
+
+char *get_str(Token *tok);
 
 // トークンの種類
 typedef enum {
@@ -125,19 +126,20 @@ typedef enum {
 
 // トークン型
 struct Token {
-    TokenKind kind; // トークンの種類
-    Token *next;    // 次の入力トークン
-    int64_t ival;   // kindがTK_NUMの場合、整数
-    double fval;    // kindがTK_NUMの場合、浮動小数点数
-    Type *val_ty;   // kindがTK_NUMの場合、その型
-    char *loc;      // 入力プログラム中での位置
-    char *str;      // 文字列リテラル
-    int len;        // トークンの長さ
-    File *file;     // トークンが含まれるファイル
-    int line_no;    // 行番号
-    int column_no;  // 列番号
-    bool at_bol;    // 行頭かどうか
-    bool has_space; // トークンの前に空白があるかどうか
+    TokenKind kind;   // トークンの種類
+    Token *next;      // 次の入力トークン
+    int64_t ival;     // kindがTK_NUMの場合、整数
+    double fval;      // kindがTK_NUMの場合、浮動小数点数
+    Type *val_ty;     // kindがTK_NUMの場合、その型
+    char *loc;        // 入力プログラム中での位置
+    char *str;        // 文字列リテラル
+    int len;          // トークンの長さ
+    File *file;       // トークンが含まれるファイル
+    int line_no;      // 行番号
+    int column_no;    // 列番号
+    bool at_bol;      // 行頭かどうか
+    bool has_space;   // トークンの前に空白があるかどうか
+    Hideset *hideset; // マクロ展開時に使われる
 };
 
 extern File **input_files;

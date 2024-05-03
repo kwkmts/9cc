@@ -31,6 +31,37 @@ struct MacroParam {
     MacroParam *next;
 };
 
+struct Hideset {
+    Hideset *next;
+    char *name;
+};
+
+static Hideset *hideset_new(char *name) {
+    Hideset *hs = calloc(1, sizeof(Hideset));
+    hs->name = name;
+    return hs;
+}
+
+static Hideset *hideset_union(Hideset *hs1, Hideset *hs2) {
+    Hideset head = {};
+    Hideset *cur = &head;
+
+    for (Hideset *h = hs1; h; h = h->next) {
+        cur = cur->next = hideset_new(h->name);
+    }
+    cur->next = hs2;
+    return head.next;
+}
+
+static bool hideset_contains(Hideset *hs, char *s, int len) {
+    for (Hideset *h = hs; h; h = h->next) {
+        if (strlen(h->name) == len && !strncmp(h->name, s, len)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static Token *consume(char *op, TokenKind kind) {
     if (!equal(op, kind, token)) {
         return false;
@@ -427,11 +458,17 @@ static Token *subst(Token *tok, List args, MacroParam *params) {
     return head.next;
 }
 
-static bool expand_macro(Token **tok) {
+static bool expand_macro() {
+    if (hideset_contains(token->hideset, token->loc, token->len)) {
+        return false;
+    }
+
     Macro *m = find_macro(token);
     if (!m) {
         return false;
     }
+
+    Hideset *hs = hideset_union(token->hideset, hideset_new(get_str(token)));
 
     // 一旦`#define M xxx`のxxxのトークンを複製しTokenリスト`replace`に保存する
     Token *replace;
@@ -440,6 +477,7 @@ static bool expand_macro(Token **tok) {
         Token *cur = &head;
         for (Token *t = m->body; !t->at_bol && !at_eof(t); t = t->next) {
             cur = cur->next = copy_token(t);
+            cur->hideset = hideset_union(cur->hideset, hs);
         }
         cur->next = eof_token;
         replace = head.next;
@@ -458,9 +496,7 @@ static bool expand_macro(Token **tok) {
         expect(")");
     }
 
-    for (Token *t = replace; !at_eof(t); t = t->next) {
-        *tok = (*tok)->next = t;
-    }
+    token = append(replace, token);
 
     return true;
 }
@@ -515,7 +551,7 @@ Token *preprocess2() {
     while (!at_eof(token)) {
         Token *tok;
 
-        if (expand_macro(&cur)) {
+        if (expand_macro()) {
             continue;
         }
 

@@ -151,7 +151,7 @@ static char *get_ident(Token *tok) {
     if (tok->kind != TK_IDENT) {
         error_tok(tok, "識別子ではありません");
     }
-    return strndup(tok->loc, tok->len);
+    return get_str(tok);
 }
 
 bool at_eof(Token *tok) { return tok->kind == TK_EOF; }

@@ -101,6 +101,8 @@ Token *copy_token(Token *tok) {
     return ret;
 }
 
+char *get_str(Token *tok) { return strndup(tok->loc, tok->len); }
+
 static bool startswith(char *p, char *q) {
     return memcmp(p, q, strlen(q)) == 0;
 }
