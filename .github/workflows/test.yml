@@ -4,15 +4,19 @@ on:
   push:
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - name: Run test.
+    - name: Run test
       run: make test-all
-    - name: Run error test.
+
+    - name: Run error test
+      if: always()
       run: make err-test-all
-    - name: Run driver test.
+
+    - name: Run driver test
+      if: always()
       run: make driver-test
