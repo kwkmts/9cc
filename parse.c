@@ -1433,8 +1433,9 @@ static Obj *function(PseudoType *pty, Token *tok) {
     }
 
     if (fn->ty->is_variadic) {
-        fn->reg_save_area = new_lvar(NULL, "", array_of(ty_char, 176));
-        fn->reg_save_area->ty->align = 16;
+        Type *ty = array_of(ty_char, 176);
+        ty->align = 16;
+        fn->reg_save_area = new_lvar(NULL, "", ty);
     }
 
     fn->lbrace = expect("{");
