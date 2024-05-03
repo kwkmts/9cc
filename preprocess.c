@@ -193,12 +193,18 @@ static Token *copy_line(Token *tok) {
     return head.next;
 }
 
+static bool expand_macro(Token **tok);
+
 static int64_t calc_const_expr_token(Token *tok) {
     tok = copy_line(tok);
 
     Token head = {};
     Token *cur = &head;
-    for (Token *t = tok; !at_eof(t); t = t->next) {
+    for (Token *t = tok; !at_eof(t);) {
+        if (expand_macro(&t)) {
+            continue;
+        }
+
         if (equal("defined", TK_IDENT, t)) {
             Token *start = t;
             t = t->next;
@@ -217,17 +223,19 @@ static int64_t calc_const_expr_token(Token *tok) {
                 }
             }
 
-            Token *replace = tokenize(new_file(start->file->name, m ? "1" : "0",
-                                               start->file->number));
-            cur = cur->next = replace;
-            continue;
+            cur = cur->next = tokenize(new_file(
+                start->file->name, m ? "1" : "0", start->file->number));
+        } else {
+            cur = cur->next =
+                t->kind == TK_IDENT
+                    ? tokenize(new_file(t->file->name, "0", t->file->number))
+                    : t;
         }
 
-        cur = cur->next = t;
+        t = t->next;
     }
 
-    tok = head.next;
-    set_token_to_parse(tok);
+    set_token_to_parse(head.next);
     Node *node = conditional();
     return calc_const_expr(node, &(char *){NULL} /* dummy */);
 }
@@ -458,17 +466,17 @@ static Token *subst(Token *tok, List args, MacroParam *params) {
     return head.next;
 }
 
-static bool expand_macro() {
-    if (hideset_contains(token->hideset, token->loc, token->len)) {
+static bool expand_macro(Token **tok) {
+    if (hideset_contains((*tok)->hideset, (*tok)->loc, (*tok)->len)) {
         return false;
     }
 
-    Macro *m = find_macro(token);
+    Macro *m = find_macro(*tok);
     if (!m) {
         return false;
     }
 
-    Hideset *hs = hideset_union(token->hideset, hideset_new(get_str(token)));
+    Hideset *hs = hideset_union((*tok)->hideset, hideset_new(get_str(*tok)));
 
     // 一旦`#define M xxx`のxxxのトークンを複製しTokenリスト`replace`に保存する
     Token *replace;
@@ -483,7 +491,7 @@ static bool expand_macro() {
         replace = head.next;
     }
 
-    token = token->next;
+    *tok = (*tok)->next;
 
     if (m->kind == FUNCLIKE && !consume("(", TK_RESERVED)) {
         return false;
@@ -496,7 +504,7 @@ static bool expand_macro() {
         expect(")");
     }
 
-    token = append(replace, token);
+    *tok = append(replace, *tok);
 
     return true;
 }
@@ -551,7 +559,7 @@ Token *preprocess2() {
     while (!at_eof(token)) {
         Token *tok;
 
-        if (expand_macro()) {
+        if (expand_macro(&token)) {
             continue;
         }
 

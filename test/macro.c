@@ -234,5 +234,20 @@ int main() {
 #define M14 M13 + 2
     assert(13, M13, "M13");
 
+#define M15 1
+#if M15
+    x = 5;
+#else
+    x = 6;
+#endif
+    assert(5, x, "x");
+
+#if no_such_symbol == 0
+    x = 7;
+#else
+    x = 8;
+#endif
+    assert(7, x, "x");
+
     return 0;
 }
