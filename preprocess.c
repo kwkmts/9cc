@@ -250,6 +250,30 @@ static CondIncl *push_cond_incl(Token *tok, bool included) {
     return ci;
 }
 
+static Token *skip_cond_incl2() {
+    while (!at_eof(token)) {
+        if (equal("#", TK_RESERVED, token) &&
+            equal("endif", TK_IDENT, token->next)) {
+            return token;
+        }
+
+        if (equal("#", TK_RESERVED, token) &&
+            (equal("if", TK_IDENT, token->next) ||
+             equal("ifdef", TK_IDENT, token->next) ||
+             equal("ifndef", TK_IDENT, token->next))) {
+            token = token->next->next;
+            token = skip_cond_incl2();
+            if (!at_eof(token)) {
+                token = token->next;
+            }
+            continue;
+        }
+
+        token = token->next;
+    }
+    return token;
+}
+
 static Token *skip_cond_incl() {
     while (!at_eof(token)) {
         if (equal("#", TK_RESERVED, token) &&
@@ -264,7 +288,7 @@ static Token *skip_cond_incl() {
              equal("ifdef", TK_IDENT, token->next) ||
              equal("ifndef", TK_IDENT, token->next))) {
             token = token->next->next;
-            token = skip_cond_incl();
+            token = skip_cond_incl2();
             if (!at_eof(token)) {
                 token = token->next;
             }

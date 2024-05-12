@@ -32,6 +32,16 @@ int main() {
 #endif
     assert(1, x, "x");
 
+    x = 0;
+#if 0
+#if 0
+#elif 1
+#else
+#endif
+    x = 1;
+#endif
+    assert(0, x, "x");
+
 #if 1
     x = 4;
 #else
