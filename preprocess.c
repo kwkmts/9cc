@@ -24,6 +24,7 @@ typedef struct {
     enum { OBJLIKE, FUNCLIKE } kind;
     Token *body;
     MacroParam *params;
+    bool is_variadic;
 } Macro;
 
 struct MacroParam {
@@ -300,13 +301,25 @@ static Token *skip_cond_incl() {
     return token;
 }
 
-static MacroParam *read_params() {
+static MacroParam *read_params(bool *is_variadic) {
     MacroParam head = {};
     MacroParam *cur = &head;
 
     while (!consume(")", TK_RESERVED)) {
         if (cur != &head) {
             expect(",");
+        }
+
+        if (equal("...", TK_RESERVED, token)) {
+            token = token->next;
+            expect(")");
+            *is_variadic = true;
+
+            MacroParam *param = calloc(1, sizeof(MacroParam));
+            param->name = tokenize(new_file(token->file->name, "__VA_ARGS__",
+                                            token->file->number));
+            cur->next = param;
+            break;
         }
 
         MacroParam *param = calloc(1, sizeof(MacroParam));
@@ -317,7 +330,7 @@ static MacroParam *read_params() {
     return head.next;
 }
 
-static Token *read_arg() {
+static Token *read_arg(bool read_rest) {
     Token head = {};
     Token *cur = &head;
     int depth = 0;
@@ -332,7 +345,7 @@ static Token *read_arg() {
             }
             depth--;
         }
-        if (equal(",", TK_RESERVED, token) && depth == 0) {
+        if (equal(",", TK_RESERVED, token) && depth == 0 && !read_rest) {
             break;
         }
         cur = cur->next = copy_token(token);
@@ -399,15 +412,25 @@ static Token *stringize(Token *hash, Token *arg) {
     return tokenize(new_file(hash->file->name, buf2, hash->file->number));
 }
 
-static List collect_args(MacroParam *params) {
+static List collect_args(Macro *m) {
     List args = list_new();
-    if (params) {
-        for (MacroParam *param = params; param; param = param->next) {
-            if (param != params) {
+    if (m->params) {
+        for (MacroParam *param = m->params; param; param = param->next) {
+            if (equal("__VA_ARGS__", TK_IDENT, param->name)) {
+                break;
+            }
+
+            if (param != m->params) {
                 expect(",");
             }
 
-            Token *arg = read_arg();
+            Token *arg = read_arg(false);
+            list_push_back(args, arg);
+        }
+
+        if (m->is_variadic) {
+            consume(",", TK_RESERVED);
+            Token *arg = read_arg(true);
             list_push_back(args, arg);
         }
     }
@@ -521,7 +544,7 @@ static bool expand_macro(Token **tok) {
         return false;
     }
 
-    List args = collect_args(m->params);
+    List args = collect_args(m);
     replace = subst(replace, args, m->params);
 
     if (m->kind == FUNCLIKE) {
@@ -673,12 +696,13 @@ Token *preprocess2() {
 
         if (consume("define", TK_IDENT)) {
             bool is_objlike = true;
+            bool is_variadic = false;
             Token *name = token;
             MacroParam *params = NULL;
 
             token = token->next;
             if (consume("(", TK_RESERVED)) {
-                params = read_params();
+                params = read_params(&is_variadic);
                 is_objlike = false;
             }
 
@@ -691,6 +715,7 @@ Token *preprocess2() {
             m->kind = is_objlike ? OBJLIKE : FUNCLIKE;
             m->body = body;
             m->params = params;
+            m->is_variadic = is_variadic;
             add_macro(name, m);
             continue;
         }

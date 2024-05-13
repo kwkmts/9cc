@@ -9,6 +9,14 @@ int strcmp(const char *, const char *);
 #
 /**/ #
 
+int add2(int x, int y) {
+    return x + y;
+}
+
+int add6(int a, int b, int c, int d, int e, int f) {
+    return a + b + c + d + e + f;
+}
+
 int main() {
     assert(5, include1, "include1");
     assert(7, include2, "include2");
@@ -258,6 +266,25 @@ int main() {
     x = 8;
 #endif
     assert(7, x, "x");
+
+#define M16(...) 3
+    assert(3, M16(), "M16()");
+
+#define M16(...) __VA_ARGS__
+    assert(2, M16() 2, "M16() 2");
+    assert(5, M16(5), "M16(5)");
+
+#define M16(...) add2(__VA_ARGS__)
+    assert(8, M16(2, 6), "M16(2, 6)");
+
+#define M16(...) add6(1,2,__VA_ARGS__,6)
+    assert(21, M16(3,4,5), "M16(3,4,5)");
+
+#define M16(x, ...) add6(1,2,x,__VA_ARGS__,6)
+    assert(21, M16(3,4,5), "M16(3,4,5)");
+
+#define M16(x, ...) x
+    assert(5, M16(5), "M16(5)");
 
     return 0;
 }
