@@ -286,5 +286,9 @@ int main() {
 #define M16(x, ...) x
     assert(5, M16(5), "M16(5)");
 
+#define CONCAT(x,y) x##y
+    assert(5, ({ int f0zz=5; CONCAT(f,0zz); }), "({ int f0zz=5; CONCAT(f,0zz); })");
+    assert(5, ({ CONCAT(4,.57) + 0.5; }), "({ CONCAT(4,.57) + 0.5; })");
+
     return 0;
 }

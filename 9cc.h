@@ -119,6 +119,7 @@ typedef enum {
     TK_RESERVED, // 記号
     TK_IDENT,    // 識別子
     TK_NUM,      // 整数
+    TK_PPNUM,    // プリプロセスでTK_NUMに変換される
     TK_STR,      // 文字列リテラル
     TK_KEYWORD,  // 予約語
     TK_EOF,      // 入力の終わり
@@ -144,6 +145,7 @@ struct Token {
 
 extern File **input_files;
 Token *copy_token(Token *tok);
+void convert_numbers(Token *tok);
 void convert_keywords(Token *tok);
 File *new_file(char *name, char *content, int number);
 Token *tokenize(File *file);

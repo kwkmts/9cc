@@ -143,6 +143,17 @@ static bool is_keyword(Token *tok) {
     return false;
 }
 
+static void read_num_literal(Token *tok);
+
+void convert_numbers(Token *tok) {
+    for (Token *t = tok; !at_eof(t); t = t->next) {
+        if (t->kind == TK_PPNUM) {
+            read_num_literal(t);
+            t->kind = TK_NUM;
+        }
+    }
+}
+
 void convert_keywords(Token *tok) {
     for (Token *t = tok; !at_eof(t); t = t->next) {
         if (is_keyword(t)) {
@@ -212,32 +223,32 @@ static char read_char(char **p) {
     }
 }
 
-static Type *read_int_suffix(char **p, int64_t val, int base) {
-    char *start = *p;
+static Type *read_int_suffix(char *p, int64_t val, int base, File *file) {
+    char *start = p;
     bool is_long = false;
     bool is_unsigned = false;
 
     for (;;) {
         if (!is_long) {
-            if (strncmp(*p, "LL", 2) == 0 || strncmp(*p, "ll", 2) == 0) {
-                (*p) += 2;
+            if (strncmp(p, "LL", 2) == 0 || strncmp(p, "ll", 2) == 0) {
+                p += 2;
                 is_long = true;
                 continue;
-            } else if (strncasecmp(*p, "L", 1) == 0) {
-                (*p)++;
+            } else if (strncasecmp(p, "L", 1) == 0) {
+                p++;
                 is_long = true;
                 continue;
             }
         }
 
-        if (!is_unsigned && strncasecmp(*p, "U", 1) == 0) {
-            (*p)++;
+        if (!is_unsigned && strncasecmp(p, "U", 1) == 0) {
+            p++;
             is_unsigned = true;
             continue;
         }
 
-        if (is_alnum(**p)) {
-            error_at(cur_file, start, "不正なサフィックスです");
+        if (is_alnum(*p)) {
+            error_at(file, start, "不正なサフィックスです");
         }
 
         break;
@@ -270,40 +281,42 @@ static Type *read_int_suffix(char **p, int64_t val, int base) {
     }
 }
 
-static Type *read_float_suffix(char **p) {
-    char *start = *p;
+static Type *read_float_suffix(char *p, File *file) {
+    char *start = p;
     Type *ty;
-    if (strncasecmp(*p, "f", 1) == 0) {
-        (*p)++;
+    if (strncasecmp(p, "f", 1) == 0) {
+        p++;
         ty = ty_float;
-    } else if (strncasecmp(*p, "l", 1) == 0) {
-        (*p)++;
+    } else if (strncasecmp(p, "l", 1) == 0) {
+        p++;
         ty = ty_double;
     } else {
         ty = ty_double;
     }
 
-    if (is_alnum(**p)) {
-        error_at(cur_file, start, "不正なサフィックスです");
+    if (is_alnum(*p)) {
+        error_at(file, start, "不正なサフィックスです");
     }
 
     return ty;
 }
 
-static void read_num_literal(char **p, Token **tok) {
+static void read_num_literal(Token *tok) {
+    char *p = tok->loc;
+
     int base;
-    if (strncasecmp(*p, "0x", 2) == 0 && is_alnum((*p)[2])) {
-        *p += 2;
+    if (strncasecmp(p, "0x", 2) == 0 && is_alnum(p[2])) {
+        p += 2;
         base = 16;
-    } else if (**p == '0') {
+    } else if (*p == '0') {
         base = 8;
     } else {
         base = 10;
     }
 
-    char *start = *p;
-    int64_t i = (int64_t)strtoul(*p, p, base);
-    if (**p == '.') {
+    char *start = p;
+    int64_t i = (int64_t)strtoul(p, &p, base);
+    if (*p == '.') {
         // ピリオドを読んだなら数値リテラルの最初の'0'は8進数の'0'ではなく
         // 浮動小数点数リテラルの一部としての'0'
         if (base == 8) {
@@ -311,20 +324,20 @@ static void read_num_literal(char **p, Token **tok) {
         }
 
         if (base != 10) {
-            error_at(cur_file, start,
+            error_at(tok->file, start,
                      "浮動小数点数で10進数以外の表記はできません");
         }
 
-        *p = start;
-        (*tok)->fval = strtod(*p, p);
-        if (**p == '.') {
-            error_at(cur_file, *p, "小数点が多すぎます");
+        p = start;
+        tok->fval = strtod(p, &p);
+        if (*p == '.') {
+            error_at(tok->file, p, "小数点が多すぎます");
         }
 
-        (*tok)->val_ty = read_float_suffix(p);
+        tok->val_ty = read_float_suffix(p, tok->file);
     } else {
-        (*tok)->ival = i;
-        (*tok)->val_ty = read_int_suffix(p, (*tok)->ival, base);
+        tok->ival = i;
+        tok->val_ty = read_int_suffix(p, tok->ival, base, tok->file);
     }
 }
 
@@ -389,10 +402,16 @@ Token *tokenize(File *file) {
 
         // 数値リテラル
         if (isdigit(*p) || (*p == '.' && isdigit(p[1]))) {
-            char *start = p;
-            cur = cur->next = new_token(TK_NUM, p, 0);
-            read_num_literal(&p, &cur);
-            cur->len = (int)(p - start);
+            char *start = p++;
+            for (;;) {
+                if (is_alnum(*p) || *p == '.') {
+                    p++;
+                    continue;
+                }
+                break;
+            }
+
+            cur = cur->next = new_token(TK_PPNUM, start, (int)(p - start));
             continue;
         }
 

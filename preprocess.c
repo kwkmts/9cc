@@ -235,7 +235,9 @@ static int64_t calc_const_expr_token(Token *tok) {
 
         t = t->next;
     }
+    cur->next = eof_token;
 
+    convert_numbers(head.next);
     set_token_to_parse(head.next);
     Node *node = conditional();
     return calc_const_expr(node, &(char *){NULL} /* dummy */);
@@ -751,6 +753,7 @@ Token *preprocess(Token *tok) {
         error_tok(cond_incl->tok, "対応する#endifがありません");
     }
 
+    convert_numbers(tok);
     convert_keywords(tok);
     return tok;
 }
