@@ -133,5 +133,9 @@ int main() {
     ASSERT(8, sizeof(5.l));
     ASSERT(8, sizeof(2.0L));
 
+    ASSERT(300000000, (int)3e+8);
+    ASSERT(16, (int)0x10.1p0);
+    ASSERT(1000, (int).1E4f);
+
     return 0;
 }

@@ -314,22 +314,9 @@ static void read_num_literal(Token *tok) {
         base = 10;
     }
 
-    char *start = p;
     int64_t i = (int64_t)strtoul(p, &p, base);
-    if (*p == '.') {
-        // ピリオドを読んだなら数値リテラルの最初の'0'は8進数の'0'ではなく
-        // 浮動小数点数リテラルの一部としての'0'
-        if (base == 8) {
-            base = 10;
-        }
-
-        if (base != 10) {
-            error_at(tok->file, start,
-                     "浮動小数点数で10進数以外の表記はできません");
-        }
-
-        p = start;
-        tok->fval = strtod(p, &p);
+    if (*p && (*p == '.' || strchr("eEpP", *p))) {
+        tok->fval = strtod(tok->loc, &p);
         if (*p == '.') {
             error_at(tok->file, p, "小数点が多すぎます");
         }
@@ -404,6 +391,11 @@ Token *tokenize(File *file) {
         if (isdigit(*p) || (*p == '.' && isdigit(p[1]))) {
             char *start = p++;
             for (;;) {
+                if (p[0] && p[1] && strchr("eEpP", p[0]) &&
+                    strchr("+-", p[1])) {
+                    p += 2;
+                    continue;
+                }
                 if (is_alnum(*p) || *p == '.') {
                     p++;
                     continue;
