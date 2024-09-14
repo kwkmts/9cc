@@ -1,4 +1,6 @@
 #include "test.h"
+#include <stdarg.h>
+#include <stdbool.h>
 
 int ret3(){ return 3; }
 int ret5(){ return 5; }
@@ -26,39 +28,39 @@ char int_to_char(int x) { return x; }
 int div_long(long a, long b) {
     return a / b;
 }
-_Bool bool_fn_add(_Bool x) { return x + 1; }
-_Bool bool_fn_sub(_Bool x) { return x - 1; }
+bool bool_fn_add(bool x) { return x + 1; }
+bool bool_fn_sub(bool x) { return x - 1; }
 int (*ret_fnptr(int (*fn)(int,int)))(int,int) { return fn; }
 int param_decay(int x()) { return x(); }
 int param_decay2(int x[]) { return x[0]; }
 int add_all(int n, ...);
 void fmt(char *buf, char *fmt, ...) {
-    __builtin_va_list ap;
-    __builtin_va_start(ap, fmt);
+    va_list ap;
+    va_start(ap, fmt);
 
-    __builtin_va_list ap2;
-    __builtin_va_copy(ap2, ap);
+    va_list ap2;
+    va_copy(ap2, ap);
     vsprintf(buf, fmt, ap2);
-    __builtin_va_end(ap);
-    __builtin_va_end(ap2);
+    va_end(ap);
+    va_end(ap2);
 }
 int sum1(int x, ...) {
-    __builtin_va_list ap;
-    __builtin_va_start(ap, x);
+    va_list ap;
+    va_start(ap, x);
 
     for (;;) {
-        int y = __builtin_va_arg(ap, int);
+        int y = va_arg(ap, int);
         if (y == 0)
             return x;
         x += y;
     }
 }
 int sum2(double x, ...) {
-    __builtin_va_list ap;
-    __builtin_va_start(ap, x);
+    va_list ap;
+    va_start(ap, x);
 
     for (;;) {
-        double y = __builtin_va_arg(ap, double);
+        double y = va_arg(ap, double);
         if (y == 0)
             return x;
         x += y;
@@ -102,10 +104,10 @@ double add_selected(int a, int b, int c, int d, int e, int f, int g, int h,
                     int i, int j, ...) {
     int arr[] = {a, b, c, d, e, f, g, h, i, j};
     int sum = 0;
-    __builtin_va_list ap;
-    __builtin_va_start(ap, j);
+    va_list ap;
+    va_start(ap, j);
     for (;;) {
-        int y = __builtin_va_arg(ap, int);
+        int y = va_arg(ap, int);
         if (y < 0)
             return sum;
         if (y < 10)

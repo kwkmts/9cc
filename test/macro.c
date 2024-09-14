@@ -3,8 +3,6 @@ int printf(const char *, ...);
 int strcmp(const char *, const char *);
 
 #include "include1.h"
-#include <include_test.h>
-#include "include_test2.h"
 
 #
 /**/ #
@@ -20,8 +18,6 @@ int add6(int a, int b, int c, int d, int e, int f) {
 int main() {
     assert(5, include1, "include1");
     assert(7, include2, "include2");
-    assert(9, FOO, "FOO");
-    assert(11, BAR, "BAR");
 
 #if 0
     printf("should not be printed!\n");

@@ -10,10 +10,10 @@ void set_token_to_parse(Token *tok) { token = tok; }
 Obj locals = (Obj){};
 Obj globals = (Obj){};
 Obj functions = (Obj){};
-Obj *cur_fn;         // 現在パース中の関数
-static Node *gotos;  // 現在の関数内におけるgoto文のリスト
-static Node *labels; // 現在の関数内におけるラベルのリスト
-static int cur_brk_label_id; // 現在のbreak文のジャンプ先ラベルID
+Obj *cur_fn;                  // 現在パース中の関数
+static Node *gotos;           // 現在の関数内におけるgoto文のリスト
+static Node *labels;          // 現在の関数内におけるラベルのリスト
+static int cur_brk_label_id;  // 現在のbreak文のジャンプ先ラベルID
 static int cur_cont_label_id; // 現在のcontinue文のジャンプ先ラベルID
 static Node *cur_switch;      // 現在パース中のswitch文ノード
 
@@ -929,7 +929,8 @@ static bool is_storage_class_spec() {
 }
 
 static bool is_type_qualifier() {
-    static char *kw[] = {"const", "volatile", "restrict"};
+    static char *kw[] = {"const", "volatile", "restrict", "__restrict",
+                         "__restrict__"};
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
         if (equal(kw[i], TK_KEYWORD, token)) {
             return true;
@@ -1029,8 +1030,10 @@ static PseudoType *declspec(VarAttr *attr) {
                 is_volatile = true;
                 continue;
             }
-            if ((tok = consume("restrict", TK_KEYWORD))) {
-                error_tok(tok, "ここでrestrictを使うことはできません");
+            if (equal("restrict", TK_KEYWORD, token) ||
+                equal("__restrict", TK_KEYWORD, token) ||
+                equal("__restrict__", TK_KEYWORD, token)) {
+                error_tok(token, "ここでrestrictを使うことはできません");
             }
         }
 
@@ -1282,7 +1285,8 @@ static PseudoType *type_suffix(PseudoType *pty) {
     return pty;
 }
 
-// pointers = ("*" ("const" | "volatile" | "restrict")*)*
+// pointers = ("*" ("const" | "volatile"
+//                  | "restrict" | "__restrict" | "__restrict__")*)*
 static PseudoType *pointers(PseudoType *pty) {
     Type *ty = (Type *)pty;
 
@@ -1307,10 +1311,13 @@ static PseudoType *pointers(PseudoType *pty) {
                 is_volatile = true;
                 continue;
             }
-            if ((tok = consume("restrict", TK_KEYWORD))) {
+            if (equal("restrict", TK_KEYWORD, token) ||
+                equal("__restrict", TK_KEYWORD, token) ||
+                equal("__restrict__", TK_KEYWORD, token)) {
                 if (is_restrict) {
-                    error_tok(tok, "restrictを複数指定することはできません");
+                    error_tok(token, "restrictを複数指定することはできません");
                 }
+                token = token->next;
                 is_restrict = true;
                 continue;
             }

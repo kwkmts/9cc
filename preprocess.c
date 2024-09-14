@@ -63,13 +63,13 @@ static bool hideset_contains(Hideset *hs, char *s, int len) {
     return false;
 }
 
-static Token *consume(char *op, TokenKind kind) {
-    if (!equal(op, kind, token)) {
+static Token *consume(char *op, TokenKind kind, Token **tok) {
+    if (!equal(op, kind, *tok)) {
         return false;
     }
-    Token *tok = token;
-    token = token->next;
-    return tok;
+    Token *ret = *tok;
+    *tok = (*tok)->next;
+    return ret;
 }
 
 static bool consume_hash() {
@@ -80,20 +80,20 @@ static bool consume_hash() {
     return true;
 }
 
-static void expect(char *op) {
-    if (!equal(op, TK_RESERVED, token)) {
-        error_tok(token, "'%s'ではありません", op);
+static void expect(char *op, Token **tok) {
+    if (!equal(op, TK_RESERVED, *tok)) {
+        error_tok(*tok, "'%s'ではありません", op);
     }
-    token = token->next;
+    *tok = (*tok)->next;
 }
 
-static Token *expect_ident() {
-    if (token->kind != TK_IDENT) {
-        error_tok(token, "識別子ではありません");
+static Token *expect_ident(Token **tok) {
+    if ((*tok)->kind != TK_IDENT) {
+        error_tok(*tok, "識別子ではありません");
     }
-    Token *tok = token;
-    token = token->next;
-    return tok;
+    Token *ret = *tok;
+    *tok = (*tok)->next;
+    return ret;
 }
 
 static Macro *find_macro(Token *tok) {
@@ -116,7 +116,7 @@ char *search_include_paths(char *filename) {
 
 static char *read_include_filename(char **filename) {
     Token *tok;
-    if ((tok = consume("<", TK_RESERVED))) {
+    if ((tok = consume("<", TK_RESERVED, &token))) {
         int len = 1;
         for (; !equal(">", TK_RESERVED, token); token = token->next) {
             len += token->len;
@@ -307,14 +307,14 @@ static MacroParam *read_params(bool *is_variadic) {
     MacroParam head = {};
     MacroParam *cur = &head;
 
-    while (!consume(")", TK_RESERVED)) {
+    while (!consume(")", TK_RESERVED, &token)) {
         if (cur != &head) {
-            expect(",");
+            expect(",", &token);
         }
 
         if (equal("...", TK_RESERVED, token)) {
             token = token->next;
-            expect(")");
+            expect(")", &token);
             *is_variadic = true;
 
             MacroParam *param = calloc(1, sizeof(MacroParam));
@@ -325,33 +325,33 @@ static MacroParam *read_params(bool *is_variadic) {
         }
 
         MacroParam *param = calloc(1, sizeof(MacroParam));
-        param->name = expect_ident();
+        param->name = expect_ident(&token);
         cur = cur->next = param;
     }
 
     return head.next;
 }
 
-static Token *read_arg(bool read_rest) {
+static Token *read_arg(bool read_rest, Token **tok) {
     Token head = {};
     Token *cur = &head;
     int depth = 0;
 
-    while (!at_eof(token)) {
-        if (equal("(", TK_RESERVED, token)) {
+    while (!at_eof(*tok)) {
+        if (equal("(", TK_RESERVED, *tok)) {
             depth++;
         }
-        if (equal(")", TK_RESERVED, token)) {
+        if (equal(")", TK_RESERVED, *tok)) {
             if (depth == 0) {
                 break;
             }
             depth--;
         }
-        if (equal(",", TK_RESERVED, token) && depth == 0 && !read_rest) {
+        if (equal(",", TK_RESERVED, *tok) && depth == 0 && !read_rest) {
             break;
         }
-        cur = cur->next = copy_token(token);
-        token = token->next;
+        cur = cur->next = copy_token(*tok);
+        *tok = (*tok)->next;
     }
 
     cur->next = eof_token;
@@ -414,7 +414,7 @@ static Token *stringize(Token *hash, Token *arg) {
     return tokenize(new_file(hash->file->name, buf2, hash->file->number));
 }
 
-static List collect_args(Macro *m) {
+static List collect_args(Macro *m, Token **tok) {
     List args = list_new();
     if (m->params) {
         for (MacroParam *param = m->params; param; param = param->next) {
@@ -423,16 +423,16 @@ static List collect_args(Macro *m) {
             }
 
             if (param != m->params) {
-                expect(",");
+                expect(",", tok);
             }
 
-            Token *arg = read_arg(false);
+            Token *arg = read_arg(false, tok);
             list_push_back(args, arg);
         }
 
         if (m->is_variadic) {
-            consume(",", TK_RESERVED);
-            Token *arg = read_arg(true);
+            consume(",", TK_RESERVED, tok);
+            Token *arg = read_arg(true, tok);
             list_push_back(args, arg);
         }
     }
@@ -542,15 +542,15 @@ static bool expand_macro(Token **tok) {
 
     *tok = (*tok)->next;
 
-    if (m->kind == FUNCLIKE && !consume("(", TK_RESERVED)) {
+    if (m->kind == FUNCLIKE && !consume("(", TK_RESERVED, tok)) {
         return false;
     }
 
-    List args = collect_args(m);
+    List args = collect_args(m, tok);
     replace = subst(replace, args, m->params);
 
     if (m->kind == FUNCLIKE) {
-        expect(")");
+        expect(")", tok);
     }
 
     *tok = append(replace, *tok);
@@ -618,7 +618,7 @@ Token *preprocess2() {
             continue;
         }
 
-        if (consume("include", TK_IDENT)) {
+        if (consume("include", TK_IDENT, &token)) {
             Token *start = token;
             char *filename;
             char *path = read_include_filename(&filename);
@@ -631,7 +631,7 @@ Token *preprocess2() {
             continue;
         }
 
-        if ((tok = consume("if", TK_IDENT))) {
+        if ((tok = consume("if", TK_IDENT, &token))) {
             int64_t val = calc_const_expr_token(tok->next);
             push_cond_incl(tok, val);
             if (!val) {
@@ -640,7 +640,7 @@ Token *preprocess2() {
             continue;
         }
 
-        if ((tok = consume("elif", TK_IDENT))) {
+        if ((tok = consume("elif", TK_IDENT, &token))) {
             int64_t val = calc_const_expr_token(tok->next);
             if (!cond_incl || cond_incl->ctx == IN_ELSE) {
                 error_tok(tok, "対応する#ifがありません");
@@ -651,11 +651,13 @@ Token *preprocess2() {
                 token = skip_cond_incl();
             } else if (val) {
                 cond_incl->included = true;
+            } else {
+                token = skip_cond_incl();
             }
             continue;
         }
 
-        if ((tok = consume("else", TK_IDENT))) {
+        if ((tok = consume("else", TK_IDENT, &token))) {
             if (!cond_incl || cond_incl->ctx == IN_ELSE) {
                 error_tok(tok, "対応する#ifがありません");
             }
@@ -667,7 +669,7 @@ Token *preprocess2() {
             continue;
         }
 
-        if ((tok = consume("endif", TK_IDENT))) {
+        if ((tok = consume("endif", TK_IDENT, &token))) {
             if (!cond_incl) {
                 error_tok(tok, "対応する#ifがありません");
             }
@@ -676,7 +678,7 @@ Token *preprocess2() {
             continue;
         }
 
-        if ((tok = consume("ifdef", TK_IDENT))) {
+        if ((tok = consume("ifdef", TK_IDENT, &token))) {
             Macro *m = find_macro(token);
             token = token->next;
             push_cond_incl(tok, m);
@@ -686,7 +688,7 @@ Token *preprocess2() {
             continue;
         }
 
-        if ((tok = consume("ifndef", TK_IDENT))) {
+        if ((tok = consume("ifndef", TK_IDENT, &token))) {
             Macro *m = find_macro(token);
             token = token->next;
             push_cond_incl(tok, !m);
@@ -696,14 +698,15 @@ Token *preprocess2() {
             continue;
         }
 
-        if (consume("define", TK_IDENT)) {
+        if (consume("define", TK_IDENT, &token)) {
             bool is_objlike = true;
             bool is_variadic = false;
             Token *name = token;
             MacroParam *params = NULL;
 
             token = token->next;
-            if (consume("(", TK_RESERVED)) {
+            if (equal("(", TK_RESERVED, token) && !token->has_space) {
+                token = token->next;
                 params = read_params(&is_variadic);
                 is_objlike = false;
             }
@@ -722,13 +725,13 @@ Token *preprocess2() {
             continue;
         }
 
-        if ((tok = consume("undef", TK_IDENT))) {
+        if ((tok = consume("undef", TK_IDENT, &token))) {
             hashmap_delete(macros, tok->next->loc, tok->next->len);
             token = token->next;
             continue;
         }
 
-        if ((tok = consume("error", TK_IDENT))) {
+        if ((tok = consume("error", TK_IDENT, &token))) {
             error_tok(tok, "#error");
         }
 
