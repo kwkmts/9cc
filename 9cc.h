@@ -88,7 +88,7 @@ struct Type {
     Type *base;  // ポインタ,配列,TY_PSEUDO_*において使われる
 
     ReturnType *ret; // 関数型の戻り値のデータ型
-    List params; // 関数型のパラメータのデータ型(TypeIdentPairのリスト)
+    List params;     // 関数型のパラメータのデータ型(TypeIdentPairのリスト)
     bool is_variadic;
 
     bool is_const; // const修飾子の有無
@@ -141,6 +141,7 @@ struct Token {
     bool at_bol;      // 行頭かどうか
     bool has_space;   // トークンの前に空白があるかどうか
     Hideset *hideset; // マクロ展開時に使われる
+    Token *origin;    // マクロ展開元のトークン
 };
 
 extern File **input_files;

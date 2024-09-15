@@ -20,11 +20,14 @@ static CondIncl *cond_incl;
 
 typedef struct MacroParam MacroParam;
 
+typedef Token *(*MacroHandler)(Token *);
+
 typedef struct {
     enum { OBJLIKE, FUNCLIKE } kind;
     Token *body;
     MacroParam *params;
     bool is_variadic;
+    MacroHandler handler;
 } Macro;
 
 struct MacroParam {
@@ -525,6 +528,13 @@ static bool expand_macro(Token **tok) {
         return false;
     }
 
+    if (m->handler) {
+        Token *next = (*tok)->next;
+        *tok = m->handler(*tok);
+        (*tok)->next = next;
+        return true;
+    }
+
     Hideset *hs = hideset_union((*tok)->hideset, hideset_new(get_str(*tok)));
 
     // 一旦`#define M xxx`のxxxのトークンを複製しTokenリスト`replace`に保存する
@@ -535,6 +545,7 @@ static bool expand_macro(Token **tok) {
         for (Token *t = m->body; !t->at_bol && !at_eof(t); t = t->next) {
             cur = cur->next = copy_token(t);
             cur->hideset = hideset_union(cur->hideset, hs);
+            cur->origin = *tok;
         }
         cur->next = eof_token;
         replace = head.next;
@@ -569,6 +580,36 @@ void define_macro(char *name, char *buf) {
     hashmap_put(macros, name, (int)strlen(name), m);
 }
 
+void add_builtin_macros(char *name, MacroHandler handler) {
+    Macro *m = calloc(1, sizeof(Macro));
+    m->kind = OBJLIKE;
+    m->handler = handler;
+
+    hashmap_put(macros, name, (int)strlen(name), m);
+}
+
+Token *file_macro_handler(Token *tok) {
+    Token *t = tok;
+    for (; t->origin; t = t->origin) {
+    }
+
+    char *file = calloc(strlen(t->file->name) + 3, sizeof(char));
+    sprintf(file, "\"%s\"", t->file->name);
+    return tokenize(new_file(t->file->name, file, t->file->number));
+}
+
+Token *line_macro_handler(Token *tok) {
+    Token *t = tok;
+    for (; t->origin; t = t->origin) {
+    }
+
+    char line[11] = {};
+    sprintf(line, "%d", t->line_no);
+    Token *line_tok = tokenize(new_file(t->file->name, line, t->file->number));
+    convert_numbers(line_tok);
+    return line_tok;
+}
+
 void init_macros() {
     define_macro("__STDC__", "1");
     define_macro("__STDC_HOSTED__", "1");
@@ -599,6 +640,9 @@ void init_macros() {
     define_macro("__amd64__", "1");
     define_macro("__x86_64", "1");
     define_macro("__x86_64__", "1");
+
+    add_builtin_macros("__FILE__", file_macro_handler);
+    add_builtin_macros("__LINE__", line_macro_handler);
 }
 
 Token *preprocess2() {

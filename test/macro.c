@@ -4,6 +4,11 @@ int strcmp(const char *, const char *);
 
 #include "include1.h"
 
+char *main_filename1 = __FILE__;
+int main_line1 = __LINE__;
+#define LINE() __LINE__
+int main_line2 = LINE();
+
 #
 /**/ #
 
@@ -285,6 +290,12 @@ int main() {
 #define CONCAT(x,y) x##y
     assert(5, ({ int f0zz=5; CONCAT(f,0zz); }), "({ int f0zz=5; CONCAT(f,0zz); })");
     assert(5, ({ CONCAT(4,.57) + 0.5; }), "({ CONCAT(4,.57) + 0.5; })");
+
+    assert(0, strcmp(main_filename1, "test/macro.c"), "strcmp(main_filename1, \"test/macro.c\")");
+    assert(8, main_line1, "main_line1");
+    assert(10, main_line2, "main_line2");
+    assert(0, strcmp(include1_filename, "test/include1.h"), "strcmp(include1_filename, \"test/include1.h\")");
+    assert(6, include1_line, "include1_line");
 
     return 0;
 }
